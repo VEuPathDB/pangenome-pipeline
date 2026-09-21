@@ -124,11 +124,6 @@ Scripts, in the order they run:
    **Before or after Liftoff.** This pipeline runs InterProScan **before** Liftoff, on each genome's
    own original annotation (this step). The alternative is to run it **after** Liftoff, on the
    transferred/final annotation: Evelina's pipeline works that way, using her
-   `inject_interpro_into_gff.py`. That is a different problem, because after Liftoff a gene's protein
-   may come from another genome, so the script first has to work out which genome each transferred
-   gene's protein actually came from before it can look up its domain evidence. Running it before
-   Liftoff, as here, avoids that: a gene's protein always belongs to its own genome, so there is no
-   such resolution to do. If you would rather run InterProScan after Liftoff, you need her
-   `inject_interpro_into_gff.py`, which is **not** part of this repository.
+   `inject_interpro_into_gff.py`.
 
 [Back to top level](../README.md)

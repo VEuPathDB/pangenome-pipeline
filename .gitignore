@@ -9,7 +9,6 @@ node_modules/
 06_GET_PANGENES/
 07_Post_GET_PANGENES_adjusting/
 08_Pangenome_Visualisation/
-Alternative_Get_PanLoci_pipeline/
 
 # A colleague's own scripts, kept locally for reference only (not ours to publish)
 04_InterProScan/scripts/reference_colleague_scripts/
