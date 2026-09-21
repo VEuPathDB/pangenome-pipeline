@@ -1,7 +1,5 @@
 # 04 – InterProScan
 
-> ⚠️ **Not reviewed yet** — scripts adapted from Evelina's InterProScan pipeline but not yet run on this project's data.
-
 ***Purpose:*** Make sure every genome carries InterPro/PFAM protein-domain annotation in its
 own original GFF, so that domain evidence can be used consistently to validate gene models
 later in the pipeline.
@@ -123,13 +121,14 @@ Scripts, in the order they run:
    Log line per genome: how many CDS lines had old evidence stripped, how many got fresh
    evidence, and the match percentage — check this before trusting the output for a genome.
 
-   **Not the same problem as `inject_interpro_into_gff.py`** (Evelina's script, see below) —
-   that one runs *after* step 05's all-x-all Liftoff build, and has to resolve which genome a
-   transferred gene's protein actually came from before it can look up its domain evidence.
-   Here, before any transfer has happened, a gene's protein always belongs to its own genome,
-   so there's no such resolution to do.
-
-Evelina's original scripts (including her `inject_interpro_into_gff.py`, relevant to step 05, not this
-step) are not part of this repository.
+   **Before or after Liftoff.** This pipeline runs InterProScan **before** Liftoff, on each genome's
+   own original annotation (this step). The alternative is to run it **after** Liftoff, on the
+   transferred/final annotation: Evelina's pipeline works that way, using her
+   `inject_interpro_into_gff.py`. That is a different problem, because after Liftoff a gene's protein
+   may come from another genome, so the script first has to work out which genome each transferred
+   gene's protein actually came from before it can look up its domain evidence. Running it before
+   Liftoff, as here, avoids that: a gene's protein always belongs to its own genome, so there is no
+   such resolution to do. If you would rather run InterProScan after Liftoff, you need her
+   `inject_interpro_into_gff.py`, which is **not** part of this repository.
 
 [Back to top level](../README.md)
