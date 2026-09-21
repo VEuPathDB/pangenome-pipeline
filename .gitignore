@@ -1,0 +1,15 @@
+site/
+.venv/
+__pycache__/
+.DS_Store
+node_modules/
+
+# Not published yet - steps 05 onwards, added once step 05 is finalised
+05_Cross-genome_annotation_integration/
+06_GET_PANGENES/
+07_Post_GET_PANGENES_adjusting/
+08_Pangenome_Visualisation/
+Alternative_Get_PanLoci_pipeline/
+
+# A colleague's own scripts, kept locally for reference only (not ours to publish)
+04_InterProScan/scripts/reference_colleague_scripts/
