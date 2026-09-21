@@ -25,8 +25,6 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 | [07 – Post-GET_PANGENES adjusting](07_Post_GET_PANGENES_adjusting/README.md) | GET_PANGENES sometimes merges two adjacent genes into one pangene call. This step is to understand them and separate to distinct pangenes when necessary.   |
 
 
-> **Status:** steps 01-04 are documented and published here. Steps 05-08 and the alternative pipeline
-> (linked below) will be added once step 05 is finalised.
 
 ## Steps
 
@@ -59,7 +57,7 @@ on, so its step folders sit directly under it, alongside your own `genomes/`,
 `gff_originals/`, and `genome_order.txt`:
 
 ```bash
-git clone <this-repo-url> <project>/
+git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 ```
 
 ```
