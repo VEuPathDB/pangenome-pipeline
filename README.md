@@ -40,6 +40,22 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 
 ---
 
+## Pangenome analysis reports
+
+Results of this pipeline for each species analysed so far. These are curated reports (the full
+technical write-up plus the figures/tables it references) - the full working data behind them
+(raw assemblies, intermediate GFFs, InterProScan/Liftoff output, etc.) is not published here, as
+it runs from hundreds of MB to several GB per species.
+
+- **_Aspergillus fumigatus_**
+  - [Summary](results/Afum/SUMMARY.md)
+  - [Full report](results/Afum/README.md)
+- **_Toxoplasma gondii_**
+  - [Summary](results/Tgondii/SUMMARY.md)
+  - [Full report](results/Tgondii/README.md)
+
+---
+
 ## Alternative Get-PanLoci Pipeline
 
 GET_PANGENES calls pangenes from annotated gene models, so its results are bounded by annotation quality — the reason steps 01–05 exist. The [Alternative Get-PanLoci Pipeline](Alternative_Get_PanLoci_pipeline/README.md) takes a different approach for cases where annotation is inconsistent or missing across the panel: it builds a whole-genome alignment with Cactus and uses `halLiftover` to project each **panlocus** (a genomic interval, not necessarily an annotated gene) across every genome, then validates each transfer at the DNA sequence level with `minimap2`, independent of whether the target strain has a gene call there. It runs as its own pipeline rather than as a step in the sequence above.
