@@ -4,10 +4,9 @@ __pycache__/
 .DS_Store
 node_modules/
 
-# Not published yet - steps 05 onwards, added once step 05 is finalised. Leading slash anchors
+# Not published yet - steps 06 onwards, added once each is finalised. Leading slash anchors
 # each pattern to this repo's root, so it does NOT also match e.g. results/Tgondii/05_.../ -
 # the curated assets a species report links to under that same step-folder name.
-/05_Cross-genome_annotation_integration/
 /06_GET_PANGENES/
 /07_Post_GET_PANGENES_adjusting/
 /08_Pangenome_Visualisation/
