@@ -2,6 +2,11 @@
 
 This repository documents the **pangenome analysis workflow**. The pipeline consists of several steps, each with its own `README.md` and a `scripts/` folder containing the associated codes.
 
+**Internal document.** This is primarily an internal working document: the scripts are mostly
+SLURM scripts, including code already adapted for our shared containers/installations. They
+will eventually need editing to add paths to environments that aren't shared. 
+
+
 Most pangenome tools call pangenes by
 **sequence-similarity clustering**: throw every protein from every genome into one pool,
 cluster by similarity, and each cluster becomes one pangene. One of the main issues with the clustering method is that it cannot separate paralogs properly while GET_PANGENES, because it uses the synteny information, paralogs will be considered independent pangenes.
@@ -61,10 +66,6 @@ it runs from hundreds of MB to several GB per species.
 GET_PANGENES calls pangenes from annotated gene models, so its results are bounded by annotation quality — the reason steps 01–05 exist. The [Alternative Get-PanLoci Pipeline](Alternative_Get_PanLoci_pipeline/README.md) takes a different approach for cases where annotation is inconsistent or missing across the panel: it builds a whole-genome alignment with Cactus and uses `halLiftover` to project each **panlocus** (a genomic interval, not necessarily an annotated gene) across every genome, then validates each transfer at the DNA sequence level with `minimap2`, independent of whether the target strain has a gene call there. It runs as its own pipeline rather than as a step in the sequence above.
 
 ---
-
-**Internal document.** This is primarily an internal working document: the scripts are mostly
-SLURM scripts, including code already adapted for our shared containers/installations. They
-will eventually need editing to add paths to environments that aren't shared.
 
 ## Getting the pipeline into a project
 
