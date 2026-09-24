@@ -1,7 +1,5 @@
 # 06 – GET_PANGENES pipeline
 
-> ⚠️ **Not reviewed yet** — draft content, not yet checked against this project's own runs.
-
 ***Purpose***: Generate the pangenes from the annotated genomes.
 
 From the [GET_PANGENES paper](https://link.springer.com/article/10.1186/s13059-023-03071-z):
@@ -38,6 +36,16 @@ filename the way `get_pangenes` expects, then run `get_pangenes` itself.
 > [step 05's step 3](../05_Cross-genome_annotation_integration/README.md#step-3-prepare-the-gffs-for-liftoff),
 > so `get_pangenes` never sees them as candidates, without needing any `source`-column retag.
 
+
+## Dependencies
+
+| Program | Used by | Suggestion |
+|---|---|---|
+| bash (`ln`) | Step 1 | nothing to install |
+| get_pangenes (with its bundled Perl/Python and bedtools) | Step 2 | micromamba env (`get_pangenes` here), see [Installing get_pangenes](#installing-get_pangenes) |
+
+The Step 2 scripts read the environment's `bin/` directory from `GET_PANGENES_ENV` at the top of
+each script - edit that line to point to your own.
 
 ## Steps
 
@@ -105,6 +113,13 @@ Input: each genome's `<genome>_for_get_pangenes.gff` + matching `.fna`, from ste
 Same split as step 1 - each variant reads its own `INPUT_DIR` and never touches the other's:
 [`scripts/run_get_pangenes_7a_job.sh`](scripts/run_get_pangenes_7a_job.sh) ·
 [`scripts/run_get_pangenes_7b_job.sh`](scripts/run_get_pangenes_7b_job.sh).
+
+#### Dependencies
+
+- **get_pangenes**, from the micromamba environment set in `GET_PANGENES_ENV`. The script puts
+  that environment's `bin/` on the `PATH` and uses its `get_pangenes.pl`, its bundled Python and
+  its `bedtools`. It also clears any `PERL5LIB`-style variables first so Perl libraries from other
+  environments do not get mixed in.
 
 #### What you need before starting
 
