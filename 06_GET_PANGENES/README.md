@@ -41,7 +41,6 @@ filename the way `get_pangenes` expects, then run `get_pangenes` itself.
 
 | Program | Used by | Suggestion |
 |---|---|---|
-| bash (`ln`) | Step 1 | nothing to install |
 | get_pangenes (with its bundled Perl/Python and bedtools) | Step 2 | micromamba env (`get_pangenes` here), see [Installing get_pangenes](#installing-get_pangenes) |
 
 The Step 2 scripts read the environment's `bin/` directory from `GET_PANGENES_ENV` at the top of
@@ -67,10 +66,6 @@ This step just symlinks both into place (no file is copied), one job, instant.
 so nothing stops you running `get_pangenes` on both and comparing the two pangene calls:
 [`scripts/link_for_get_pangenes_7a.slurm.sh`](scripts/link_for_get_pangenes_7a.slurm.sh) ·
 [`scripts/link_for_get_pangenes_7b.slurm.sh`](scripts/link_for_get_pangenes_7b.slurm.sh).
-
-#### Dependencies
-
-None - plain bash, no AGAT/Python/etc.
 
 #### What you need before starting
 
