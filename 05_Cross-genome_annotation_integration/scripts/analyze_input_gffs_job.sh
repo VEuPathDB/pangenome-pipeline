@@ -28,7 +28,7 @@ module purge
 export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
 export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
 eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate plots
+micromamba activate synteny
 ### END ADAPT ###
 set -u
 

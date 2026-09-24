@@ -51,11 +51,9 @@ from filter_final_annotation import ID_RE, PARENT_RE, _int_attr, _float_attr, _v
 REASON_CATEGORIES = [
     (r"^extra copy with no valid ORF", "extra copy: no valid ORF"),
     (r"^rescued transfer, Liftoff coverage", "rescued: below min coverage"),
-    (r"^overlaps the reference .* no protein domain", "overlap: vs. main, no domain"),
-    (r"has a protein domain, this one doesn't", "overlap: other side has a domain"),
-    (r"both are present in only 1 genome panel-wide", "overlap: both singleton (case 6)"),
-    (r"present in only 1 genome panel-wide", "overlap: one singleton (case 6)"),
-    (r"more panel-wide supported", "overlap: good-transfer/size tiebreak (case 6)"),
+    (r"overlaps the reference \(", "overlap: vs. main, no evidence"),
+    (r"has evidence;", "overlap: other side has evidence"),
+    (r"neither has evidence, \S+ more supported", "overlap: good-transfer/size tiebreak (neither has evidence)"),
 ]
 
 
@@ -285,7 +283,7 @@ def main():
         bottoms = [b + v for b, v in zip(bottoms, values)]
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
     ax.set_ylabel("Genes removed")
-    ax.legend(bbox_to_anchor=(1.02, 1), loc="upper left", fontsize=8)
+    ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.3), ncol=2, frameon=False)
     fig.tight_layout()
     fig.savefig(os.path.join(args.out_dir, "03_removal_reasons.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -302,7 +300,7 @@ def main():
         ax.set_title(title)
         ax.set_ylabel("CDS-overlapping pairs")
     plt.setp(axes[1].get_xticklabels(), rotation=45, ha="right")
-    axes[0].legend(loc="upper right")
+    axes[0].legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.2), ncol=3, frameon=False)
     fig.tight_layout()
     fig.savefig(os.path.join(args.out_dir, "04_overlap_severity.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
@@ -321,7 +319,7 @@ def main():
         ax.set_title(title)
         ax.set_ylabel("Genes")
     plt.setp(axes[1].get_xticklabels(), rotation=45, ha="right")
-    axes[0].legend(loc="upper right", fontsize=8)
+    axes[0].legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.25), ncol=3, frameon=False)
     fig.tight_layout()
     fig.savefig(os.path.join(args.out_dir, "05_source_composition.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)

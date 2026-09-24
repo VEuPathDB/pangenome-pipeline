@@ -47,6 +47,17 @@ genome's annotation with its own original annotation or the ones coming from oth
    - [7b. No filtering (tag, decide after get_pangenes)](#7b-no-filtering-tag-decide-after-get_pangenes)
 8. [Build each genome's final annotation (best model)](#step-8-build-each-genomes-final-annotation-best-model)
 
+## Dependencies
+
+| Program | Used by | Suggestion |
+|---|---|---|
+| AGAT | Step 2, Step 5 | micromamba env (`bioinfo` here) |
+| python3 (standard library only) | Step 3, Step 7a (filter itself), Step 7b | `module load python/3.11.9` (or any python3 on the PATH - nothing else needed) |
+| python3 + pandas + matplotlib | Step 1, Step 6, Step 7a (QC plot) | micromamba env (`synteny` here), already installed if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies) |
+| Liftoff | Step 4 | `module load liftoff` (or your cluster's own) |
+
+These are hardcoded in each script's `### ADAPT ###` block - edit that block to point to your
+own.
 
 ## Steps
 
@@ -357,67 +368,65 @@ sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/liftoff_all
 
 ### Step 5: Build each genome's final annotation (priority order)
 
-This step, and [Step 6](#step-6-built-annotation-check-if-using-step-5) and
-[Step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes) that follow it, decide, gene locus by gene
-locus, whose version of that gene to trust - by a strict priority order of sources. **Want a
-different methodology - deciding by whichever transferred gene model is individually
-best-supported, regardless of source? Skip straight to
+This is to construct the final GFF annotation of each genome - by a strict
+priority order of sources. [Step 6](#step-6-built-annotation-check-if-using-step-5) and
+[Step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes) are tied to this step.
+**Want a different methodology - deciding by whichever transferred gene model is individually
+best-supported, regardless of source? See
 [Step 8](#step-8-build-each-genomes-final-annotation-best-model)** - not written yet, so
 following it end to end isn't possible yet.
 
 Scripts: [`scripts/build_final_annotation_basic.sh`](scripts/build_final_annotation_basic.sh) ·
 [`scripts/build_final_annotation.sh`](scripts/build_final_annotation.sh) ·
 [`scripts/get_good_transfer_ids.py`](scripts/get_good_transfer_ids.py) ·
-[`scripts/check_overlapping_genes.py`](scripts/check_overlapping_genes.py) ·
 [`scripts/check_final_annotations_job.sh`](scripts/check_final_annotations_job.sh)
 
-**What this step does.** Building one genome's final annotation means deciding, gene locus
-by gene locus, whose version of that gene (if anyone's) to trust. This script does that by
-adding genes in a strict priority order, one source at a time - once a locus is filled by an
-earlier, more-trusted source, nothing added later can take it over or edit it. 
+The pipeline is built around AGAT's `agat_sp_complement_annotations.pl`, which only adds a
+source's genes if they don't overlap a CDS already placed by an earlier source in the same
+strand. We run it several times in a row, once per source, in priority order - each round
+complements whatever the previous rounds already placed, so what actually decides the outcome
+is the order the sources are added in.
 
 The **reference genome always goes first**, since by definition it's the annotation you trust
-most for the whole project. For
-every other genome, only the reference's genes that Liftoff could place *confidently* (we referred as **"good gene"**: a
-valid ORF, ≥90% coverage, ≥90% identity, and the primary copy, not a Liftoff-detected
-duplicate) become that starting layer, tagged `main`.
+most for the whole project - it's the **base GFF for round 1**: the reference's own Liftoff
+transfer onto this genome, filtered down to its **"good" transfers** (valid ORF, ≥90% coverage,
+≥90% identity, and the primary copy, not a Liftoff-detected duplicate) - tagged `main`. Every
+source that follows complements that base, one round at a time.
 
 Next, wherever `main` left a locus blank, the genome's own **original annotation** gets a
 chance to fill it in. This layer is tagged with the genome's own original source, e.g. `Genbank`.
 
 After that, every **other** genome in your list takes a turn too, in the order you listed
 them, twice over:
-- first, round 1, only with their own confident transfers - so no genome's
-weak evidence can occupy a locus before a stronger version from somewhere else gets a fair
-shot at it - tagged `good_<that genome>`. 
-- Only once *every* genome has had that first,
+- first, round 1, only with their own **good** transfers (the same valid-ORF/≥90%
+coverage/≥90% identity/primary-copy definition used for `main` above) - so no genome's weak
+evidence can occupy a locus before a stronger version from somewhere else gets a fair shot at
+it - tagged `good_<genome>`. 
+- Only once every genome has had that first,
 high-confidence turn does the process go around a second time (round 2), this time taking
-each genome's *entire* transfer regardless of quality - a last resort for whatever's still
-blank - tagged `rescued_<that genome>` (the reference's own leftovers go first here too).
+each genome's entire transfer regardless of quality - a last resort for whatever's still
+blank - tagged `rescued_<genome>` (the reference's own leftovers go first here too).
 Whatever's still blank after all of that just isn't in this genome's final annotation - no
 genome, including the reference, offered anything usable for that locus.
 
-```
-for the genome being built right now ("this genome"):
+```mermaid
+flowchart TD
+    Start(["Building this genome's final annotation"]) --> Ref{"Is this genome<br/>the reference?"}
+    Ref -->|yes| L1a["Layer 1: use its own annotation<br/>(no filtering needed)"]
+    Ref -->|no| L1b["Layer 1: only the reference's<br/>good Liftoff transfers"]
+    L1a --> T1(["tagged main"])
+    L1b --> T1
 
-  layer 1: the reference's genes
-       this genome IS the reference?  -> use its own annotation, no filtering needed
-       otherwise                      -> only the good Liftoff transfers
-     ─────────────────────────────────  tagged "main"
+    T1 --> L2["Layer 2: + this genome's own original annotation<br/>fills whatever Layer 1 left blank<br/>(skipped for the reference)"]
+    L2 --> T2(["tagged with its own source,<br/>e.g. Genbank"])
 
-  layer 2: + this genome's own original annotation, filling whatever layer 1 left blank
-     (skipped for the reference - layer 1 already used its own annotation)
-     ─────────────────────────────────  tagged with its own source, e.g. "Genbank"
+    T2 --> L3["Layer 3: + every OTHER genome, one at a time,<br/>in chosen order - only its good transfers,<br/>fills whatever's still blank"]
+    L3 --> T3(["tagged good_&lt;genome&gt;"])
 
-  layer 3: + every OTHER genome, one at a time, in your chosen order -
-           only its confident transfers, filling whatever's still blank
-     ─────────────────────────────────  tagged "good_<other genome>"
+    T3 --> L4["Layer 4: + every OTHER genome again, same order -<br/>now its full, unfiltered transfer,<br/>fills whatever's still blank<br/>(reference's leftovers first)"]
+    L4 --> T4(["tagged rescued_&lt;genome&gt;"])
 
-  layer 4: + every OTHER genome again, same order - now its full, UNFILTERED
-           transfer, filling whatever's still blank (reference's leftovers first)
-     ─────────────────────────────────  tagged "rescued_<other genome>"
-
-  = <this genome>_final_annotation.gff
+    T4 --> Final(["&lt;this genome&gt;_final_annotation.gff"])
 ```
 
 The result, `<genome>_final_annotation.gff` (one per genome), has one row's `source` value
@@ -441,25 +450,6 @@ never merges or reshapes an existing gene model.
   a different name.
 - **Python 3**, standard library only - nothing to install.
 
-#### What you need before starting
-
-- Every genome's own GFF, in one directory: **`gff_for_liftoff/`**, the output of
-  [prepare for Liftoff](#step-3-prepare-the-gffs-for-liftoff). This is the "original annotation" layer
-  described above, and it is the prepared version on purpose: it still contains every gene,
-  including the non-coding RNA genes (as `ncRNA_gene`/`tRNA_gene`), which Liftoff did not
-  transfer, so this layer is what puts each genome's own non-coding genes back into its final
-  annotation. Its gene types are already unified (`protein_coding_gene`) and the kill list is
-  already applied. The trade-off: it has no UTRs, same as the Liftoff layers. (To keep UTRs
-  instead, point `INPUT_DIR` at the GFFs from before the prepare step - but tRNAs typed plain
-  `gene` then stay `gene`, and the get_pangenes preparation cannot tell them from real genes.)
-- Your all-against-all Liftoff output (already done) - one
-  `<genome>_onto_<other>_liftoff.gff3_polished` file per ordered genome pair.
-- **The genome order** - decide which genome is the **reference** (the annotation you trust
-  most) and what order to check the rest in. This becomes `ORDER` in
-  `build_final_annotation_basic.sh` below - first name in the list = the reference. This
-  order also affects the *rest*: when two lower-priority genomes could both fill the same
-  gap, the one listed first wins (see above).
-
 #### Running it
 
 **Edit the settings at the top of `build_final_annotation_basic.sh`** (defaults are set for the
@@ -470,7 +460,7 @@ standard layout of this pipeline - `gff_for_liftoff/`, `liftoff_output/polished/
 | `INPUT_DIR` | `gff_for_liftoff` | Directory with every genome's own GFF - the prepared GFFs (step 3) |
 | `PAIRWISE_DIR` | `liftoff_output/polished` | Directory with your Liftoff output |
 | `OUTPUT_DIR` | `expanded_annotation` | Where to write the final annotations |
-| `ORDER` | `genome_order.txt` | Comma-separated genome names, **first one = the reference** you trust most (e.g. `"AF293,strain2,strain3"`), or a path to a file with one genome name per line |
+| `ORDER` | `genome_order.txt` | The same file from [step 01](../01_Genome_Selection_QC/README.md#6-the-genome-list-genome_ordertxt), reused as-is - no need to create a new one. Comma-separated genome names, **first one = the reference** you trust most (e.g. `"AF293,strain2,strain3"`), or a path to a file with one genome name per line |
 | `ORIGINAL_SUFFIX` | `.gff3` | Filename suffix for each genome's own GFF in `INPUT_DIR` (the prepare step always writes `.gff3`) |
 | `PAIR_SUFFIX` | `_liftoff.gff3_polished` | Filename suffix of the Liftoff output |
 | `MIN_COVERAGE` | `0.9` | Minimum Liftoff coverage for a transfer to count as "good" (round 1) instead of falling back to a low-confidence "rescue" (round 2) |
@@ -493,11 +483,16 @@ N=$(grep -c . genome_order.txt)
 sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
 ```
 
+#### Output, in `OUTPUT_DIR`
+
+| File | Shows |
+|---|---|
+| `<genome>_final_annotation.gff` | one independent file per genome - the final built annotation. Note that at this step the genome's own non-coding RNA genes (`ncRNA_gene`/`tRNA_gene`) are restored. This GFF has no UTRs are they were all removed by [step 3](#step-3-prepare-the-gffs-for-liftoff) |
+
 #### Checking it worked
 
 - `<OUTPUT_DIR>/<genome>_final_annotation.gff` should exist for every genome once the job
-  finishes - one independent file per genome, no merge step. To check all of them at once, run
-  from the project folder:
+  finishes. To check all of them at once, run from the project folder:
   ```bash
   bash 05_Cross-genome_annotation_integration/scripts/check_final_annotations_job.sh
   ```
@@ -509,32 +504,18 @@ sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final
 - `expanded_annotation/logs/build_final_annotation_<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error`
   lines at the top; one pair per genome when run as an array) has one `=== Genome N/total: <genome> ===` block per genome as it works through
   `ORDER`, and ends with `All genomes processed.` or an `ERROR:` line.
-- `<OUTPUT_DIR>/<genome>_overlaps.tsv` is a QC file listing overlapping gene pairs in that
-  genome's final annotation - not an error signal, just worth a look. Ready as soon as the build
-  finishes, one row per pair: strand, severity, overlap bp, and each gene's own ID, description,
-  source layer, coordinates, CDS length, domain evidence (`has_domain`) and valid-ORF status
-  (`valid_ORF`) - enough to judge a pair by hand without opening the GFF. `valid_ORF` is `NA`,
-  not `False`, for a gene that never went through Liftoff (the reference's own `main` genes, and
-  every genome's own original-annotation layer) - Liftoff never computed that flag for them, so
-  `False` would wrongly read as "checked and found invalid". Same-strand pairs are listed first,
-  since those "shouldn't normally happen" and are the most worth a look;
-  [step 6](#step-6-built-annotation-check-if-using-step-5)'s `cds_overlapping_pairs.tsv` has the same
-  information for every genome in one table.
 
 ### Step 6: Built annotation check (if using Step 5)
 
 > Written against this step's own [Step 5](#step-5-build-each-genomes-final-annotation-priority-order) output
 > specifically - its `source` tiers (`main`/`good_<genome>`/`rescued_<genome>`/own-annotation)
-> drive several of the checks below. [Step 8](#step-8-build-each-genomes-final-annotation-best-model)
-> (not written yet) picks each locus's source differently, so it will need its own version of
-> this step once it exists, not this one.
+> drive several of the checks below. 
 
 Scripts: [`scripts/plot_final_annotation_qc_job.sh`](scripts/plot_final_annotation_qc_job.sh) ·
 [`scripts/plot_final_annotation_qc.py`](scripts/plot_final_annotation_qc.py)
 
 Once every genome has its `_final_annotation.gff`, this gives a first look at the raw build's
 quality - before any filtering, which is [step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes).
-Sample output is in [`scripts/example_qc_plots/`](scripts/example_qc_plots/).
 
 **Edit the settings at the top of `plot_final_annotation_qc_job.sh`**:
 
@@ -546,7 +527,8 @@ Sample output is in [`scripts/example_qc_plots/`](scripts/example_qc_plots/).
 | `GENOME_SUFFIX` | `.gff3` | Filename suffix for each genome's own GFF in `GENOME_DIR` |
 | `OUT_DIR` | `final_annotation_qc_plots` | Where to write the plots and `summary.tsv` |
 
-It needs Python 3 + matplotlib; the job activates the `plots` micromamba environment, which has both.
+It needs Python 3 + matplotlib; the job activates the `synteny` micromamba environment, which
+has both (same env as [step 01](../01_Genome_Selection_QC/README.md#dependencies)).
 
 **Run** from the project folder. The job log goes to `final_annotation_qc_plots/logs/`, which has to
 exist before submitting (SLURM does not create it):
@@ -560,16 +542,18 @@ Produces, in `OUT_DIR` (`final_annotation_qc_plots/`):
 | File | Shows |
 |---|---|
 | `01_gene_counts.png` | protein-coding genes: own original annotation vs. this pipeline's output, per genome |
-| `02_valid_orf_rate.png` | % of genes with a valid ORF, per genome |
-| `03_extra_copies.png` | extra-copy genes, split by valid ORF, per genome |
-| `04_overlap_severity.png` | CDS-overlap severity (minor/substantial/contained), per genome |
-| `05_source_composition.png` | where the genes came from (`main`/original/`good_*`/`rescued_*`), per genome |
-| `06_overlap_strand.png` | the same pairs as `04_overlap_severity.png`, split same-strand vs opposite-strand instead of by severity |
-| `07_overlap_domain_support.png` | the same pairs as `04_overlap_severity.png`, split by domain evidence on both genes / one / neither |
-| `08_minor_overlap_position.png` | `minor`-severity pairs only (domain evidence not considered here), split by `flank`/`inside`/`single_exon` - see `minor_position` above |
-| `summary.tsv` | the numbers behind every plot above, one genome per row, plus two columns not in any plot: `n_same_strand_overlap`/`n_opposite_strand_overlap` - the same pairs behind `04_overlap_severity.png`/`06_overlap_strand.png` - and `n_genes_in_overlap`, the number of *distinct* genes involved in at least one of those pairs (a gene in 3 pairs counts once, so this is always ≤ `2 × n_overlap_pairs`) |
-| `extra_copy_genes.tsv` | every extra-copy gene behind `03_extra_copies.png` - genome, ID, description, location, source, `extra_copy_number`, `copy_num_ID` (groups every copy of the same locus), valid ORF, and Liftoff's own `coverage`/`sequence_ID` for that copy. Sorted per genome, most-duplicated locus first, so a genome standing out in the plot can be traced back to which genes are actually piling up copies |
-| `cds_overlapping_pairs.tsv` | one row per CDS-overlapping gene pair behind `04_overlap_severity.png`, across every genome - same columns as [step 1](#step-1-native-annotation-check)'s own `cds_overlapping_pairs.tsv` (strand, severity, overlap bp, each gene's ID/description/coordinates/CDS length/domain evidence), plus `gene1_valid_ORF`/`gene2_valid_ORF` (`NA`, not `False`, for a gene that never went through Liftoff - see [step 5](#step-5-build-each-genomes-final-annotation-priority-order)), `gene1_source`/`gene2_source` - which layer each half of the pair actually came from (`main`, its own original annotation, `good_<genome>`, `rescued_<genome>`) - and, for `minor`-severity pairs only, `minor_position` and `mentions_cytochrome` (see below) |
+| `02_extra_copies.png` | extra-copy genes, split by valid ORF, per genome |
+| `03_overlap_severity.png` | CDS-overlap severity (minor/substantial/contained), per genome |
+| `04_source_composition.png` | where the genes came from (`main`/original/`good_*`/`rescued_*`), per genome |
+| `05_overlap_strand.png` | the same pairs as `03_overlap_severity.png`, split same-strand vs opposite-strand instead of by severity |
+| `06_overlap_domain_support.png` | the same pairs as `03_overlap_severity.png`, split by domain evidence on both genes / one / neither |
+| `07_minor_overlap_position.png` | `minor`-severity pairs only (domain evidence not considered here), split by `flank`/`inside`/`single_exon` - see `minor_position` above |
+| `summary.tsv` | the numbers behind every plot above, one genome per row, plus two columns not in any plot: `n_same_strand_overlap`/`n_opposite_strand_overlap` - the same pairs behind `03_overlap_severity.png`/`05_overlap_strand.png` - and `n_genes_in_overlap`, the number of *distinct* genes involved in at least one of those pairs (a gene in 3 pairs counts once, so this is always ≤ `2 × n_overlap_pairs`) |
+| `extra_copy_genes.tsv` | every extra-copy gene behind `02_extra_copies.png` - genome, ID, description, location, source, `extra_copy_number`, `copy_num_ID` (groups every copy of the same locus), valid ORF, and Liftoff's own `coverage`/`sequence_ID` for that copy. Sorted per genome, most-duplicated locus first, so a genome standing out in the plot can be traced back to which genes are actually piling up copies |
+| `cds_overlapping_pairs.tsv` | one row per CDS-overlapping gene pair behind `03_overlap_severity.png`, across every genome - same columns as [step 1](#step-1-native-annotation-check)'s own `cds_overlapping_pairs.tsv` (strand, severity, overlap bp, each gene's ID/description/coordinates/CDS length/domain evidence), plus `gene1_valid_ORF`/`gene2_valid_ORF` (`NA`, not `False`, for a gene that never went through Liftoff - see [step 5](#step-5-build-each-genomes-final-annotation-priority-order)), `gene1_source`/`gene2_source` - which layer each half of the pair actually came from (`main`, its own original annotation, `good_<genome>`, `rescued_<genome>`) - and, for `minor`-severity pairs only, `minor_position` (see below) |
+| `overlap_domain_summary.tsv` | per genome: of the pairs in `cds_overlapping_pairs.tsv`, how many have InterPro/PFAM domain evidence on both genes, on only one, or on neither (count and %), plus `n_genes_in_overlap` again for convenience |
+___
+`07_minor_overlap_position.png` and the `minor_position` column above are based on this:
 
 **`minor_position` - where a `minor` overlap sits in the bigger gene's own exon structure, not
 just how big it is.** Blank for `substantial`/`contained` pairs (only computed for `minor`, where
@@ -581,187 +565,78 @@ the position matters most - see below). One of:
 - `inside` - the overlap sits on one of the bigger gene's *internal* CDS segments, meaning the
   smaller gene's own body mostly sits inside one of the bigger gene's introns and only its CDS
   reaches into a middle exon. Much harder to explain as boundary noise - **the smaller gene is
-  more likely spurious**, *except* when `mentions_cytochrome` is true (see next) - a
-  cytochrome-named gene sitting inside another gene's intron looks like the same NUMT pattern
-  discussed above, a plausible later insertion into an existing intron, not a bad gene call.
-- `single_exon` - the bigger gene has only one CDS segment, so there is no intron to be "inside"
-  of - the flank/inside distinction doesn't apply.
+  more likely spurious**.
+- `single_exon` - the bigger gene has only one CDS segment (no introns). `flank`/`inside` isn't
+  a meaningful distinction here: without an intron, there's no "middle" of the gene to be
+  buried inside of, separate from its "edge".
+___
+**`03_overlap_severity.png`
 
-`mentions_cytochrome` - `true` if either gene's own `description=`/`product=` contains
-"cytochrome" (case-insensitive) - flags the exception case above without having to grep the
-description column by hand.
-| `overlap_domain_summary.tsv` | per genome: of the pairs in `cds_overlapping_pairs.tsv`, how many have InterPro/PFAM domain evidence on both genes, on only one, or on neither (count and %), plus `n_genes_in_overlap` again for convenience |
+AGAT's complement step ([step 5](#step-5-build-each-genomes-final-annotation-priority-order))
+only ever rejects a new gene for colliding with a **same-strand** CDS already placed. So a same-strand pair always means overlapping genes in the same strand are coming from the origi`main` annotation. Opposite-strand pairs are the expected. 
 
-**`04_overlap_severity.png`'s pair count is expected to be far higher than the pre-Liftoff baseline
-([step 1](#step-1-native-annotation-check)'s `06_cds_overlap_severity.png`).** The severity rule
-itself is identical code (`segments_overlap_bp`, the smaller gene's own CDS as the denominator,
-the same 20%/80% thresholds), both strands combined the same way - so the two numbers are directly
-comparable, on purpose. But what they measure is not the same *scale* of thing: the pre-Liftoff
-count is one genome's own single-source annotation checked against itself, while the post-Liftoff
-count is that genome's coordinate system carrying transferred copies from every other genome in the
-panel, layered on top of each other. `summary.tsv`'s `n_same_strand_overlap`/`n_opposite_strand_overlap`
-columns show why: AGAT's own complement step (used to build each layer in
-[step 5](#step-5-build-each-genomes-final-annotation-priority-order)) only ever rejects a new gene for colliding
-with a **same-strand** CDS already placed - an opposite-strand collision, or two genes added in the
-same layer that collide with each other, are never blocked at that stage. Same-strand pairs are the
-ones that "shouldn't normally happen" (same convention as `check_overlapping_genes.py`'s own output)
-and are worth checking against `n_same_strand_overlap` per genome; a high opposite-strand count is
-the expected, still-unfiltered result of combining many genomes' gene calls, and is exactly what
-[step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes)'s filter resolves next.
-
-One thing worth knowing before reading `02_valid_orf_rate.png`: the reference genome's own
-`main` genes never go through Liftoff (they're used as-is), so they never get the
-`valid_ORF=` flag Liftoff computes - the reference's own bar in that plot will look very low
-as a result. That's not a real quality problem, just this metric not applying to genes that
-were never transferred.
-
-**How `04_overlap_severity.png`'s minor/substantial/contained categories work.** A pair only
-counts as "overlapping" here if their **CDS** (coding sequence) actually collides - two genes
-whose UTRs touch, or whose introns overlap another gene's body without any CDS-to-CDS
-collision, don't count. For a gene with more than one exon, every exon's CDS segment is
-checked against the other gene's, and the overlap is the *total* bp shared across all of
-them combined - not just whether the two genes' start-end spans overlap (a real overlap can
-sit in just one exon while the rest of a multi-exon gene sits nearby without touching
-anything).
-
-The severity itself is the fraction of the **smaller** gene's own CDS length that the
-overlap covers:
-
-- **contained**: overlap ≥ 80% of the smaller gene's CDS - one gene is essentially sitting
-  inside the other.
-- **substantial**: 20-80%.
-- **minor**: < 20%.
-
-Sized against the smaller gene on purpose, not the bigger one - a small worked example: a
-438bp overlap is only 22% of a 1986bp gene, but 100% of a 438bp one. Sizing against the
-bigger gene alone would make that pair look "minor" when one of the two genes is entirely
-swallowed by the overlap.
-
-If a gene has more than one **transcript** (isoform - different from exons above), only its
-longest-CDS isoform is used for this measurement, so one gene contributes one severity value
-per pair, not one per isoform. In practice this barely matters for this project's genomes -
-essentially all genes here have exactly one isoform.
+**How minor/substantial/contained works.** Only CDS-to-CDS collisions count (UTR/intron-only
+overlap doesn't); for multi-exon genes, overlap bp is summed across every exon. Severity is the
+overlap as a % of the **smaller** gene's own CDS, sized against the smaller one on purpose -
+same rule as step 1: **contained** ≥ 80%, **substantial** 20-80%, **minor** < 20%. For a gene
+with multiple isoforms, only the longest-CDS one is used.
+___
 
 ### Step 7: Final annotation (if using Step 5, pre-get_pangenes)
 
-> Both 7a and 7b below are written against [Step 5](#step-5-build-each-genomes-final-annotation-priority-order)'s
-> output specifically - the case-based overlap rule leans on its `main`/`good_<genome>`/
-> `rescued_<genome>`/own-annotation source tiers throughout. This isn't
-> [Step 8](#step-8-build-each-genomes-final-annotation-best-model)'s equivalent - it has no
-> source-tier concept to lean on, so its own overlap-resolution rule (not written yet) will be
-> entirely different.
 
-Two alternative approaches, both starting from [step 6](#step-6-built-annotation-check-if-using-step-5)'s
-`<genome>_final_annotation.gff` files - they disagree on *when* to decide a gene is spurious.
-7a decides now, before `get_pangenes` runs, using only what's knowable from one genome's own
-build. 7b decides nothing yet - it tags every gene with what it overlaps and passes everything
-through unfiltered, deferring the call to after `get_pangenes` has run, when a pangene's real
-presence/absence pattern across the whole panel is known - much stronger evidence than anything
-computable from a single genome's GFF (see 7b below for why this matters).
+Building each genome's final annotation this way (Step 5) is expected to include some genes
+that aren't well supported - extra copies from Liftoff's `-copies` search, and genes
+that overlap another gene's CDS in ways that shouldn't happen (see
+[Background](#background-what-needs-resolving) below). Two alternative approaches resolve this,
+both starting from [step 6](#step-6-built-annotation-check-if-using-step-5)'s
+`<genome>_final_annotation.gff` files:
+
+- **7a** filters these unsupported genes out now, before `get_pangenes` runs, using coverage,
+  identity, overlap severity, and domain evidence. The signals are meaningful, but the cutoffs
+  are still arbitrary choices, so it can still keep a spurious gene or drop a real one.
+- **7b** doesn't filter anything yet - it tags every gene with main information and passes
+  everything through unfiltered, leaving that filtering decision for after `get_pangenes` has
+  run, when a pangene's real presence/absence pattern across the whole panel is known.
 
 #### Background: what needs resolving
 
 ##### Extra copies
-With the approach above, we end up transferring all genes from all genomes to every other
-genome. When the parameter `-copy` is used, we might see a high number of extra copies. We need
-to decide if we trust them. On this project's real *T. gondii* data, extra copies turned out to
-be **genuinely enriched on short contigs by density** (genes/Mb - tens of times higher on
-10-100kb contigs than on chromosome-scale ones), but that doesn't mean every extra copy on a
-large contig is trustworthy either, or every one on a small contig isn't: real tandem gene-family
-arrays turn up sitting on ordinary chromosome-scale contigs too (e.g. a 21-copy cluster on one
-*T. gondii* strain's chromosome IX, coverage/identity ~99-100% but only 1 of the 21 copies had a
-valid ORF - the rest read as pseudogenized repeat units). Contig size and domain presence on
-their own don't reliably separate a real extra copy from a spurious one - a **valid ORF is the
-one unambiguous signal**, so that's what this step filters on: extra-copy genes (`extra_copy_number
-> 0`) are kept only if they have a valid ORF, dropped otherwise, regardless of contig size or
-domain evidence.
+With the all-vs-all approach above, every gene from every genome gets transferred onto every
+other genome. With `-copies` enabled, we can see a high number of extra copies - and some
+genomes end up with far more than others. These extra copies might be real genes that were
+never annotated in the original source (Note that every extra-copy gene is only ever added in
+the rescue round, meaning the gene was not originally annotated). A genome with much more copies than the rest might also
+be suspicious - it could be an assembly artefact, for example. Eliminating only the extra copies
+with invalid ORFs (as the current rule in 7b) doesn't seem like enough; ideally these should be investigated case by case
+before deciding on a filtering rule.
 
-##### Rescued-coverage floor
 
-`rescued_<strain>` is this pipeline's lowest-confidence source tier - round 2 of
-[Step 5](#step-5-build-each-genomes-final-annotation-priority-order)'s build, a strain's *entire* transfer
-added unfiltered as a last resort, unlike `good_<strain>` which already had to clear a
-coverage/identity bar to get in. Before anything else, every `rescued_<strain>` gene below
-`--min-rescued-coverage` (default 0.5) Liftoff coverage is dropped outright - the one basic
-quality floor that tier gets, independent of ORF/domain/overlap status.
+##### Rescued genes
+
+The last round of complementation in Step 5's build adds every gene that isn't a "good gene" -
+unfiltered, tagged `rescued_<genome>`. Since a "good gene" is a stringent bar 
+(≥90% coverage, ≥90% identity, valid ORF, primary copy),
+a "bad gene" actually spans a huge range of quality - some are nearly as strong as a good gene,
+just short of the cutoff; others are barely more than noise. Ideally, we'd want to eliminate the very bad ones. As a first step, every `rescued_<genome>`
+gene below `--min-rescued-coverage` (default 0.5) 
 
 ##### Overlapping genes
 
 We observed that after obtaining the final annotation, several genes are found to be
 overlapping. Overlaps under a minimum bp floor (default 20bp) are treated as boundary-rounding
-noise, not real overlaps, and ignored entirely - most of these turned out, on inspection of
-this project's own real data, to be 1-2bp touches from Liftoff's coordinate polishing. Of what's
+noise, not real overlaps, and ignored entirely. Of what's
 left, severity is scored against whichever gene's CDS is smaller (sizing against the bigger
-gene alone can make a real problem look tiny): **minor** (<20% of the smaller gene's own CDS) vs.
-**substantial**/**contained** (≥20%).
-
-A **minor** overlap only gets kept automatically if it's also **flank** - it only touches the
-bigger gene's outermost CDS segment, not an internal one, so the two gene models most likely
-just disagree at the boundary and both genes are probably real (same `flank`/`inside`
-classification as [step 6](#step-6-built-annotation-check-if-using-step-5)'s `minor_position` column). A
-minor overlap that's **inside** (touches an internal CDS segment - i.e. the smaller gene mostly
-sits in what's actually an intron) or **single_exon** doesn't get that pass - it's still more
-likely a spurious call, so it's resolved the same as substantial/contained, see the rule below.
-
-**Known limitation - "protein domain" is only as good as the source annotation.** Domain
-evidence is detected purely by scanning a gene's own CDS lines for an InterPro/PFAM hit in
-`Dbxref=` - nothing more, no external database lookup. If a genome's *original* annotation
-never recorded that field at all, every gene sourced from that genome (`main`,
-`good_<that genome>`, `rescued_<that genome>`) will test as having no domain,
-unconditionally - not because those genes lack real domains, but because that annotation
-source never recorded them. This project's own reference (AF293/FungiDB) is exactly this
-case: 0 of its ~32,000 CDS lines carry an InterPro/PFAM hit. Measured effect on this
-project's own 15-genome run: that genome's extra-copy genes on long contigs are always
-dropped (the "valid ORF AND domain" rule in the filter step can never be satisfied), and its
-genes always lose a non-`main` overlap dispute against a domain-annotated genome's gene unless
-the source-tier/size tiebreak happens to save them - 16 real `rescued_AF293` genes were
-dropped this way. That is why [step 04 - InterProScan](../04_InterProScan/README.md) runs
-before everything else in this step: it writes real domain evidence into every genome's GFF, so
-the rule works from each genome's own InterProScan result rather than whatever the source
-annotation happened to record. **[Step 1's native annotation check](#step-1-native-annotation-check)**, run on
-step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_domain`/
-`protein_coding_without_domain` columns) how much domain evidence each genome actually has.
-
-**Overlap-resolution rule.** Every overlapping pair falls into exactly one of six cases,
-decided by whether each gene is `main` and whether it carries domain evidence:
-
-| # | Case | Rule |
-|---|---|---|
-| 1 | `main` × `main` | keep both |
-| 2 | `main` × other, other **has** a domain | keep both |
-| 3 | `main` × other, other has **no** domain | keep only `main` |
-| 4 | other × other, **exactly one** has a domain | keep only the one with a domain |
-| 5 | other × other, **both** have a domain | keep both |
-| 6 | other × other, **neither** has a domain | see below - no domain evidence anywhere to decide by |
-
-Cases 1-5 need nothing beyond domain evidence (or being `main`). Case 6 - domain evidence
-exhausted on both sides - falls back to how well-supported each gene is **across the whole
-panel**, not just this one genome:
-- a gene present in only 1 genome of the whole `--strains` panel is dropped outright - a
-  single occurrence with no domain and no reference backing is the weakest possible support
-  (checked against this project's real *T. gondii* data: this is also exactly the profile of
-  most genuine strain-private gene calls, so this is a soft call, not a certainty);
-- between two genes both present in >1 genome, keep whichever has more `good_<genome>`-sourced
-  occurrences across the whole panel (a high-confidence Liftoff transfer is stronger support
-  than raw presence count, which also counts low-confidence `rescued_<genome>` copies); on a
-  tie, keep the one with the longer CDS.
-
-On the *T. gondii* panel's real data (15 genomes, `--min-overlap-bp 20`): 7,777 overlapping
-pairs total, of which 1,122 are case 6. Of the 914 distinct genes involved, this rule drops 672
-(present in only 1 genome) and keeps 242 (present in >1, won on `good_<genome>` count or CDS
-length).
-
-**Known limitation - domain evidence on a transferred gene reflects the *original* gene, not
-necessarily the transferred copy.** InterProScan (step 04) only ever runs on each genome's own
-original proteins. A `good_<X>`/`rescued_<X>` gene's domain evidence is looked up from its
-*source* genome's original protein, by `protein_id` - never re-checked against the transferred
-copy's own sequence as it ended up in this genome. For a `good_<X>` transfer (already passed
-the ≥90% coverage/identity/valid-ORF bar) that's a safe enough assumption. For a `rescued_<X>`
-transfer it isn't - that's exactly the tier that failed that quality bar, so the transferred
-copy's real sequence (ORF, coverage) may no longer match what the domain call was made on. For
-now this is accepted as good enough for the intermediate builds; the plan is to re-run domain
-detection for real, on the actual final protein set, when the final GFF is assembled for
-publication (the same pass that cleans up the internal `source=` tags).
+gene alone can make a real problem look tiny), split into minor/substantial/contained as
+explained above. 
+For eukaryotic genomes, we don't expect many genes to overlap in their coding regions, so
+several of these overlapping pairs are probably false calls. But telling the real gene apart
+from the spurious one isn't simple. A minor overlap in a gene's flanking region could just be a
+slightly wrong gene model boundary. But a minor overlap sitting inside the gene (as if it were
+mostly in the other gene's intron) doesn't make sense that way. So overlap % alone isn't enough
+to say whether both genes are real or one is false. Protein domain presence can help decide, but
+many proteins don't have any domain at all.
+Moreover, due to the liftoff process that can predict slightly different gene models across the strains, the same genes might. overlap in only a single strain for example. 
 
 ### 7a. Filter (drop unsupported genes before get_pangenes)
 
@@ -770,20 +645,102 @@ Scripts: [`scripts/filter_final_annotation_job.sh`](scripts/filter_final_annotat
 [`scripts/plot_filter_qc_job.sh`](scripts/plot_filter_qc_job.sh) ·
 [`scripts/plot_filter_qc.py`](scripts/plot_filter_qc.py)
 
-Applies both filters above (extra copies, then overlaps - the rule table above) and writes one
-filtered GFF per genome. Unlike every other script in this step, it reads **all** genomes'
-`<genome>_final_annotation.gff` in one run, because case 6 above needs to know each gene's
-support panel-wide, not just within its own genome - the `--strains` list has to be the full
-panel, not one genome at a time. Every kept gene with no valid ORF is relabeled
-`protein_coding` → `pseudogene` in its biotype attribute (not its feature type), and every kept
-gene's ID is renumbered to `<id-prefix><strain-index>g<00001, ...>` in genomic order (original
-ID kept in `description=`). Full rule details are in `filter_final_annotation.py`'s own header
-comment.
+
+A gene is never partially removed: it's dropped from **every** genome's output or from none -
+never kept in one genome and dropped in another, even though its own local copy in some genome
+never overlapped anything. To make that possible, this script reads **all** genomes'
+`<genome>_final_annotation.gff` in one run and decides one global verdict per gene (by its
+original ID, shared across every genome that carries it) before writing any output.
+
+**Step 1 - panel-wide stats.** A first pass over every genome's raw genes counts, for every
+gene: how many genomes in the panel carry it (`present_in`); how many of those are
+`good_<genome>` (high-confidence) transfers; and, from a first CDS-overlap scan of every genome,
+how many genomes it has a *qualifying* overlap in (`collides_in` - a "minor + flank" overlap,
+auto-kept below, doesn't count). No decisions are made yet - this pass only counts.
+
+**Step 2 - overlap resolution**, decided globally per gene, using every genome's full raw gene
+set (including genes that would later fail the extra-copy/rescue-coverage checks in step 3 - an
+overlap dispute is settled first, before those checks ever run).
+
+*Minor overlap* (< 20% of the smaller gene's own CDS):
+
+| Position on the bigger gene | Result |
+|---|---|
+| Flank (outermost CDS segment) | Keep both, done |
+| Not flank (an internal segment) | Falls through to the table below, same as substantial/contained |
+
+*Substantial or contained overlap* (≥ 20%, or minor-but-not-flank):
+
+A gene **has evidence** if it has a protein domain (InterPro/PFAM) or a specific description
+(anything other than a generic one: "hypothetical protein", "hypothetical protein, conserved",
+"conserved hypothetical protein", "unspecified product", "unknown function", "unnamed protein
+product", or empty).
+(`--require-domain-only` turns off the description part, domain-only, the way this script used
+to work.)
+
+| Gene A | Gene B | Result |
+|---|---|---|
+| `main` | `main` | Keep both |
+| `main` | has evidence | Keep both |
+| `main` | no evidence | Drop B - subject to the panel check below |
+| has evidence | no evidence | Drop B - subject to the panel check below |
+| has evidence | has evidence | Keep both |
+| no evidence | no evidence | Drop whichever gene has fewer `good_<genome>` transfers panel-wide (tie: drop the one with the shorter CDS). No panel check |
+
+**Panel check** - applied only to the two "Drop B" rows above:
+
+| Panel-wide presence | Result |
+|---|---|
+| Present in ≤ 2 genomes | Dropped - too little support to weigh against anything else |
+| Present in more than 2 genomes, with a qualifying overlap in only 1 of them | **Not dropped** - more likely a Liftoff boundary glitch specific to that one genome than real evidence the gene is spurious |
+| Present in more than 2 genomes, with a qualifying overlap in at least `--min-overlap-genomes` (default `2`) of them | Dropped - a real, recurring conflict |
+
+**Step 3 - extra copies and the rescue-coverage floor**, only among genes that survived step 2:
+- **Extra-copy genes** (`extra_copy_number > 0`, from Liftoff's `-copies` search) are kept only
+  if they have a valid ORF - dropped otherwise (`--extra-copy-require-valid-orf`, on by
+  default).
+- **`rescued_<genome>` genes** with Liftoff coverage under `--min-rescued-coverage` (default
+  `0.5`) are dropped.
+
+**Steps 4-5.** Every kept gene with no valid ORF is relabeled `protein_coding` → `pseudogene` in
+its biotype attribute (not its feature type), and every kept gene's ID is renumbered to
+`<id-prefix><strain-index>g<00001, ...>` in genomic order (original ID kept in
+`original_ID=`). Full rule details are in `filter_final_annotation.py`'s own header comment.
+
+**Known limitation - domain evidence on a transferred gene reflects the *original* gene, not
+necessarily the transferred copy.** InterProScan (step 04) only ever runs on each genome's own
+original proteins. A `good_<genome>`/`rescued_<genome>` gene's domain evidence is looked up from
+its *source* genome's original protein, by `protein_id` - never re-checked against the
+transferred copy's own sequence as it ended up in this genome. For a `good_<genome>` transfer
+(already passed the ≥90% coverage/identity/valid-ORF bar) that's a safe enough assumption. For a
+`rescued_<genome>` transfer it isn't - that's exactly the tier that failed that quality bar, so the transferred
+copy's real sequence (ORF, coverage) may no longer match what the domain call was made on. For
+now this is accepted as good enough for the intermediate builds; the plan is to re-run domain
+detection for real, on the actual final protein set, when the final GFF is assembled for
+publication (the same pass that cleans up the internal `source=` tags).
+
+**Known limitation - "protein domain" is only as good as the source annotation.** Domain
+evidence is detected purely by scanning a gene's own CDS lines for an InterPro/PFAM hit in
+`Dbxref=` - nothing more, no external database lookup. If a genome's *original* annotation
+never recorded that field at all, every gene sourced from that genome (`main`,
+`good_<genome>`, `rescued_<genome>`) will test as having no domain,
+unconditionally - not because those genes lack real domains, but because that annotation
+source never recorded them. This project's own reference (AF293/FungiDB) is exactly this
+case: 0 of its ~32,000 CDS lines carry an InterPro/PFAM hit - every gene sourced from it relies
+entirely on its description text (or, for `main`/being the reference, on not needing evidence
+at all) to survive an overlap dispute. That is why [step 04 - InterProScan](../04_InterProScan/README.md) runs
+before everything else in this step: it writes real domain evidence into every genome's GFF, so
+the rule works from each genome's own InterProScan result rather than whatever the source
+annotation happened to record. **[Step 1's native annotation check](#step-1-native-annotation-check)**, run on
+step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_domain`/
+`protein_coding_without_domain` columns) how much domain evidence each genome actually has.
 
 #### Dependencies
 
-- **Python 3**, standard library only, for filtering.
-- **matplotlib** (`pip install matplotlib`) for the QC plots only.
+- **Python 3**, standard library only, for filtering - `module load python/3.11.9` (or any
+  python3 on the PATH, nothing else needed).
+- **matplotlib** (+ pandas), for the QC plots only - micromamba env `synteny`, already
+  installed if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies).
 - No AGAT, no Liftoff needed for this step - those were only for the build step above.
 
 #### What you need before starting
@@ -803,6 +760,9 @@ comment.
 | `OUT_DIR` | `filtered_annotation` | Where to write the filtered GFFs + `_filter_report.tsv` files |
 | `MIN_RESCUED_COVERAGE` | `0.5` | Every `rescued_<genome>` gene below this Liftoff coverage is dropped outright |
 | `MIN_OVERLAP_BP` | `20` | CDS-to-CDS overlaps under this many bp are ignored entirely |
+| `MIN_OVERLAP_GENOMES` | `2` | A gene present in more than 2 genomes needs a qualifying overlap in at least this many of them to count as a real, recurring conflict rather than an isolated Liftoff boundary glitch |
+| `EXTRA_COPY_REQUIRE_VALID_ORF` | `true` | `false` keeps every extra-copy gene regardless of ORF validity |
+| `REQUIRE_DOMAIN_ONLY` | `false` | `true` makes only a protein domain count as evidence, ignoring description text entirely |
 | `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
 
 **Run** (one single SLURM job, works through every genome in `STRAINS` in one Python process -
@@ -837,7 +797,8 @@ sbatch 05_Cross-genome_annotation_integration/scripts/plot_filter_qc_job.sh
   silently dropped.
 - `<OUT_DIR>/filter_summary.tsv` - one row per genome: `n_original`/`n_kept`/`n_removed`.
 - The job's `..._<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error` lines at the
-  top) has one `=== Genome N/total: <genome> ===` block per genome, and ends with
+  top) reports the panel-wide presence/overlap-scan counts, then one summary line per genome
+  (`<genome>: N protein-coding genes -> M kept, K removed (%) -> <path>`), and ends with
   `All genomes filtered. Outputs are in ...`.
 
 Once every genome has its `_final_annotation_filtered.gff` and the QC plots look right, move
@@ -849,15 +810,16 @@ on to [step 06 - GET_PANGENES](../06_GET_PANGENES/README.md) to prepare and run
 Scripts: [`scripts/tag_final_annotation_job.sh`](scripts/tag_final_annotation_job.sh) ·
 [`scripts/tag_final_annotation.py`](scripts/tag_final_annotation.py)
 
-**Why this exists.** 7a's case 6 rule (and, more subtly, cases 3/4 too) can be wrong in a
-specific way: if a gene overlaps something in only one genome of the panel because that one
-genome's `main`/other gene model has a locally bad Liftoff boundary - not because the gene
-itself is spurious - dropping it *in that one genome* still creates a false gene-absence call
-for a real, panel-wide gene, right where `get_pangenes` needs presence/absence to be accurate.
-7a's panel-wide case-6 rule already guards against the worst of this (a gene present in >1
-genome is never dropped just for colliding once), but the same risk exists, less mitigated, in
-cases 3 and 4. 7b sidesteps the question entirely: don't decide yet, tag instead, and use
-`get_pangenes`' own pangene-level presence/absence pattern - much stronger evidence than
+**Why this exists.** 7a's overlap-resolution rule can still be wrong in a specific way: if a
+gene overlaps something in only one genome of the panel because that one genome's `main`/other
+gene model has a locally bad Liftoff boundary - not because the gene itself is spurious -
+dropping it *in that one genome* would create a false gene-absence call for a real, panel-wide
+gene, right where `get_pangenes` needs presence/absence to be accurate. 7a's panel check already
+guards against exactly this - a gene present in more than 2 genomes is never dropped just for
+an isolated collision, across every case - but it's still a heuristic based on recurrence, not
+proof: a gene could still be genuinely spurious despite recurring evidence, or genuinely real
+despite an isolated one. 7b sidesteps the question entirely: don't decide at all, tag instead,
+and use `get_pangenes`' own pangene-level presence/absence pattern - much stronger evidence than
 anything computable pre-pangenome - to make the real call afterward.
 
 Every gene in every `<genome>_final_annotation.gff` gets one new attribute:
@@ -883,7 +845,8 @@ pangene-level confidence call it produces, isn't built yet - planned as part of
 
 #### Dependencies
 
-- **Python 3**, standard library only.
+- **Python 3**, standard library only - `module load python/3.11.9` (or any python3 on the
+  PATH, nothing else needed).
 
 #### What you need before starting
 

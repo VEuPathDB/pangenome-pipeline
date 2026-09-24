@@ -20,16 +20,16 @@ FINAL_DIR="expanded_annotation"            # build_final_annotation_basic.sh's O
 OUT_DIR="filtered_annotation"              # where to write the filtered GFFs + reports
 MIN_RESCUED_COVERAGE="0.5"                 # every rescued_<genome> gene below this Liftoff coverage is dropped outright
 MIN_OVERLAP_BP="20"                        # CDS-to-CDS overlaps under this many bp are ignored - boundary-rounding noise
+MIN_OVERLAP_GENOMES="2"                    # a gene present in >2 genomes needs a qualifying overlap in at least this many of them to count as a real, recurring conflict
+EXTRA_COPY_REQUIRE_VALID_ORF="true"        # true/false - drop an extra-copy gene that has no valid ORF
+REQUIRE_DOMAIN_ONLY="false"                # true = only a protein domain counts as evidence; false = a specific description also counts
 ID_PREFIX="Afu"                            # renamed gene IDs look like <ID_PREFIX><N>g<00001, ...>
 
 set +u
 module purge
-### ADAPT ### — put micromamba on the PATH, then activate the env (standard library only -
-### change this only if your cluster needs a specific environment to get a plain python3 on PATH):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+### ADAPT ### — put python3 on the PATH (standard library only, nothing else needed):
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
+module load python/3.11.9
 ### END ADAPT ###
 set -u
 
@@ -47,11 +47,17 @@ done
 [[ -n "$PY" ]] || { echo "ERROR: cannot find filter_final_annotation.py (run from the project folder)" >&2; exit 1; }
 mkdir -p "$OUT_DIR"
 
+EXTRA_ARGS=()
+[[ "$EXTRA_COPY_REQUIRE_VALID_ORF" == "false" ]] && EXTRA_ARGS+=(--no-extra-copy-require-valid-orf)
+[[ "$REQUIRE_DOMAIN_ONLY" == "true" ]] && EXTRA_ARGS+=(--require-domain-only)
+
 python3 "$PY" \
   --strains "$STRAINS" --final-dir "$FINAL_DIR" \
   --out-dir "$OUT_DIR" \
   --min-rescued-coverage "$MIN_RESCUED_COVERAGE" \
   --min-overlap-bp "$MIN_OVERLAP_BP" \
-  --id-prefix "$ID_PREFIX"
+  --min-overlap-genomes "$MIN_OVERLAP_GENOMES" \
+  --id-prefix "$ID_PREFIX" \
+  ${EXTRA_ARGS[@]+"${EXTRA_ARGS[@]}"}
 
 echo "All genomes filtered. Outputs are in $OUT_DIR"

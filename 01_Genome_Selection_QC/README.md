@@ -18,7 +18,10 @@ These scripts are hardcoded with the author's own micromamba environment (paths 
 `synteny`) - edit the `### ADAPT ###` block at the top of each script to point to your own.
 Easiest fix: create one env with the same name and every program above installed:
 
-    micromamba create -n synteny -c bioconda -c conda-forge skani minimap2 samtools blast python pandas matplotlib
+    micromamba create -n synteny -c bioconda -c conda-forge skani minimap2 samtools blast python pandas matplotlib scipy seaborn
+
+`scipy` and `seaborn` are only needed by the plots of [step 08](../08_Pangenome_Visualisation/README.md). If `synteny` already exists, add them with
+`micromamba install -n synteny -c conda-forge scipy seaborn`.
 
 
 ## Table of Content
@@ -291,7 +294,7 @@ toolset: `skani`, `minimap2`, `blast`, `samtools`, and a `python3` with `matplot
 micromamba env:
 
 ```bash
-micromamba create -n synteny -c bioconda -c conda-forge skani minimap2 blast samtools matplotlib
+micromamba create -n synteny -c bioconda -c conda-forge skani minimap2 blast samtools matplotlib scipy seaborn
 ```
 
 Each `.slurm.sh` has an **`ADAPT BEFORE RUNNING`** block at the top — set the `#SBATCH`

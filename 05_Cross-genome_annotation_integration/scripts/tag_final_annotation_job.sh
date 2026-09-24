@@ -24,12 +24,9 @@ ID_PREFIX="Afu"                            # renamed gene IDs look like <ID_PREF
 
 set +u
 module purge
-### ADAPT ### — put micromamba on the PATH, then activate the env (standard library only -
-### change this only if your cluster needs a specific environment to get a plain python3 on PATH):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+### ADAPT ### — put python3 on the PATH (standard library only, nothing else needed):
+export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
+module load python/3.11.9
 ### END ADAPT ###
 set -u
 

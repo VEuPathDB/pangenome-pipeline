@@ -321,11 +321,6 @@ for TARGET in "${TARGETS[@]}"; do
   cp "$accumulated" "$final"
   [[ -s "$final" ]] && grep -qv '^#' "$final" || { echo "ERROR: $final is empty - the last AGAT step left no annotation" >&2; exit 1; }
 
-  echo "  checking for overlapping genes (QC) -> ${TARGET}_overlaps.tsv"
-  python3 "$SCRIPT_DIR/check_overlapping_genes.py" \
-    --gff "$final" \
-    --out "$OUTPUT_DIR/${TARGET}_overlaps.tsv"
-
   echo "  done: $final"
 done
 

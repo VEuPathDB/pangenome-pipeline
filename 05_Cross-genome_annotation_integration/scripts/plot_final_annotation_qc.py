@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """
 QC plots for this pipeline's raw output - <genome>_final_annotation.gff. Same core plots
-this project has been using all along (gene counts, valid-ORF rate, extra copies, overlap
-severity, source composition), just as a standalone Python/matplotlib script instead of an
-R Markdown report - run this as a first look at the raw build's quality. No filtering step
-exists yet in this folder - this script only reads and reports, it never changes any GFF.
+this project has been using all along (gene counts, extra copies, overlap severity, source
+composition), just as a standalone Python/matplotlib script instead of an R Markdown report -
+run this as a first look at the raw build's quality. No filtering step exists yet in this
+folder - this script only reads and reports, it never changes any GFF.
 
 Self-contained - the GFF-parsing and CDS-overlap-detection logic below is its own copy, not
 shared with anything else in this folder.
@@ -13,16 +13,15 @@ Needs matplotlib (`pip install matplotlib`) - everything else is standard librar
 
 Produces, in --out-dir:
     01_gene_counts.png       protein-coding genes: own original annotation vs. this pipeline's output
-    02_valid_orf_rate.png    % of genes with a valid ORF, per strain
-    03_extra_copies.png      extra-copy genes, split by valid ORF, per strain
-    04_overlap_severity.png  CDS-overlap severity (minor/substantial/contained), per strain
-    05_source_composition.png  where the genes came from (main/original/good_*/rescued_*), per strain
-    06_overlap_strand.png      the same pairs as 04, split same-strand vs opposite-strand instead
+    02_extra_copies.png      extra-copy genes, split by valid ORF, per strain
+    03_overlap_severity.png  CDS-overlap severity (minor/substantial/contained), per strain
+    04_source_composition.png  where the genes came from (main/original/good_*/rescued_*), per strain
+    05_overlap_strand.png      the same pairs as 03, split same-strand vs opposite-strand instead
                               of by severity - same-strand pairs are the ones "that shouldn't
                               normally happen"
-    07_overlap_domain_support.png  the same pairs as 04, split by whether they have InterPro/PFAM
+    06_overlap_domain_support.png  the same pairs as 03, split by whether they have InterPro/PFAM
                               domain evidence on both genes, one, or neither
-    08_minor_overlap_position.png  minor-severity pairs only (domain evidence not considered here),
+    07_minor_overlap_position.png  minor-severity pairs only (domain evidence not considered here),
                               split by where the overlap sits in the bigger gene's own exon
                               structure - flank (an outermost exon - likely just boundary
                               imprecision, both genes real) vs inside (an internal exon, meaning
@@ -355,7 +354,6 @@ def main():
         genes = parse_gff(final_path)
         n_original = count_original_protein_coding(genome_path)
         n_final = len(genes)
-        n_valid_orf = sum(1 for g in genes.values() if g["valid_ORF"])
         n_extra_copy = sum(1 for g in genes.values() if g["extra_copy_number"])
         n_extra_copy_valid = sum(1 for g in genes.values() if g["extra_copy_number"] and g["valid_ORF"])
         n_extra_copy_invalid = n_extra_copy - n_extra_copy_valid
@@ -389,10 +387,9 @@ def main():
                     minor_position_counts[minor_position] += 1
             else:
                 minor_position = ""
-            mentions_cytochrome = "cytochrome" in g1["description"].lower() or "cytochrome" in g2["description"].lower()
             pair_rows.append({
                 "genome": s, "seqname": g1["seqname"], "same_strand": same_strand, "severity": severity,
-                "overlap_bp": ov_bp, "minor_position": minor_position, "mentions_cytochrome": mentions_cytochrome,
+                "overlap_bp": ov_bp, "minor_position": minor_position,
                 "gene1_id": g1["id"], "gene1_description": g1["description"],
                 "gene1_start": g1["start"], "gene1_end": g1["end"], "gene1_cds_bp": g1["cds_bp"],
                 "gene1_has_domain": g1["has_domain"],
@@ -430,8 +427,6 @@ def main():
 
         rows.append({
             "strain": s, "n_original": n_original, "n_final": n_final,
-            "n_valid_orf": n_valid_orf,
-            "pct_valid_orf": round(100 * n_valid_orf / n_final, 1) if n_final else 0,
             "n_extra_copy": n_extra_copy,
             "n_extra_copy_valid_orf": n_extra_copy_valid, "n_extra_copy_invalid_orf": n_extra_copy_invalid,
             "n_overlap_pairs": sev["minor"] + sev["substantial"] + sev["contained"],
@@ -447,7 +442,7 @@ def main():
 
     with open(os.path.join(args.out_dir, "cds_overlapping_pairs.tsv"), "w", newline="") as fh:
         fieldnames = ["genome", "seqname", "same_strand", "severity", "overlap_bp",
-                      "minor_position", "mentions_cytochrome",
+                      "minor_position",
                       "gene1_id", "gene1_description", "gene1_start", "gene1_end", "gene1_cds_bp",
                       "gene1_has_domain", "gene1_valid_ORF", "gene1_source",
                       "gene2_id", "gene2_description", "gene2_start", "gene2_end", "gene2_cds_bp",
@@ -489,17 +484,7 @@ def main():
     fig.savefig(os.path.join(args.out_dir, "01_gene_counts.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Plot 2: valid-ORF rate ---
-    fig, ax = plt.subplots(figsize=figsize)
-    ax.bar(strains, [r["pct_valid_orf"] for r in rows], color="#3B7DD8")
-    plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
-    ax.set_ylabel("% of genes with a valid ORF")
-    ax.set_ylim(0, 100)
-    fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "02_valid_orf_rate.png"), dpi=150, bbox_inches="tight")
-    plt.close(fig)
-
-    # --- Plot 3: extra-copy genes, split by valid ORF ---
+    # --- Plot 2: extra-copy genes, split by valid ORF ---
     fig, ax = plt.subplots(figsize=figsize)
     ax.bar(strains, [r["n_extra_copy_valid_orf"] for r in rows], label="valid ORF", color="#2F7A55")
     ax.bar(strains, [r["n_extra_copy_invalid_orf"] for r in rows],
@@ -508,10 +493,10 @@ def main():
     ax.set_ylabel("Extra-copy genes")
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.12), ncol=2, frameon=False)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "03_extra_copies.png"), dpi=150, bbox_inches="tight")
+    fig.savefig(os.path.join(args.out_dir, "02_extra_copies.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Plot 4: overlap severity ---
+    # --- Plot 3: overlap severity ---
     fig, ax = plt.subplots(figsize=figsize)
     sev_colors = {"minor": "#B0B0B0", "substantial": "#F2B035", "contained": "#C0392B"}
     bottoms = [0] * len(strains)
@@ -523,10 +508,10 @@ def main():
     ax.set_ylabel("CDS-overlapping pairs")
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.12), ncol=3, frameon=False)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "04_overlap_severity.png"), dpi=150, bbox_inches="tight")
+    fig.savefig(os.path.join(args.out_dir, "03_overlap_severity.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Plot 5: source composition ---
+    # --- Plot 4: source composition ---
     src_labels = ["main", "original", "reference_rescued", "good_others", "rescued_others"]
     src_colors = {"main": "#F8766D", "original": "#00BA38", "reference_rescued": "#619CFF",
                   "good_others": "#B379E0", "rescued_others": "#7A5195"}
@@ -540,10 +525,10 @@ def main():
     ax.set_ylabel("Protein-coding genes")
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.18), ncol=3, frameon=False)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "05_source_composition.png"), dpi=150, bbox_inches="tight")
+    fig.savefig(os.path.join(args.out_dir, "04_source_composition.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Plot 6: overlap pairs by strand (same pairs as plot 4, split differently) ---
+    # --- Plot 5: overlap pairs by strand (same pairs as plot 3, split differently) ---
     fig, ax = plt.subplots(figsize=figsize)
     strand_colors = {"same_strand": "#C0392B", "opposite_strand": "#B0B0B0"}
     bottoms = [0] * len(strains)
@@ -555,10 +540,10 @@ def main():
     ax.set_ylabel("CDS-overlapping pairs")
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.12), ncol=2, frameon=False)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "06_overlap_strand.png"), dpi=150, bbox_inches="tight")
+    fig.savefig(os.path.join(args.out_dir, "05_overlap_strand.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Plot 7: overlap pairs by domain support (same pairs as plot 4, split differently) ---
+    # --- Plot 6: overlap pairs by domain support (same pairs as plot 3, split differently) ---
     fig, ax = plt.subplots(figsize=figsize)
     domain_colors = {"n_both_domain": "#2F7A55", "n_one_domain": "#F2B035", "n_no_domain": "#B0B0B0"}
     domain_labels = {"n_both_domain": "domain on both", "n_one_domain": "domain on one", "n_no_domain": "domain on neither"}
@@ -572,14 +557,13 @@ def main():
     ax.set_ylabel("CDS-overlapping pairs")
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.12), ncol=3, frameon=False)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "07_overlap_domain_support.png"), dpi=150, bbox_inches="tight")
+    fig.savefig(os.path.join(args.out_dir, "06_overlap_domain_support.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Plot 8: minor-severity overlaps, by position in the bigger gene's own exon structure ---
+    # --- Plot 7: minor-severity overlaps, by position in the bigger gene's own exon structure ---
     fig, ax = plt.subplots(figsize=figsize)
     pos_colors = {"flank": "#3B7DD8", "inside": "#C0392B", "single_exon": "#B0B0B0"}
-    pos_labels = {"flank": "flank (likely both real)", "inside": "inside (likely smaller gene is spurious)",
-                  "single_exon": "single-exon bigger gene (n/a)"}
+    pos_labels = {"flank": "flank", "inside": "inside", "single_exon": "single-exon bigger gene"}
     bottoms = [0] * len(strains)
     for key in ("flank", "inside", "single_exon"):
         values = [minor_position_all[s][key] for s in strains]
@@ -589,7 +573,7 @@ def main():
     ax.set_ylabel("Minor-severity CDS-overlapping pairs")
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.18), ncol=1, frameon=False)
     fig.tight_layout()
-    fig.savefig(os.path.join(args.out_dir, "08_minor_overlap_position.png"), dpi=150, bbox_inches="tight")
+    fig.savefig(os.path.join(args.out_dir, "07_minor_overlap_position.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
     print(f"\nDone - 8 plots + summary.tsv + extra_copy_genes.tsv ({len(extra_copy_rows)} rows) + "
