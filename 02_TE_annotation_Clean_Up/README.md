@@ -2,6 +2,8 @@
 
 ***Purpose:*** To identify, curate and annotate bona fide TEs across all genomes, preventing TE-derived sequences from biasing the pangenome analysis while retaining their annotation for further investigation. 
 
+Dependencies are documented within each step below, in its own "Dependencies" note.
+
 ## Table of Contents
 
 - [TE-related challenges in pangenome construction](#te-related-challenges-in-pangenome-construction)
@@ -169,6 +171,9 @@ TE-Aid against the genome it was recovered from (candidate headers are
 `<genome_id>|<candidate_id>`, so the wrapper knows which assembly in `genomes/` to pass to
 `-g`).
 
+**Dependencies:** [TE-Aid](https://github.com/clemgoub/TE-Aid/) itself (`TEAID` below points to
+your own clone/install), R, NCBI BLAST+ and hmmer — micromamba env `te_annot`.
+
 Adapt at the top of the script:
 
 - `INPUT_FASTA` / `OUTDIR` — the candidate FASTA to inspect, set as `INPUT_FASTA` + `OUTDIR`
@@ -183,7 +188,7 @@ Adapt at the top of the script:
   overwriting anything.
 - `GENOMES` / `GENOME_SUFFIX` — the step-01 assemblies folder (default `genomes` / `.fna`).
 - `TEAID` — path to the TE-Aid executable.
-- the `### ADAPT ###` block — put R, NCBI BLAST+ and hmmer on the PATH.
+- the `### ADAPT ###` block — put R, NCBI BLAST+ and hmmer on the PATH (the `te_annot` env).
 - the `#SBATCH` lines.
 
 **Run it from your project folder** (the one that holds `genomes/`):
@@ -238,6 +243,9 @@ Script: [`scripts/run_repeatmasker.slurm.sh`](scripts/run_repeatmasker.slurm.sh)
 RepeatMasker on every `*.fna` assembly and writes one folder per genome, `RM_<genome_id>/`
 (`<genome_id>` = the file name without `.fna`; trimmed to the `GCA_…`/`GCF_…` accession if
 the name is one). `-pa` is set to `cpus / 4` (rmblast uses 4 cores per unit).
+
+**Dependencies:** RepeatMasker — micromamba env `repeatmasker4.2`. See
+[Installing RepeatMasker](#installing-repeatmasker) below for the Dfam setup it needs.
 
 Adapt at the top of the script:
 
@@ -313,6 +321,9 @@ After running RepeatMasker across all genomes, the results can be summarized to 
 Scripts: [`scripts/summarize_te_content.py`](scripts/summarize_te_content.py) ·
 [`scripts/summarize_te_content.slurm.sh`](scripts/summarize_te_content.slurm.sh).
 
+**Dependencies:** python3 + pandas + matplotlib — micromamba env `synteny`, already installed
+if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies).
+
 #### What this script does:
 1. **Filtering:** Drops non-TE hits (such as `Simple_repeat` and `Low_complexity`) from each RepeatMasker `.out` file, writing cleaned tables to `<outdir>/filtered_out/<genome_id>.filtered.out`.
 2. **Non-redundant base calculation:** Merges overlapping RepeatMasker hits per contig so overlapping fragments are counted exactly once.
@@ -328,8 +339,8 @@ Scripts: [`scripts/summarize_te_content.py`](scripts/summarize_te_content.py) ·
 
 Run it **from your project folder** — the one that holds the `RM_<genome_id>/` folders. It is
 a light job (a couple of cores, a few GB); the SLURM wrapper has an **`ADAPT`** block at the
-top (`#SBATCH` resources, the env line for a `python3` with `pandas` + `matplotlib`, and the
-`INDIR` / `OUTDIR` / top-N variables).
+top (`#SBATCH` resources, the env line for a `python3` with `pandas` + `matplotlib` - the
+`synteny` env, and the `INDIR` / `OUTDIR` / top-N variables).
 
 ```bash
 sbatch 02_TE_annotation_Clean_Up/scripts/summarize_te_content.slurm.sh
@@ -371,6 +382,9 @@ wrapper) · [`scripts/te_gene_overlap.py`](scripts/te_gene_overlap.py) ·
 [`scripts/extract_cds_sequences.py`](scripts/extract_cds_sequences.py) (what the wrapper
 calls, in that order).
 
+**Dependencies:** python3 + pandas + matplotlib — micromamba env `synteny`, already installed
+if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies).
+
 One job does the whole review, writing everything into a single folder:
 
 1. **`te_gene_overlap.py`** intersects RepeatMasker annotations with the GFF gene models
@@ -394,8 +408,8 @@ One job does the whole review, writing everything into a single folder:
      trusting the elimination.
 
 Run it **from your project folder**. The wrapper has an **`ADAPT`** block at the top
-(`#SBATCH` resources, the env line for a `python3` with `pandas` + `matplotlib`, and these
-variables):
+(`#SBATCH` resources, the env line for a `python3` with `pandas` + `matplotlib` - the `synteny`
+env, and these variables):
 
 | variable | meaning |
 |---|---|
@@ -463,14 +477,20 @@ GFF has one, else the feature type in column 3 — see `infer_biotype()` in
 Scripts: [`scripts/build_te_kill_lists.slurm.sh`](scripts/build_te_kill_lists.slurm.sh) (SLURM
 wrapper) · [`scripts/build_te_kill_lists.py`](scripts/build_te_kill_lists.py) (what it calls).
 
-One job does both steps: (1) generates a kill list of gene IDs from each genome's own
-TE-overlap table (`gene_te_overlap.tsv`, `TE_overlap_pct` ≥ `MIN_PCT`, default `80`), (2) runs
-AGAT (`agat_sp_filter_feature_from_kill_list.pl`) to remove those genes from every GFF in
-`GFF_INDIR`, writing cleaned copies to `GFF_OUTDIR`.
+**Dependencies:** python3 + pandas — micromamba env `synteny`, already installed if you set it
+up for [step 01](../01_Genome_Selection_QC/README.md#dependencies) — and AGAT
+(`agat_sp_filter_feature_from_kill_list.pl`), hardcoded here with an env called `bioinfo`
+(adapt to your own).
 
-The wrapper has **two** `### ADAPT ###` blocks to edit — one for `python3` (the env that
-already has `pandas`, e.g. the `synteny` env from earlier steps), one for `AGAT` (its own
-env/module — different from the Python one) — plus these variables at the top:
+One job does both steps:
+
+1. Generates a kill list of gene IDs from each genome's own TE-overlap table
+   (`gene_te_overlap.tsv`, `TE_overlap_pct` ≥ `MIN_PCT`, default `80`).
+2. Runs AGAT (`agat_sp_filter_feature_from_kill_list.pl`) to remove those genes from every GFF
+   in `GFF_INDIR`, writing cleaned copies to `GFF_OUTDIR`.
+
+The wrapper has **two** `### ADAPT ###` blocks to edit — one per dependency above — plus these
+variables at the top:
 
 | variable | meaning |
 |---|---|

@@ -4,6 +4,22 @@
 identity and check its assembly for organellar, redundant, or otherwise unwanted contigs; and
 put every assembly/GFF into a single, consistently named form that every later step relies on.
 
+## Dependencies
+
+| Program | Used by |
+|---|---|
+| skani | `check_species.slurm.sh` |
+| minimap2 | `synteny_vs_ref.slurm.sh`, `contig_redundancy.slurm.sh` |
+| samtools | `contig_size_profile.slurm.sh`, `contig_redundancy.slurm.sh`, `check_redundant_genes.slurm.sh`, `screen_organelles.slurm.sh` |
+| blastn (BLAST+) | `check_redundant_genes.slurm.sh`, `screen_organelles.slurm.sh` |
+| python3 + pandas + matplotlib | `contig_size_profile.slurm.sh`, `synteny_vs_ref.slurm.sh` |
+
+These scripts are hardcoded with the author's own micromamba environment (paths and env name
+`synteny`) - edit the `### ADAPT ###` block at the top of each script to point to your own.
+Easiest fix: create one env with the same name and every program above installed:
+
+    micromamba create -n synteny -c bioconda -c conda-forge skani minimap2 samtools blast python pandas matplotlib
+
 
 ## Table of Content
 

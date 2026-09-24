@@ -1,4 +1,4 @@
-# 05 – Cross-genome annotation integration (Annotation LiftOff all-vs-all)
+# 05 – Cross-genome annotation integration (all-vs-all approach)
 
 ***Purpose:*** To obtain accurate and consistent gene annotations across all genome assemblies, reducing annotation-related biases in the pangenome analysis.
 

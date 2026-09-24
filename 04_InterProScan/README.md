@@ -4,24 +4,11 @@
 own original GFF, so that domain evidence can be used consistently to validate gene models
 later in the pipeline.
 
-## Why this step exists
-
-Later stages (**[step 05 - Cross-genome annotation integration](../05_Cross-genome_annotation_integration/README.md)**)
-use the presence of an `InterPro:`/`PFAM:` hit in a gene's CDS `Dbxref=` as "protein domain"
-evidence when filtering unsupported extra copies and resolving overlapping genes. That check
-is a plain text scan of each gene's own CDS lines - it does no external database lookup. If a
-genome's original annotation never recorded that field, every gene from that genome tests as
-having no domain, regardless of whether it actually has one.
-
 ## Running InterProScan across the panel
 
-Scripts adapted from Evelina's InterProScan pipeline, kept as the same 4-step chain — protein
-extraction, then a chunk manifest (splits each genome's proteins into `CHUNK_SIZE`-sized
-chunks so InterProScan runs on manageable pieces instead of one huge job per genome), then the
-array job, then the merge — but rewritten to this
-project's own `### ADAPT ###` / relative-path convention. Evelina's pipeline assumes the
-protein FASTAs already exist, so to adapt it to our pipeline we added a script to extract
-them.
+A 4-step chain: protein extraction, then a chunk manifest (splits each genome's proteins into
+`CHUNK_SIZE`-sized chunks so InterProScan runs on manageable pieces instead of one huge job per
+genome), then the array job (runs InterProScan itself, one task per chunk), then the merge.
 
 **Which GFF to extract proteins from:** default is **`gff_cleaned/`** — the GFFs step 02's TE
 kill list already filtered. For a species with **no TE library** (step 02 skipped
@@ -29,6 +16,14 @@ entirely), use **`gff_originals/`** instead — by step 04 it has already been e
 by step 01's organelle + redundant-contig removal, so it's the right fallback, not the raw
 downloaded GFF. Set this via `GFF_INDIR` at the top of `extract_proteins.slurm.sh` (script 1
 below).
+
+**Dependencies:**
+- **AGAT** (steps 1 and 5 below) — hardcoded here with an env called `bioinfo` (adapt to your
+  own).
+- **InterProScan + Java** (step 3) — via `module load`
+  (`interproscan/5.66-98.0`, `adoptopenjdk/11.0.12+7`), not micromamba.
+- Steps 2 and 4 (manifest + merge) only need plain `python3`, already on the PATH - no env to
+  set up for those.
 
 Scripts, in the order they run:
 
@@ -123,7 +118,6 @@ Scripts, in the order they run:
 
    **Before or after Liftoff.** This pipeline runs InterProScan **before** Liftoff, on each genome's
    own original annotation (this step). The alternative is to run it **after** Liftoff, on the
-   transferred/final annotation: Evelina's pipeline works that way, using her
-   `inject_interpro_into_gff.py`.
+   transferred/final annotation: the original scripts work that way.
 
 [Back to top level](../README.md)

@@ -4,7 +4,9 @@ This repository documents the **pangenome analysis workflow**. The pipeline cons
 
 **Internal document.** This is primarily an internal working document: the scripts are mostly
 SLURM scripts, including code already adapted for our shared containers/installations. They
-will eventually need editing to add paths to environments that aren't shared. 
+will eventually need editing to add paths to environments that aren't shared. They should also
+be adapted/reviewed before being made public, as they contain comments that make sense to our
+working group but not to outside readers.
 
 
 Most pangenome tools call pangenes by
