@@ -12,10 +12,11 @@ never edited):
    and retyped:
      - protein-coding genes and pseudogenes -> --gene-type (default protein_coding_gene) - what
        Liftoff will be told to transfer (see liftoff_feature_types.txt, written to --out-dir);
-     - non-coding RNA genes (tRNA, rRNA, other ncRNA) -> tRNA_gene / rRNA_gene / ncRNA_gene.
-       These are not in the list, so Liftoff does not transfer them: each genome keeps its own
-       non-coding genes (they stay in its own GFF), none is copied onto another genome.
-   Only the type column changes; every attribute (including gene_biotype/ebi_biotype) is kept.
+     - non-coding RNA genes (tRNA, rRNA, other ncRNA) are REMOVED from the prepared GFF, with
+       every transcript and exon under them. The build step (AGAT) retypes a tRNA_gene as a plain
+       "gene", which get_pangenes would then cluster, so they are left out instead.
+   For the protein-coding genes only the type column changes; every attribute (including
+   gene_biotype/ebi_biotype) is kept.
    Genes that can't be classified are left as they are and reported - if their type is
    literally "gene", Liftoff's default would still transfer them.
 
@@ -29,7 +30,7 @@ never edited):
      - each exon is clipped to the CDS extent; an exon entirely outside it (UTR-only) is
        deleted; exons inside the CDS extent, and every CDS line, are left untouched;
      - each gene is shrunk to cover its transcripts.
-   Genes/transcripts with no CDS (non-coding RNA, pseudogenes without a CDS) are not touched.
+   Genes/transcripts with no CDS (pseudogenes without a CDS) are not touched.
 
 Usage:
     python3 prepare_for_liftoff.py \\
@@ -174,9 +175,15 @@ def prepare(gff_path, out_path, gene_type):
         if cat in ("protein_coding", "pseudogene"):
             new = gene_type
         elif cat in NONCODING_GENE_TYPE:
-            # only a gene typed plain "gene" is at risk of being transferred - a type such as
-            # ncRNA_gene is already outside Liftoff's list and stays as the source named it
-            new = NONCODING_GENE_TYPE[cat] if old == "gene" else old
+            # non-coding RNA genes are dropped, with everything nested under them
+            stack = [rec]
+            while stack:
+                r = stack.pop()
+                r["drop"] = True
+                if r["id"]:
+                    stack.extend(children.get(r["id"], []))
+            retyped[(old, f"removed ({cat})")] += 1
+            continue
         else:
             unclassified[old] += 1
             continue
@@ -288,7 +295,7 @@ def main():
               f"deleted, {s['exons_clipped']} exons clipped, {s['exons_deleted']} exons deleted, "
               f"{s['genes_resized']} genes resized ({s['bp_trimmed_from_genes']} bp) -> {out_path}", file=sys.stderr)
         for (old, new), n in sorted(retyped.items()):
-            print(f"    retyped {n} x {old} -> {new}", file=sys.stderr)
+            print(f"    {n} x {old} -> {new}", file=sys.stderr)
             all_retyped[(genome, old, new)] += n
         for old, n in sorted(unclassified.items()):
             print(f"    WARNING: {n} x {old} could not be classified and was left as it is"

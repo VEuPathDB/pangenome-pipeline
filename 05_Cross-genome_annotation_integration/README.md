@@ -252,24 +252,18 @@ then retyped:
 - **Protein-coding genes and pseudogenes** get their feature type (column 3) rewritten to
   `protein_coding_gene`, which is then written into `liftoff_feature_types.txt` - the list
   passed to Liftoff with `-f`. That's what makes these genes the ones Liftoff transfers.
-- **Non-coding RNA genes** → `tRNA_gene` / `rRNA_gene` / `ncRNA_gene`. Not in
-  `liftoff_feature_types.txt`, so Liftoff skips them - a genome's tRNAs and other non-coding
-  genes are **not copied onto other genomes**. They aren't lost: they stay in that genome's own
-  prepared GFF, and [step 5](#step-5-build-each-genomes-final-annotation-priority-order) puts
-  them back into that genome's final annotation.
+- **Non-coding RNA genes** (tRNA, rRNA, other ncRNA) are **removed** from the prepared GFF,
+  with every transcript and exon under them. They are not kept because
+  [step 5](#step-5-build-each-genomes-final-annotation-priority-order)'s AGAT step retypes a
+  `tRNA_gene` as a plain `gene`, which `get_pangenes` would then cluster as if it were a
+  protein-coding gene. The final annotations therefore have no non-coding RNA genes; the
+  original GFF still has them.
 
-This retyping only affects genes typed plain `gene` (NCBI-style) - a gene already typed
-`ncRNA_gene` (FungiDB-style) is left as it is, and a gene that can't be classified at all is
-also left as it is and reported (if it's typed `gene`, Liftoff's default would still transfer it).
+A gene that can't be classified at all is left as it is and reported (if it's typed `gene`,
+Liftoff's default would still transfer it).
 
-Example, an NCBI-style tRNA:
-
-| | Feature type (column 3) | Attributes |
-|---|---|---|
-| before | `gene` | `ID=gene-X;gene_biotype=tRNA;...` |
-| after | `tRNA_gene` | unchanged |
-
-Only the feature type changes - every attribute, including the biotype, is kept.
+For protein-coding genes only the feature type changes - every attribute, including the
+biotype, is kept.
 
 **2. Remove the UTRs.** To simplify the GFF before Liftoff, UTR regions are excluded - every
 gene is reduced to just its coding sequence, taken directly from each transcript's `CDS` lines.
@@ -282,7 +276,7 @@ past the CDS). For every transcript that has CDS lines:
   deleted; exons inside the CDS extent, and all CDS lines, are untouched;
 - each gene is then shrunk to cover its transcripts.
 
-Genes without a CDS (non-coding RNA, pseudogenes with no CDS) are not touched by this part.
+Pseudogenes with no CDS are not touched by this part.
 
 **Edit the settings at the top of `prepare_for_liftoff_job.sh`**:
 
@@ -487,7 +481,7 @@ sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final
 
 | File | Shows |
 |---|---|
-| `<genome>_final_annotation.gff` | one independent file per genome - the final built annotation. Note that at this step the genome's own non-coding RNA genes (`ncRNA_gene`/`tRNA_gene`) are restored. This GFF has no UTRs are they were all removed by [step 3](#step-3-prepare-the-gffs-for-liftoff) |
+| `<genome>_final_annotation.gff` | one independent file per genome - the final built annotation. This GFF has no non-coding RNA genes and no UTRs - both were removed by [step 3](#step-3-prepare-the-gffs-for-liftoff) |
 
 #### Checking it worked
 
