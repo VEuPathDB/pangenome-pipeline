@@ -702,10 +702,11 @@ to work.)
 - **`rescued_<genome>` genes** with Liftoff coverage under `--min-rescued-coverage` (default
   `0.5`) are dropped.
 
-**Steps 4-5.** Every kept gene with no valid ORF is relabeled `protein_coding` → `pseudogene` in
-its biotype attribute (not its feature type), and every kept gene's ID is renumbered to
-`<id-prefix><strain-index>g<00001, ...>` in genomic order (original ID kept in
-`original_ID=`). Full rule details are in `filter_final_annotation.py`'s own header comment.
+**Steps 4-5.** Every kept protein-coding gene (and pseudogene) is retyped as `gene`, and its
+`pseudogenic_transcript` child, if any, as `transcript` - the one thing `get_pangenes` requires.
+Non-coding RNA genes are left as they are. Every kept gene's ID is renumbered to
+`<id-prefix><strain-index>g<00001, ...>` in genomic order (original ID kept in `original_ID=`).
+Full rule details are in `filter_final_annotation.py`'s own header comment.
 
 **Known limitation - domain evidence on a transferred gene reflects the *original* gene, not
 necessarily the transferred copy.** InterProScan (step 04) only ever runs on each genome's own

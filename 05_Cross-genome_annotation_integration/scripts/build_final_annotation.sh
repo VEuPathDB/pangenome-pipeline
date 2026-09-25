@@ -140,7 +140,7 @@ agat_run() {  # $1=directory to run in, $2=log file for the AGAT output, then th
     # start every attempt clean: no half-written output, temp folder or log folder from the last one
     rm -rf "$dir"/agat_tmp_* 2>/dev/null || true
     if [[ -n "$out" ]]; then
-      rm -f "$out"
+      rm -f "$out" "${out%.gff}_report.txt"
       rm -rf "$dir/agat_log_$(basename "${out%.gff}")" 2>/dev/null || true
     fi
     local ok=0
