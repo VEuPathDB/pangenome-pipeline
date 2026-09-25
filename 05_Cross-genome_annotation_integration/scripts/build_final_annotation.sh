@@ -136,6 +136,14 @@ agat_run() {  # $1=directory to run in, $2=log file for the AGAT output, then th
   # A second try normally goes through, so a failed call is repeated before giving up. A call that
   # "succeeds" but leaves no annotation behind is treated as a failure too - accepting an empty
   # result would silently produce an empty annotation.
+  # For some inputs the crash repeats on every try, so AGAT's progress bar is also switched off:
+  # AGAT reads an agat_config.yaml from the folder it runs in, created here if it is missing.
+  if [[ ! -f "$dir/agat_config.yaml" ]]; then
+    ( cd "$dir" && agat config --expose >/dev/null 2>&1 ) || true
+  fi
+  if [[ -f "$dir/agat_config.yaml" ]]; then
+    sed -i 's/^\( *progress_bar:\).*/\1 false/' "$dir/agat_config.yaml"
+  fi
   for attempt in $(seq 1 "$max_attempts"); do
     # start every attempt clean: no half-written output, temp folder or log folder from the last one
     rm -rf "$dir"/agat_tmp_* 2>/dev/null || true
