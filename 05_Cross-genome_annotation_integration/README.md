@@ -276,7 +276,7 @@ past the CDS). For every transcript that has CDS lines:
   deleted; exons inside the CDS extent, and all CDS lines, are untouched;
 - each gene is then shrunk to cover its transcripts.
 
-Genes without a CDS (non-coding RNA, pseudogenes with no CDS) are not touched by this part.
+Pseudogenes with no CDS are not touched by this part.
 
 **Edit the settings at the top of `prepare_for_liftoff_job.sh`**:
 
@@ -481,7 +481,7 @@ sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final
 
 | File | Shows |
 |---|---|
-| `<genome>_final_annotation.gff` | one independent file per genome - the final built annotation. Note that at this step the genome's own non-coding RNA genes (`ncRNA_gene`/`tRNA_gene`) are restored. This GFF has no UTRs are they were all removed by [step 3](#step-3-prepare-the-gffs-for-liftoff) |
+| `<genome>_final_annotation.gff` | one independent file per genome - the final built annotation. This GFF has no non-coding RNA genes and no UTRs - both were removed by [step 3](#step-3-prepare-the-gffs-for-liftoff) |
 
 #### Checking it worked
 
