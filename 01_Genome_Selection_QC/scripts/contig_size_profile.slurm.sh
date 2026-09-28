@@ -36,7 +36,6 @@ MIN_LEN=10000                           # contigs shorter than this (bp) count a
 set -euo pipefail
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script PY 01_Genome_Selection_QC/scripts/contig_size_profile.py
 
 [[ -d "$GENOMES" ]] || { echo "ERROR: genomes folder not found: $GENOMES (run from the project folder)" >&2; exit 1; }
 
@@ -74,7 +73,7 @@ python3 -c "import pandas, matplotlib" 2>/dev/null \
 
 ARGS=(--genomes-dir "$GENOMES" --outdir "$OUTDIR" --min-len "$MIN_LEN")
 [[ -n "${GFF_INDIR:-}" ]] && ARGS+=(--gff-indir "$GFF_INDIR")
-python3 "$PY" "${ARGS[@]}"
+python3 -m pangenome_pipeline.step01_genome_selection_qc.contig_size_profile "${ARGS[@]}"
 
 echo
 echo "Done — $OUTDIR/contig_sizes.tsv, $OUTDIR/contig_size_summary.tsv, $OUTDIR/plots/"

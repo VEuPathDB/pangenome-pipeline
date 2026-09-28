@@ -266,7 +266,7 @@ their own contig* count as inversions — the raw red in a scaffold dot-plot is 
 arbitrary orientation of independent scaffolds, not biology):
 
 ```bash
-python 01_Genome_Selection_QC/scripts/synteny_report.py \
+PYTHONPATH=src python3 -m pangenome_pipeline.step01_genome_selection_qc.synteny_report \
     01_Genome_Selection_QC/synteny --ref-mb 65.63 \
     --md 01_Genome_Selection_QC/synteny/SYNTENY_REPORT.md \
     --tsv 01_Genome_Selection_QC/synteny/SYNTENY_REPORT.tsv

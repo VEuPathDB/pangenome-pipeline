@@ -32,9 +32,7 @@ import subprocess
 import sys
 import tempfile
 import urllib.parse
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.intervals import merged_len
 
 # Gene-level feature types (GFF3 column 3). NCBI GFFs use plain "gene" for

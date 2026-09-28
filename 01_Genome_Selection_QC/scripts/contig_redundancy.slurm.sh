@@ -59,11 +59,9 @@ PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 GENOME_DIR="$PROJECT_DIR/genomes"
 ORDER="$PROJECT_DIR/genome_order.txt"
 OUT_DIR="$PROJECT_DIR/contig_redundancy"
-PY="$PROJECT_DIR/01_Genome_Selection_QC/scripts/contig_redundancy.py"
 THREADS="${SLURM_CPUS_PER_TASK:-8}"
 
 [[ -f "$ORDER" ]] || { echo "ERROR: $ORDER not found" >&2; exit 1; }
-[[ -f "$PY" ]]    || { echo "ERROR: $PY not found" >&2; exit 1; }
 [[ -d "$GENOME_DIR" ]] || { echo "ERROR: $GENOME_DIR not found" >&2; exit 1; }
 
 mkdir -p "$OUT_DIR"
@@ -92,7 +90,7 @@ done
 
 echo
 echo "=== building report ==="
-python3 "$PY" "$PROJECT_DIR" --ref "${LABELS[0]}" --md "contig_redundancy/REPORT.md" \
+python3 -m pangenome_pipeline.step01_genome_selection_qc.contig_redundancy "$PROJECT_DIR" --ref "${LABELS[0]}" --md "contig_redundancy/REPORT.md" \
     --chrom-min-mb "$CHROM_MIN_MB" --dup-frac "$DUP_FRAC" --dup-min-id "$DUP_MIN_ID"
 
 echo

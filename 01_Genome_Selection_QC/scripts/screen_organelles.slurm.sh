@@ -56,7 +56,6 @@ PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 GENOME_DIR="$PROJECT_DIR/genomes"
 ORDER="$PROJECT_DIR/genome_order.txt"
 OUT_DIR="$PROJECT_DIR/organelle_screen"
-CLASSIFY="$PROJECT_DIR/01_Genome_Selection_QC/scripts/screen_organelles.py"
 
 mkdir -p "$OUT_DIR/blast"
 
@@ -87,7 +86,7 @@ for label in "${LABELS[@]}"; do
 done
 
 # 3. classify
-python3 "$CLASSIFY" --blast-dir "$OUT_DIR/blast" --organelles "$ORGANELLES" \
+python3 -m pangenome_pipeline.step01_genome_selection_qc.screen_organelles --blast-dir "$OUT_DIR/blast" --organelles "$ORGANELLES" \
     --out "$OUT_DIR/organelle_screen.tsv"
 
 echo "Done. See $OUT_DIR/organelle_screen.tsv"

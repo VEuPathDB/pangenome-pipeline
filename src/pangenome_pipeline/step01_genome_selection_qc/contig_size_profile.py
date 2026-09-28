@@ -21,7 +21,7 @@ assembly) - a contig can be short and unique (this script) or short and a
 near-duplicate of a longer contig (that one); they're different questions.
 
 Usage:
-    python3 contig_size_profile.py --genomes-dir genomes --outdir contig_size_profile
+    python3 -m pangenome_pipeline.step01_genome_selection_qc.contig_size_profile --genomes-dir genomes --outdir contig_size_profile
 """
 
 import argparse
@@ -37,7 +37,6 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.gff import find_gff as _find_gff
 from pangenome_pipeline.common.gff import gene_description, infer_biotype, parse_attributes
 

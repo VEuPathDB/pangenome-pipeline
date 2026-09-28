@@ -42,14 +42,12 @@ activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 set -u
 
 PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
-PY="$PROJECT_DIR/01_Genome_Selection_QC/scripts/check_redundant_genes.py"
 
-[[ -f "$PY" ]] || { echo "ERROR: $PY not found" >&2; exit 1; }
 [[ -d "$PROJECT_DIR/contig_redundancy" ]] || {
     echo "ERROR: run contig_redundancy.slurm.sh first" >&2; exit 1; }
 
 # any args passed to sbatch are genome labels; none -> auto-detect
-python3 "$PY" "$PROJECT_DIR" "$@"
+python3 -m pangenome_pipeline.step01_genome_selection_qc.check_redundant_genes "$PROJECT_DIR" "$@"
 
 echo
 echo "Done. Per genome in contig_redundancy/ :"

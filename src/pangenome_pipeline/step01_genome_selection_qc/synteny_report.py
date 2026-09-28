@@ -23,9 +23,7 @@ import glob
 import os
 import re
 import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.intervals import merged_len
 from pangenome_pipeline.common.io import read_paf
 

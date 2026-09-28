@@ -152,8 +152,8 @@ def test_extract_references_normalises_tokens():
 
 
 def test_resolves_relative_to_file_root_and_tail():
-    assert resolves("scripts/drop_contigs.py", "01_Genome_Selection_QC/README.md")  # relative to the README
-    assert resolves("01_Genome_Selection_QC/scripts/drop_contigs.py", "README.md")  # relative to the root
+    assert resolves("scripts/drop_contigs_slurm.sh", "01_Genome_Selection_QC/README.md")  # relative to the README
+    assert resolves("01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh", "README.md")  # relative to the root
     assert resolves("slurm/config.sh", "somewhere/else.md")  # tail of a tracked path
     assert resolves("drop_contigs.py", "anything")  # bare name
     assert not resolves("scripts/no_such_script.py", "README.md")

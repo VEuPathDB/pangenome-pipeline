@@ -198,7 +198,7 @@ step-02 scripts also accept `.fasta`/`.fa` and `.gff`, but keeping the whole set
 
 ## 5. Trim the FASTA headers
 
-Scripts: [`rename_headers.py`](scripts/rename_headers.py) ·
+Scripts: [`rename_headers.py`](../src/pangenome_pipeline/step01_genome_selection_qc/rename_headers.py) ·
 [`rename_headers_slurm.sh`](scripts/rename_headers_slurm.sh).
 
 `rename_headers.py` needs no other input. For every FASTA it trims each header to its first
@@ -338,7 +338,7 @@ screening, synteny comparisons — get a picture of the raw material first: how 
 each assembly has, how big they are, and whether the smallest ones actually carry an
 annotated gene. 
 
-Scripts: [`scripts/contig_size_profile.slurm.sh`](scripts/contig_size_profile.slurm.sh)  · [`scripts/contig_size_profile.py`](scripts/contig_size_profile.py).
+Scripts: [`scripts/contig_size_profile.slurm.sh`](scripts/contig_size_profile.slurm.sh)  · [`src/pangenome_pipeline/step01_genome_selection_qc/contig_size_profile.py`](../src/pangenome_pipeline/step01_genome_selection_qc/contig_size_profile.py).
 
 ```bash
 sbatch 01_Genome_Selection_QC/scripts/contig_size_profile.slurm.sh
@@ -377,7 +377,7 @@ deciding a contig's fate.
 ## 9. Synteny vs the reference
 
 Scripts: [`synteny_vs_ref.slurm.sh`](scripts/synteny_vs_ref.slurm.sh) ·
-[`plot_dotplot.py`](scripts/plot_dotplot.py).
+[`plot_dotplot.py`](../src/pangenome_pipeline/step01_genome_selection_qc/plot_dotplot.py).
 
 `minimap2` aligns the reference (line 1 of `genome_order.txt`) to every other genome, then one
 dot-plot per genome — reference on X, query contigs on Y ordered by where they land on the
@@ -398,7 +398,7 @@ sbatch 01_Genome_Selection_QC/scripts/synteny_vs_ref.slurm.sh
 ## 10. Organelle screen
 
 Scripts: [`screen_organelles.slurm.sh`](scripts/screen_organelles.slurm.sh) ·
-[`screen_organelles.py`](scripts/screen_organelles.py).
+[`screen_organelles.py`](../src/pangenome_pipeline/step01_genome_selection_qc/screen_organelles.py).
 
 Tells you, for each genome, whether the mitochondrion / apicoplast / etc. is present as its
 own contig, only as a fragment inserted in a nuclear sequence, or missing.
@@ -457,7 +457,7 @@ Use it to build the drop list in [section 12](#12-remove-the-unwanted-contigs).
 ## 11. Contig-redundancy screen
 
 Scripts: [`contig_redundancy.slurm.sh`](scripts/contig_redundancy.slurm.sh) ·
-[`contig_redundancy.py`](scripts/contig_redundancy.py).
+[`contig_redundancy.py`](../src/pangenome_pipeline/step01_genome_selection_qc/contig_redundancy.py).
 
 Long-read assemblers (Canu, Flye, …) sometimes leave **small contigs that are really a
 duplicated piece of a chromosome** — an uncollapsed repeat, a haplotig-style overlap, an
@@ -522,7 +522,7 @@ explicit contig, `--contigs <id>`) and add them to the drop list if the genes ch
 ### 11.2 Verify gene-carrying `small-redundant` contigs
 
 Scripts: [`check_redundant_genes.slurm.sh`](scripts/check_redundant_genes.slurm.sh) ·
-[`check_redundant_genes.py`](scripts/check_redundant_genes.py). For every gene on a flagged
+[`check_redundant_genes.py`](../src/pangenome_pipeline/step01_genome_selection_qc/check_redundant_genes.py). For every gene on a flagged
 contig it cuts the gene's genomic span (`samtools faidx`), `blastn`s it against the whole
 assembly, keeps the best hit **not** on the gene's own contig, and checks whether that hit
 lands on an annotated gene in the GFF.
@@ -578,7 +578,7 @@ end with a report naming the contigs that should not go into the pangenome — m
 before step 02, so every genome carries the same nuclear-only content.
 
 Scripts: [`drop_contigs_slurm.sh`](scripts/drop_contigs_slurm.sh) ·
-[`drop_contigs.py`](scripts/drop_contigs.py).
+[`drop_contigs.py`](../src/pangenome_pipeline/step01_genome_selection_qc/drop_contigs.py).
 
 ### 12.1 Write the drop list
 
@@ -627,8 +627,8 @@ To preview only, without writing anything, call the underlying script yourself i
 it only once you've checked the output:
 
 ```bash
-python3 01_Genome_Selection_QC/scripts/drop_contigs.py 01_Genome_Selection_QC/drop_contigs.txt              # preview only
-python3 01_Genome_Selection_QC/scripts/drop_contigs.py 01_Genome_Selection_QC/drop_contigs.txt --apply       # then, once satisfied
+PYTHONPATH=src python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs 01_Genome_Selection_QC/drop_contigs.txt              # preview only
+PYTHONPATH=src python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs 01_Genome_Selection_QC/drop_contigs.txt --apply       # then, once satisfied
 ```
 
 | argument | meaning |

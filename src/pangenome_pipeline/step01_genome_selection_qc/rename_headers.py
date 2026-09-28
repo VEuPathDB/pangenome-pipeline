@@ -31,9 +31,7 @@ import os
 import re
 import sys
 from functools import partial
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.gff import find_gff as _find_gff
 from pangenome_pipeline.common.gff import gff_seqids
 

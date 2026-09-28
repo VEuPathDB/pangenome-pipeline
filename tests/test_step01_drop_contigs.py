@@ -1,11 +1,11 @@
-"""01_Genome_Selection_QC/scripts/drop_contigs.py - removing contigs from assemblies and GFFs."""
+"""step01_genome_selection_qc/drop_contigs.py - removing contigs from assemblies and GFFs."""
 
 import io
 
 import pytest
 from conftest import gff_line
 
-SCRIPT = "01_Genome_Selection_QC/scripts/drop_contigs.py"
+SCRIPT = "src/pangenome_pipeline/step01_genome_selection_qc/drop_contigs.py"
 
 
 @pytest.fixture(scope="module")

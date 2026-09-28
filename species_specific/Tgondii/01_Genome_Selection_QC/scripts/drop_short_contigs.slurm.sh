@@ -56,11 +56,9 @@ GENOME_DIR="$PROJECT_DIR/$GENOMES"
 GFF_DIR_PATH="$PROJECT_DIR/$GFF_DIR"
 ORDER_FILE="$PROJECT_DIR/$ORDER"
 LIST_PATH="$PROJECT_DIR/$DROP_LIST"
-DROP_SCRIPT="$PROJECT_DIR/01_Genome_Selection_QC/scripts/drop_contigs.py"
 BACKUP_PATH="$PROJECT_DIR/$BACKUP_DIR"
 
 [[ -f "$ORDER_FILE" ]]  || { echo "ERROR: genome list not found: $ORDER_FILE" >&2; exit 1; }
-[[ -f "$DROP_SCRIPT" ]] || { echo "ERROR: $DROP_SCRIPT not found" >&2; exit 1; }
 
 fasta_for () {  # basename -> path
     for e in fna fasta fa; do
@@ -124,7 +122,7 @@ fi
 #    only way back.
 echo
 echo "=== APPLYING ==="
-python3 "$DROP_SCRIPT" "$LIST_PATH" --genomes-dir "$GENOME_DIR" --gff-dir "$PROJECT_DIR/$GFF_DIR" --apply
+python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs "$LIST_PATH" --genomes-dir "$GENOME_DIR" --gff-dir "$PROJECT_DIR/$GFF_DIR" --apply
 
 echo
 echo "Done. genomes/ and $GFF_DIR/ rewritten without contigs < ${MIN_LEN}bp."

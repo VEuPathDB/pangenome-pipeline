@@ -40,7 +40,6 @@ PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 GENOME_DIR="$PROJECT_DIR/genomes"
 ORDER="$PROJECT_DIR/genome_order.txt"
 OUT_DIR="$PROJECT_DIR/synteny"
-PLOT="$PROJECT_DIR/01_Genome_Selection_QC/scripts/plot_dotplot.py"
 
 PRESET="asm10"      # minimap2 -x : asm5 (<1% divergence) | asm10 | asm20 (more divergent)
 MIN_ALN=2000        # drop alignments shorter than this from the plot
@@ -68,7 +67,7 @@ for label in "${LABELS[@]:1}"; do
     echo "=== $label ==="
     minimap2 -x "$PRESET" -t "${SLURM_CPUS_PER_TASK:-8}" --secondary=no \
         "$REF_FA" "$Q_FA" > "$paf"
-    python3 "$PLOT" "$paf" --ref-name "$REF" --query-name "$label" \
+    python3 -m pangenome_pipeline.step01_genome_selection_qc.plot_dotplot "$paf" --ref-name "$REF" --query-name "$label" \
         --min-aln "$MIN_ALN" -o "$png"
 done
 

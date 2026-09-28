@@ -39,22 +39,21 @@ module load python/3.11.9
 set -u
 
 PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
-SCRIPT="$PROJECT_DIR/01_Genome_Selection_QC/scripts/drop_contigs.py"
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # pipeline_config.sh, and src/ on PYTHONPATH
 LIST_PATH="$PROJECT_DIR/$LIST"
 
-[[ -f "$SCRIPT" ]]    || { echo "ERROR: $SCRIPT not found" >&2; exit 1; }
 [[ -f "$LIST_PATH" ]] || { echo "ERROR: list file $LIST_PATH not found - set LIST at the top" >&2; exit 1; }
 
 cd "$PROJECT_DIR"
 
 # 1. dry run - show exactly what will be removed
 echo "=== DRY RUN ==="
-python3 "$SCRIPT" "$LIST_PATH"
+python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs "$LIST_PATH"
 
 # 2. apply
 echo
 echo "=== APPLYING ==="
-python3 "$SCRIPT" "$LIST_PATH" --apply
+python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs "$LIST_PATH" --apply
 
 echo
 echo "Done. genomes/ and gff_originals/ rewritten. Re-run the section 5.1 GFF"

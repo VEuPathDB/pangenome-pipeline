@@ -19,11 +19,9 @@ from collections import defaultdict
 import matplotlib
 
 matplotlib.use("Agg")
-from pathlib import Path
 
 import matplotlib.pyplot as plt
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.io import read_paf
 
 
