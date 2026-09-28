@@ -13,7 +13,7 @@ Output is a plain text file with one gene ID per line, suitable for
 agat_sp_filter_feature_from_keep_list.pl's --keep_list.
 
 Usage:
-    python3 get_good_transfer_ids.py --gff STRAIN_liftoff_updated.gff3_polished --out keep_ids.txt
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.get_good_transfer_ids --gff STRAIN_liftoff_updated.gff3_polished --out keep_ids.txt
 """
 
 import argparse

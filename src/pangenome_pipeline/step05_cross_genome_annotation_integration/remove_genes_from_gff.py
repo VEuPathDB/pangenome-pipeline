@@ -12,7 +12,7 @@ two genomes needs two lines. Matches the feature's ID= attribute exactly; the NC
 "gene-" and Ensembl-style "gene:" prefixed forms of the ID are tried too.
 
 Usage:
-    python3 remove_genes_from_gff.py \\
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.remove_genes_from_gff \\
         --genomes genome_order.txt --gff-dir gff_with_interpro \\
         --kill-list kill_list_manual.tsv --out-dir gff_curated
 
@@ -28,9 +28,7 @@ import re
 import shutil
 import sys
 from collections import defaultdict
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.gff import find_gff
 from pangenome_pipeline.common.io import read_id_list
 

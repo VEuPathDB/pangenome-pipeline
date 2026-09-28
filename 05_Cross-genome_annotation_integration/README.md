@@ -75,7 +75,7 @@ own.
 - Read-only - never edits any GFF.
 
 Scripts: [`scripts/analyze_input_gffs_job.sh`](scripts/analyze_input_gffs_job.sh) ·
-[`scripts/analyze_input_gffs.py`](scripts/analyze_input_gffs.py). Read-only - it never edits any GFF.
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/analyze_input_gffs.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/analyze_input_gffs.py). Read-only - it never edits any GFF.
 Run once, after [step 04 - InterProScan](../04_InterProScan/README.md) - the domain-evidence
 columns and plots (`has_domain`) only mean anything once InterPro/PFAM hits are written into the
 GFFs.
@@ -182,7 +182,7 @@ alone can show 0% (which is why this check runs on step 04's output).
 If some genes are confirmed to be wrong and must be deleted (e.g. 5 genes that are known to be wrong in *T. gondii* M49 last annotation), strip them out before Liftoff.
 
 Scripts: [`scripts/remove_genes_from_gff_job.sh`](scripts/remove_genes_from_gff_job.sh) ·
-[`scripts/remove_genes_from_gff.py`](scripts/remove_genes_from_gff.py)
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/remove_genes_from_gff.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/remove_genes_from_gff.py)
 
 - Removing a gene removes every feature nested under it too (mRNA, exon, CDS, UTR, ...), so
   no orphaned child lines are left behind.
@@ -235,7 +235,7 @@ found (a typo in the ID, or the wrong genome name on that line; nothing is remov
 ### Step 3: Prepare the GFFs for Liftoff
 
 Scripts: [`scripts/prepare_for_liftoff_job.sh`](scripts/prepare_for_liftoff_job.sh) ·
-[`scripts/prepare_for_liftoff.py`](scripts/prepare_for_liftoff.py)
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/prepare_for_liftoff.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/prepare_for_liftoff.py)
 
 Two things, done on a copy - the input GFFs are never edited.
 
@@ -372,7 +372,7 @@ following it end to end isn't possible yet.
 
 Scripts: [`scripts/build_final_annotation_basic.sh`](scripts/build_final_annotation_basic.sh) ·
 [`scripts/build_final_annotation.sh`](scripts/build_final_annotation.sh) ·
-[`scripts/get_good_transfer_ids.py`](scripts/get_good_transfer_ids.py) ·
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/get_good_transfer_ids.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/get_good_transfer_ids.py) ·
 [`scripts/check_final_annotations_job.sh`](scripts/check_final_annotations_job.sh)
 
 The pipeline is built around AGAT's `agat_sp_complement_annotations.pl`, which only adds a
@@ -506,7 +506,7 @@ sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final
 > drive several of the checks below. 
 
 Scripts: [`scripts/plot_final_annotation_qc_job.sh`](scripts/plot_final_annotation_qc_job.sh) ·
-[`scripts/plot_final_annotation_qc.py`](scripts/plot_final_annotation_qc.py)
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_final_annotation_qc.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_final_annotation_qc.py)
 
 Once every genome has its `_final_annotation.gff`, this gives a first look at the raw build's
 quality - before any filtering, which is [step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes).
@@ -635,10 +635,10 @@ Moreover, due to the liftoff process that can predict slightly different gene mo
 ### 7a. Filter (drop unsupported genes before get_pangenes)
 
 Scripts: [`scripts/filter_final_annotation_job.sh`](scripts/filter_final_annotation_job.sh) ·
-[`scripts/filter_final_annotation.py`](scripts/filter_final_annotation.py) ·
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/filter_final_annotation.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/filter_final_annotation.py) ·
 [`scripts/plot_filter_qc_job.sh`](scripts/plot_filter_qc_job.sh) ·
-[`scripts/plot_filter_qc.py`](scripts/plot_filter_qc.py) · shared with 7b and the QC plots:
-[`scripts/annotation_common.py`](scripts/annotation_common.py) (GFF parsing, CDS-overlap scan, ID renumbering)
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_filter_qc.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_filter_qc.py) · shared with 7b and the QC plots:
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py) (GFF parsing, CDS-overlap scan, ID renumbering)
 
 
 A gene is never partially removed: it's dropped from **every** genome's output or from none -
@@ -804,7 +804,7 @@ on to [step 06 - GET_PANGENES](../06_GET_PANGENES/README.md) to prepare and run
 ### 7b. No filtering (tag, decide after get_pangenes)
 
 Scripts: [`scripts/tag_final_annotation_job.sh`](scripts/tag_final_annotation_job.sh) ·
-[`scripts/tag_final_annotation.py`](scripts/tag_final_annotation.py) · [`scripts/annotation_common.py`](scripts/annotation_common.py)
+[`src/pangenome_pipeline/step05_cross_genome_annotation_integration/tag_final_annotation.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/tag_final_annotation.py) · [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py)
 
 **Why this exists.** 7a's overlap-resolution rule can still be wrong in a specific way: if a
 gene overlaps something in only one genome of the panel because that one genome's `main`/other

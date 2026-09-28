@@ -40,7 +40,7 @@ Produces, in --out-dir:
                               3 pairs only counts once)
 
 Usage:
-    python3 plot_final_annotation_qc.py \\
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.plot_final_annotation_qc \\
         --strains "AF293,strain2,strain3" \\
         --final-dir ./expanded_annotation \\
         --genome-dir /path/to/each_genomes_own_annotation \\
@@ -54,14 +54,10 @@ import os
 import re
 import sys
 from collections import defaultdict
-from pathlib import Path
 from urllib.parse import unquote
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.io import read_strains
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from annotation_common import (
+from pangenome_pipeline.step05_cross_genome_annotation_integration.annotation_common import (
     DESCRIPTION_RE,
     ID_RE,
     PARENT_RE,

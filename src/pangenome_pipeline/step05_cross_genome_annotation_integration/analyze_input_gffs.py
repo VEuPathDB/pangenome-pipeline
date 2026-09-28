@@ -70,7 +70,7 @@ Produces, in --out-dir:
                                    versus how much was already there
 
 Usage:
-    python3 analyze_input_gffs.py \\
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.analyze_input_gffs \\
         --genomes genome_order.txt \\
         --gff-dir gff_cleaned \\
         --out-dir annotation_check
@@ -83,10 +83,8 @@ import re
 import sys
 from collections import defaultdict
 from functools import partial
-from pathlib import Path
 from urllib.parse import unquote
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.gff import biotype_category as _biotype_category
 from pangenome_pipeline.common.gff import find_gff
 from pangenome_pipeline.common.intervals import segments_overlap_bp

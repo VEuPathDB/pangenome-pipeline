@@ -111,6 +111,8 @@ def find_missing():
     for path in _git_ls_files(*SCANNED_PATTERNS):
         if path.startswith("tests/"):
             continue  # the tests name made-up scripts on purpose
+        if path.startswith("results/") and not path.endswith(".md"):
+            continue  # frozen copies of old script versions; the reports themselves are still checked
         text = (REPO_ROOT / path).read_text(errors="replace")
         for lineno, line in enumerate(text.splitlines(), start=1):
             for ref in extract_references(line):

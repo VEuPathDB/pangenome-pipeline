@@ -990,7 +990,7 @@ Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expan
 
 ### Filtering — 7a (with filtering)
 
-Ran [`filter_final_annotation.py`](../../05_Cross-genome_annotation_integration/scripts/filter_final_annotation.py)
+Ran [`filter_final_annotation.py`](../../src/pangenome_pipeline/step05_cross_genome_annotation_integration/filter_final_annotation.py)
 on all 17 genomes (rule details in the
 [general README](../../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
 Output: `filtered_annotation/<genome>_final_annotation_filtered.gff`, with the genes typed `gene` and

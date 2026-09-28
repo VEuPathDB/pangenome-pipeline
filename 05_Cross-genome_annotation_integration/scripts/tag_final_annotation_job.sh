@@ -31,10 +31,9 @@ module load python/3.11.9
 set -u
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script PY 05_Cross-genome_annotation_integration/scripts/tag_final_annotation.py
 mkdir -p "$OUT_DIR"
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.tag_final_annotation \
   --strains "$STRAINS" --final-dir "$FINAL_DIR" \
   --out-dir "$OUT_DIR" \
   --min-overlap-bp "$MIN_OVERLAP_BP" \

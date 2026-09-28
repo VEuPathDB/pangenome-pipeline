@@ -19,6 +19,7 @@ def _bash(script, cwd, **env):
 def project(tmp_path):
     """A project folder laid out like a real one: the pipeline's lib/ and a step folder in it."""
     (tmp_path / "lib").symlink_to(REPO_ROOT / "lib")
+    (tmp_path / "src").symlink_to(REPO_ROOT / "src")
     step = tmp_path / "05_step" / "scripts"
     step.mkdir(parents=True)
     (step / "tool.py").write_text("")

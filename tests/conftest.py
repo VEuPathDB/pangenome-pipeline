@@ -1,7 +1,8 @@
 """Shared test helpers.
 
-The pipeline scripts aren't a package - they live in step folders, some with hyphens in the name,
-and import their siblings via sys.path. load_script() imports one by file path the same way.
+load_script() imports pipeline code by its repo path: modules in src/pangenome_pipeline by their
+package name, and the loose scripts that remain outside it (step folders, species_specific/) by
+file path, with their folder on sys.path for sibling imports.
 """
 
 import importlib.util
@@ -16,7 +17,16 @@ os.environ.setdefault("MPLBACKEND", "Agg")
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
+def module_name(relpath):
+    """src/pangenome_pipeline/x/y.py -> pangenome_pipeline.x.y (None for files outside src/)."""
+    if not relpath.startswith("src/") or not relpath.endswith(".py"):
+        return None
+    return relpath[len("src/") : -len(".py")].replace("/", ".")
+
+
 def _load(relpath):
+    if module_name(relpath):
+        return importlib.import_module(module_name(relpath))
     path = REPO_ROOT / relpath
     script_dir = str(path.parent)
     if script_dir not in sys.path:

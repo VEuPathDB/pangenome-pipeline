@@ -33,7 +33,7 @@ never edited):
    Genes/transcripts with no CDS (pseudogenes without a CDS) are not touched.
 
 Usage:
-    python3 prepare_for_liftoff.py \\
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.prepare_for_liftoff \\
         --genomes genome_order.txt --gff-dir gff_curated --out-dir gff_for_liftoff
 
 Writes <out-dir>/<genome>.gff3 (or .gff, as the input), liftoff_feature_types.txt (pass it to
@@ -45,9 +45,7 @@ import os
 import re
 import sys
 from collections import defaultdict
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.gff import biotype_category, find_gff
 from pangenome_pipeline.common.io import read_id_list
 

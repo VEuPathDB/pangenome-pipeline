@@ -26,7 +26,8 @@ import pytest
 from conftest import REPO_ROOT
 
 DATA = REPO_ROOT / "tests" / "data" / "step05"
-SCRIPTS = REPO_ROOT / "05_Cross-genome_annotation_integration" / "scripts"
+PACKAGE = "pangenome_pipeline.step05_cross_genome_annotation_integration"
+JOBS = REPO_ROOT / "05_Cross-genome_annotation_integration" / "scripts"
 
 PANEL = ["--strains", "genome_order.txt", "--final-dir", "expanded_annotation"]
 
@@ -36,7 +37,7 @@ def _run_and_compare(script, args, expected_dir, tmp_path, pattern="*"):
     the snapshot in expected_dir."""
     out_dir = tmp_path / "out"
     result = subprocess.run(
-        [sys.executable, str(SCRIPTS / script), *args, "--out-dir", str(out_dir)],
+        [sys.executable, "-m", f"{PACKAGE}.{script.removesuffix('.py')}", *args, "--out-dir", str(out_dir)],
         cwd=DATA,
         env={**os.environ, "MPLBACKEND": "Agg"},
         capture_output=True,
@@ -109,10 +110,10 @@ def test_fixture_inputs_untouched():
 
 def test_filter_job_wrapper_end_to_end(tmp_path):
     """The SLURM wrapper, run from a project folder as a user would (sbatch's `module` stubbed out),
-    finds its .py through lib/slurm_common.sh and produces the same reports as the snapshot."""
+    runs the package through lib/slurm_common.sh's PYTHONPATH and produces the same reports as the snapshot."""
     project = tmp_path / "project"
     project.mkdir()
-    for name in ("lib", "05_Cross-genome_annotation_integration"):
+    for name in ("lib", "src", "05_Cross-genome_annotation_integration"):
         (project / name).symlink_to(REPO_ROOT / name)
     shutil.copytree(DATA / "expanded_annotation", project / "expanded_annotation")
     shutil.copy(DATA / "genome_order.txt", project / "genome_order.txt")
@@ -123,7 +124,7 @@ def test_filter_job_wrapper_end_to_end(tmp_path):
     (stubs / "python3").symlink_to(sys.executable)
 
     result = subprocess.run(
-        ["bash", str(SCRIPTS / "filter_final_annotation_job.sh")],
+        ["bash", str(JOBS / "filter_final_annotation_job.sh")],
         cwd=project,
         env={**os.environ, "PATH": f"{stubs}:{os.environ['PATH']}"},
         capture_output=True,

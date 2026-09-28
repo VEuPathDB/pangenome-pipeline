@@ -31,11 +31,10 @@ activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-find_script PY 05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff.py
 
 [[ -f "$KILL_LIST" ]] || { echo "ERROR: kill list not found: $KILL_LIST" >&2; exit 1; }
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.remove_genes_from_gff \
   --genomes "$GENOMES" --gff-dir "$GFF_DIR" \
   --kill-list "$KILL_LIST" --out-dir "$OUT_DIR"
 

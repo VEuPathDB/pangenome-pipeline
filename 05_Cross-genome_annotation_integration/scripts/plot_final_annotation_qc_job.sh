@@ -29,9 +29,8 @@ activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-find_script PY 05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc.py
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.plot_final_annotation_qc \
   --strains "$STRAINS" --final-dir "$FINAL_DIR" \
   --genome-dir "$GENOME_DIR" --genome-suffix "$GENOME_SUFFIX" \
   --out-dir "$OUT_DIR"

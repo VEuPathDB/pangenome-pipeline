@@ -7,7 +7,7 @@ import sys
 import pytest
 from conftest import gff_line
 
-SCRIPTS = "05_Cross-genome_annotation_integration/scripts/"
+SCRIPTS = "src/pangenome_pipeline/step05_cross_genome_annotation_integration/"
 
 
 @pytest.fixture(scope="module")

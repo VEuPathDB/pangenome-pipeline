@@ -29,10 +29,9 @@ activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-find_script PY 05_Cross-genome_annotation_integration/scripts/plot_filter_qc.py
 mkdir -p "$OUT_DIR"
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.plot_filter_qc \
   --strains "$STRAINS" \
   --original-dir "$ORIGINAL_DIR" \
   --filtered-dir "$FILTERED_DIR" \

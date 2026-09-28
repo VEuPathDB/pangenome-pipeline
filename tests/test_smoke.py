@@ -12,6 +12,7 @@ import warnings
 from pathlib import Path
 
 import pytest
+from conftest import module_name
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -42,9 +43,15 @@ def test_python_compiles(path, tmp_path):
 def test_python_help(path):
     script = REPO_ROOT / path
     env = {**os.environ, "MPLBACKEND": "Agg", "PYTHONDONTWRITEBYTECODE": "1"}
+    # package modules run the way the jobs run them; loose scripts from their own folder
+    cmd, cwd = (
+        ([sys.executable, "-m", module_name(path)], REPO_ROOT)
+        if module_name(path)
+        else ([sys.executable, script.name], script.parent)
+    )
     result = subprocess.run(
-        [sys.executable, script.name, "--help"],
-        cwd=script.parent,
+        [*cmd, "--help"],
+        cwd=cwd,
         env=env,
         capture_output=True,
         text=True,

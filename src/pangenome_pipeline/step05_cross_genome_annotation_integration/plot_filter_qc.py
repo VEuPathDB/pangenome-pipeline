@@ -4,8 +4,8 @@ Plots comparing this pipeline's output before and after filter_final_annotation.
 run this after 7a, as a sanity check that the filtering did what it should across every
 strain, not just the ones checked by hand.
 
-Reuses filter_final_annotation.py's own low-level GFF-attribute helpers directly (imported, not
-copy-pasted) - it needs to live in the same folder as filter_final_annotation.py to import them.
+Reuses the 7a filter's own low-level GFF-attribute helpers (annotation_common, imported, not
+copy-pasted).
 Gene-level parsing itself is NOT reused: the "before" file (<genome>_final_annotation.gff) still
 types genes `protein_coding_gene`, but 7a's own output is already relabeled to `gene` (so
 get_pangenes can cluster it directly) - this script parses each side with its own feature type.
@@ -21,7 +21,7 @@ Produces, in --out-dir:
     summary.tsv              the numbers behind every plot above, one strain per row
 
 Usage:
-    python3 plot_filter_qc.py \\
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.plot_filter_qc \\
         --strains genome_order.txt \\
         --original-dir expanded_annotation \\
         --filtered-dir filtered_annotation \\
@@ -34,7 +34,6 @@ import os
 import re
 import sys
 from collections import defaultdict
-from pathlib import Path
 
 try:
     import matplotlib
@@ -44,14 +43,17 @@ try:
 except ImportError:
     sys.exit("ERROR: this script needs matplotlib - install it with 'pip install matplotlib'")
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-if SCRIPT_DIR not in sys.path:
-    sys.path.insert(0, SCRIPT_DIR)
 
-from annotation_common import ID_RE, PARENT_RE, find_cds_overlaps, float_attr, int_attr, source_counts, valid_orf
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.io import read_strains
+from pangenome_pipeline.step05_cross_genome_annotation_integration.annotation_common import (
+    ID_RE,
+    PARENT_RE,
+    find_cds_overlaps,
+    float_attr,
+    int_attr,
+    source_counts,
+    valid_orf,
+)
 
 REASON_CATEGORIES = [
     (r"^extra copy with no valid ORF", "extra copy: no valid ORF"),

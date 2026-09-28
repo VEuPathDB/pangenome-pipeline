@@ -30,9 +30,8 @@ activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-find_script PY 05_Cross-genome_annotation_integration/scripts/analyze_input_gffs.py
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.analyze_input_gffs \
   --genomes "$GENOMES" --gff-dir "$GFF_DIR" --out-dir "$OUT_DIR"
 
 echo "Annotation check completed. Outputs are in $OUT_DIR"

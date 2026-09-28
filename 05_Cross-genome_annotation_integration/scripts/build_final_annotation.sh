@@ -93,6 +93,9 @@ done
 [[ -z "$PAIR_SUFFIX" ]] && { echo "ERROR: -x PAIR_SUFFIX is required" >&2; usage; }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# the pipeline's Python package, for get_good_transfer_ids (works when run directly too, not only
+# from build_final_annotation_basic.sh)
+export PYTHONPATH="$SCRIPT_DIR/../../src${PYTHONPATH:+:$PYTHONPATH}"
 
 for cmd in python3 agat_sp_filter_feature_from_keep_list.pl agat_sp_complement_annotations.pl; do
   if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -212,7 +215,7 @@ run_good_round() {  # $1=target $2=target_dir -> updates $accumulated
     fi
     local keep_ids="$target_dir/${other}_good_ids.txt"
     local filtered="$target_dir/${other}_good.gff"
-    python3 "$SCRIPT_DIR/get_good_transfer_ids.py" \
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.get_good_transfer_ids \
       --gff "$pair_gff" --out "$keep_ids" \
       --min-coverage "$MIN_COVERAGE" --min-identity "$MIN_IDENTITY"
     rm -f "$filtered" "${filtered%.gff}_report.txt"
@@ -295,7 +298,7 @@ for TARGET in "${TARGETS[@]}"; do
 
     keep_ids="$target_dir/main_good_ids.txt"
     main_gff="$target_dir/main.gff"
-    python3 "$SCRIPT_DIR/get_good_transfer_ids.py" \
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.get_good_transfer_ids \
       --gff "$ref_pair" --out "$keep_ids" \
       --min-coverage "$MIN_COVERAGE" --min-identity "$MIN_IDENTITY"
     rm -f "$main_gff" "${main_gff%.gff}_report.txt"

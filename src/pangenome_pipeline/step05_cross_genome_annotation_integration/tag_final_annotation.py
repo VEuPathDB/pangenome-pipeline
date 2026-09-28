@@ -40,7 +40,7 @@ get_pangenes without an extra prep pass:
   a new "original_ID=" attribute.
 
 Usage:
-    python3 tag_final_annotation.py \\
+    python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.tag_final_annotation \\
         --strains genome_order.txt \\
         --final-dir expanded_annotation \\
         --out-dir tagged_annotation
@@ -50,13 +50,9 @@ import argparse
 import os
 import sys
 from collections import defaultdict
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.io import read_strains
-
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from annotation_common import (
+from pangenome_pipeline.step05_cross_genome_annotation_integration.annotation_common import (
     CHILD_FEATURE_TYPES,
     ID_RE,
     add_original_id_attr,
