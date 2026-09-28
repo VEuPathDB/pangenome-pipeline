@@ -75,8 +75,8 @@ from summarize_te_content import (
     style_axes,
 )
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import (  # GENE_FTYPE_TO_BIOTYPE, parse_attributes: re-exported to sibling scripts
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.gff import (  # GENE_FTYPE_TO_BIOTYPE, parse_attributes: re-exported to sibling scripts
     GENE_FTYPE_TO_BIOTYPE,
     gene_description,
     gff_seqids,

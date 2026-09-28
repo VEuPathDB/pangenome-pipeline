@@ -33,9 +33,9 @@ import sys
 from functools import partial
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import find_gff as _find_gff
-from pangenome_common.gff import gff_seqids
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.gff import find_gff as _find_gff
+from pangenome_pipeline.common.gff import gff_seqids
 
 # Also accepts gzipped GFFs, unlike most steps.
 find_gff = partial(_find_gff, exts=(".gff3", ".gff", ".gff3.gz", ".gff.gz"))

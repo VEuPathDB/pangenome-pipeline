@@ -97,7 +97,8 @@ git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 │   └── scripts/
 ├── 08_Pangenome_Visualisation/
 │   └── scripts/
-├── lib/pangenome_common/       Python helpers shared by the step scripts (keep it with them)
+├── src/pangenome_pipeline/     the Python code, one subpackage per step (keep it with the step folders)
+├── lib/slurm_common.sh         shell helpers every job script loads
 ├── species_specific/           one-off scripts for a single species (Afum/, Tgondii/)
 ├── genome_order.txt            the genome list (generated in step 01)
 ├── genomes/                    <basename>.fna    – assemblies

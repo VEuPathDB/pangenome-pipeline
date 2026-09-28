@@ -25,9 +25,9 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.intervals import merged_len
-from pangenome_common.io import read_paf
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.intervals import merged_len
+from pangenome_pipeline.common.io import read_paf
 
 TRANSLOC_MIN = 20_000  # bp to a 2nd ref chrom before a contig counts as split/chimeric
 INV_MIN = 20_000  # min block size to list an internal inversion

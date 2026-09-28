@@ -52,8 +52,8 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.io import read_strains
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.io import read_strains
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from annotation_common import (

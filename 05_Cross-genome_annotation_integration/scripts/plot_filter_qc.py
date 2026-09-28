@@ -50,8 +50,8 @@ if SCRIPT_DIR not in sys.path:
 
 from annotation_common import ID_RE, PARENT_RE, find_cds_overlaps, float_attr, int_attr, source_counts, valid_orf
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.io import read_strains
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.io import read_strains
 
 REASON_CATEGORIES = [
     (r"^extra copy with no valid ORF", "extra copy: no valid ORF"),

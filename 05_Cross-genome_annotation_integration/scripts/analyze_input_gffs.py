@@ -86,10 +86,10 @@ from functools import partial
 from pathlib import Path
 from urllib.parse import unquote
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import biotype_category as _biotype_category
-from pangenome_common.gff import find_gff
-from pangenome_common.intervals import segments_overlap_bp
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.gff import biotype_category as _biotype_category
+from pangenome_pipeline.common.gff import find_gff
+from pangenome_pipeline.common.intervals import segments_overlap_bp
 
 # This script reports other RNA genes as "ncRNA_other".
 biotype_category = partial(_biotype_category, other_rna_label="ncRNA_other")

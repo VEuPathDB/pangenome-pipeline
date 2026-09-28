@@ -14,7 +14,6 @@ import pytest
 os.environ.setdefault("MPLBACKEND", "Agg")
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
-sys.path.insert(0, str(REPO_ROOT / "lib"))  # the shared helpers, as the scripts themselves do
 
 
 def _load(relpath):

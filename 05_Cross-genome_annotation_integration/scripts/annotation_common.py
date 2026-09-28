@@ -10,8 +10,8 @@ from collections import defaultdict
 from pathlib import Path
 from urllib.parse import unquote_plus
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.intervals import segments_overlap_bp
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.intervals import segments_overlap_bp
 
 # Anchored on the start of the column or a ";" so e.g. "sequence_ID=" or "copy_num_ID=" is never
 # mistaken for ID=.

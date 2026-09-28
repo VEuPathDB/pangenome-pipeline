@@ -1,10 +1,10 @@
-"""lib/pangenome_common - helpers shared across step scripts."""
+"""src/pangenome_pipeline/common - helpers shared across steps."""
 
 from pathlib import Path
 
 import pytest
 
-from pangenome_common.gff import (
+from pangenome_pipeline.common.gff import (
     biotype_category,
     find_gff,
     gene_description,
@@ -12,8 +12,8 @@ from pangenome_common.gff import (
     infer_biotype,
     parse_attributes,
 )
-from pangenome_common.intervals import merged_len, segments_overlap_bp
-from pangenome_common.io import read_id_list, read_paf, read_strains
+from pangenome_pipeline.common.intervals import merged_len, segments_overlap_bp
+from pangenome_pipeline.common.io import read_id_list, read_paf, read_strains
 
 
 def test_merged_len_half_open():

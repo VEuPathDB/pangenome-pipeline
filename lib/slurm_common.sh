@@ -5,8 +5,9 @@
 #
 #     source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1
 #
-# It loads <project>/pipeline_config.sh if there is one (cluster paths and environment names -
-# copy pipeline_config.example.sh to start), then provides:
+# It puts the pipeline's Python package (src/) on PYTHONPATH, loads <project>/pipeline_config.sh if
+# there is one (cluster paths and environment names - copy pipeline_config.example.sh to start),
+# then provides:
 #
 #   find_script VAR <path/from/project/script.py>   set VAR to the path of a pipeline script
 #   activate_env NAME                         activate a micromamba environment
@@ -14,6 +15,10 @@
 
 PIPELINE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PIPELINE_CONFIG="${PIPELINE_CONFIG:-$PIPELINE_DIR/pipeline_config.sh}"
+
+# The pipeline's Python package (src/pangenome_pipeline), for `python3 -m pangenome_pipeline.<step>.<module>`
+# with whichever python3 the job has loaded - nothing needs installing.
+export PYTHONPATH="$PIPELINE_DIR/src${PYTHONPATH:+:$PYTHONPATH}"
 
 if [[ -f "$PIPELINE_CONFIG" ]]; then
     # shellcheck source=../pipeline_config.example.sh

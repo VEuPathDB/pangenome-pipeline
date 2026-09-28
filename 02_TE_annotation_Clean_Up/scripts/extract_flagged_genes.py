@@ -39,8 +39,8 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from te_gene_overlap import GENE_FTYPE_TO_BIOTYPE, parse_attributes, strip_prefix
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import find_gff as _find_gff
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.gff import find_gff as _find_gff
 
 # <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
 find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)

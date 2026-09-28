@@ -27,6 +27,10 @@ dev = [
   "uv",
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [tool.coverage.run]
 omit = [
   "tests/*",
@@ -34,10 +38,13 @@ omit = [
   "results/*",
 ]
 
+[tool.hatch.build.targets.wheel]
+packages = ["src/pangenome_pipeline"]
+
 [tool.isort]
 profile = "black"
 line_length = 120
-known_first_party = ["pangenome_common"]
+known_first_party = ["pangenome_pipeline"]
 skip = [
   ".venv",
   ".nox",
@@ -47,7 +54,7 @@ skip = [
 # Relaxed to start with: none of the scripts carry type hints yet, so strict settings
 # would bury real problems. Tighten these as the refactor adds annotations.
 [tool.mypy]
-mypy_path = "lib"
+mypy_path = "src"
 ignore_missing_imports = true
 check_untyped_defs = false
 no_implicit_optional = true
@@ -74,7 +81,7 @@ exclude = [
 ]
 
 [tool.ruff.lint.isort]
-known-first-party = ["pangenome_common"]
+known-first-party = ["pangenome_pipeline"]
 
 [tool.uv]
-package = false
+package = true

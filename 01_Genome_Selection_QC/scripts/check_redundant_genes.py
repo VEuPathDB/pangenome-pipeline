@@ -34,8 +34,8 @@ import tempfile
 import urllib.parse
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.intervals import merged_len
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
+from pangenome_pipeline.common.intervals import merged_len
 
 # Gene-level feature types (GFF3 column 3). NCBI GFFs use plain "gene" for
 # everything; VEuPathDB/FungiDB GFFs (e.g. AF293, A1160, A1163 in this
