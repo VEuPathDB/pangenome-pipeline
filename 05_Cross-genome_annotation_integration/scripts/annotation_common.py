@@ -13,8 +13,10 @@ from urllib.parse import unquote_plus
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 from pangenome_common.intervals import segments_overlap_bp
 
-ID_RE = re.compile(r"ID=([^;]+)")
-PARENT_RE = re.compile(r"Parent=([^;]+)")
+# Anchored on the start of the column or a ";" so e.g. "sequence_ID=" or "copy_num_ID=" is never
+# mistaken for ID=.
+ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
 DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
 PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
 
@@ -39,22 +41,21 @@ CHILD_FEATURE_TYPES = {
 
 
 def int_attr(attrs, key):
-    m = re.search(rf"{key}=(\d+)", attrs)
+    m = re.search(rf"(?:^|;){re.escape(key)}=(\d+)", attrs)
     return int(m.group(1)) if m else None
 
 
 def float_attr(attrs, key):
-    m = re.search(rf"{key}=([\d.]+)", attrs)
+    m = re.search(rf"(?:^|;){re.escape(key)}=([\d.]+)", attrs)
     return float(m.group(1)) if m else None
 
 
 def valid_orf(attrs):
     """True/False from Liftoff's valid_ORF= (or valid_ORFs=N >= 1); None if neither is present."""
-    if "valid_ORF=True" in attrs:
-        return True
-    if "valid_ORF=False" in attrs:
-        return False
-    m = re.search(r"valid_ORFs=(\d+)", attrs)
+    m = re.search(r"(?:^|;)valid_ORF=(True|False)", attrs)
+    if m:
+        return m.group(1) == "True"
+    m = re.search(r"(?:^|;)valid_ORFs=(\d+)", attrs)
     if m:
         return int(m.group(1)) >= 1
     return None
@@ -184,6 +185,14 @@ def assign_new_ids(genes, gene_ids, strain_index, id_prefix):
     ordered = sorted(gene_ids, key=lambda gid: (genes[gid]["seqname"], genes[gid]["start"], gid))
     width = max(5, len(str(len(ordered))))
     return {gid: f"{id_prefix}{strain_index}g{i:0{width}d}" for i, gid in enumerate(ordered, start=1)}
+
+
+def replace_attr_value(attrs, key, old, new):
+    """attrs with the first `key=old` attribute changed to `key=new`. Only a whole attribute
+    matches: "copy_num_ID=x" is not ID=, and ID=gene1 doesn't match inside ID=gene10.
+    One of several comma-separated values (Parent=a,b) can be replaced too."""
+    pattern = rf"(^|;){re.escape(key)}={re.escape(old)}(?=[;,]|$)"
+    return re.sub(pattern, lambda m: f"{m.group(1)}{key}={new}", attrs, count=1)
 
 
 def add_original_id_attr(attrs, old_id):

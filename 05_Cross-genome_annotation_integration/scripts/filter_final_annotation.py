@@ -104,6 +104,7 @@ from annotation_common import (
     classify_minor_position,
     find_cds_overlaps,
     parse_gff,
+    replace_attr_value,
 )
 
 # A description this generic counts as no evidence at all - same as having no description.
@@ -241,7 +242,7 @@ def write_filtered_gff(gff_path, out_path, genes, kept_ids, id_mapping):
                     if current_gene_kept:
                         new_id = id_mapping[gene_id]
                         attrs = add_original_id_attr(attrs, gene_id)
-                        attrs = attrs.replace(f"ID={gene_id}", f"ID={new_id}", 1)
+                        attrs = replace_attr_value(attrs, "ID", gene_id, new_id)
                         fields[2] = "gene"  # get_pangenes only clusters feature type "gene"
                         fields[8] = attrs
                         out_fh.write("\t".join(fields) + "\n")
@@ -255,7 +256,7 @@ def write_filtered_gff(gff_path, out_path, genes, kept_ids, id_mapping):
                     if feature == "pseudogenic_transcript":
                         fields[2] = "transcript"  # get_pangenes' expected child type
                     if current_gene_id in id_mapping and feature in ("mRNA", "pseudogenic_transcript"):
-                        attrs = attrs.replace(f"Parent={current_gene_id}", f"Parent={id_mapping[current_gene_id]}", 1)
+                        attrs = replace_attr_value(attrs, "Parent", current_gene_id, id_mapping[current_gene_id])
                     fields[8] = attrs
                     out_fh.write("\t".join(fields) + "\n")
 

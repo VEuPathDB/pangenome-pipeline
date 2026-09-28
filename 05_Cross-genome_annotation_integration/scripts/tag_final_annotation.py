@@ -63,6 +63,7 @@ from annotation_common import (
     assign_new_ids,
     find_cds_overlaps,
     parse_gff,
+    replace_attr_value,
 )
 
 TAG_PRIORITY = {"with_main": 3, "with_other_with_domain": 2, "with_other_no_domain": 1}
@@ -114,7 +115,7 @@ def write_tagged_gff(gff_path, out_path, best_tag, id_mapping):
                 new_id = id_mapping[gene_id]
                 tag = best_tag.get(gene_id, "NA")
                 attrs = add_original_id_attr(attrs, gene_id)
-                attrs = attrs.replace(f"ID={gene_id}", f"ID={new_id}", 1)
+                attrs = replace_attr_value(attrs, "ID", gene_id, new_id)
                 attrs = attrs.rstrip(";") + f";intersect={tag}"
                 fields[2] = "gene"  # get_pangenes only clusters feature type "gene"
                 fields[8] = attrs
@@ -131,7 +132,7 @@ def write_tagged_gff(gff_path, out_path, best_tag, id_mapping):
                 if feature == "pseudogenic_transcript":
                     fields[2] = "transcript"  # get_pangenes' expected child type
                 if current_gene_id in id_mapping and feature in ("mRNA", "pseudogenic_transcript"):
-                    attrs = attrs.replace(f"Parent={current_gene_id}", f"Parent={id_mapping[current_gene_id]}", 1)
+                    attrs = replace_attr_value(attrs, "Parent", current_gene_id, id_mapping[current_gene_id])
                 fields[8] = attrs
             out_fh.write("\t".join(fields) + "\n")
 

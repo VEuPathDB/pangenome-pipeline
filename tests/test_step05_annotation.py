@@ -93,6 +93,28 @@ def test_valid_orf_tristate(common):
     assert common.valid_orf("ID=g1") is None
 
 
+def test_attribute_readers_are_anchored(common):
+    attrs = "sequence_ID=0.9;copy_num_ID=g1_0;ID=g1;Parent=m1;xextra_copy_number=7;extra_copy_number=2;xvalid_ORF=False;valid_ORF=True"
+    assert common.ID_RE.search(attrs).group(1) == "g1"
+    assert common.PARENT_RE.search(attrs).group(1) == "m1"
+    assert common.int_attr(attrs, "extra_copy_number") == 2
+    assert common.valid_orf(attrs) is True
+
+
+@pytest.mark.parametrize(
+    ("attrs", "key", "old", "new", "expected"),
+    [
+        ("ID=g1;Name=x", "ID", "g1", "Tst1g00001", "ID=Tst1g00001;Name=x"),
+        ("copy_num_ID=g1;ID=g1", "ID", "g1", "N", "copy_num_ID=g1;ID=N"),  # not the copy_num_ID
+        ("ID=g10;Note=ID=g1", "ID", "g1", "N", "ID=g10;Note=ID=g1"),  # no partial or nested match
+        ("ID=m1;Parent=g1,g2", "Parent", "g1", "N", "ID=m1;Parent=N,g2"),
+        ("ID=m1;Parent=g1", "Parent", "g1", "N", "ID=m1;Parent=N"),
+    ],
+)
+def test_replace_attr_value(common, attrs, key, old, new, expected):
+    assert common.replace_attr_value(attrs, key, old, new) == expected
+
+
 def test_find_cds_overlaps_uses_cds_not_gene_span(common):
     genes = {
         "a": _gene("a", 1, 500, [(1, 100), (400, 500)]),
