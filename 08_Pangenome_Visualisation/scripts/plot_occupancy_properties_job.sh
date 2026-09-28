@@ -19,7 +19,7 @@ PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"   # get_pangenes output folder (
 GFF_DIR="for_get_pangenes_7b"                     # the GFFs given to get_pangenes (link_for_get_pangenes_7b.slurm.sh's OUT_DIR)
 GFF_SUFFIX="_for_get_pangenes.gff"                # <genome><suffix> inside GFF_DIR
 OUT_DIR="pangenome_plots"
-LABEL="Toxo7b"                                    # prefix of every output file
+LABEL="${LABEL:?set LABEL (prefix of every output file, e.g. Toxo7b) here or with sbatch --export=ALL,LABEL=...}"
 
 set +u
 module purge

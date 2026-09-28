@@ -410,8 +410,9 @@ mitochondrion is flagged in the assembly's sequence report; failing that it's us
 short ~20–100 kb sequence). You just need its **genome basename** and the **contig name(s)**,
 e.g. genome `AF293`, contig `mito_A_fumigatus_Af293`.
 
-**Step 2 — put those in the script and run it.** Edit the two variables at the top of
-`screen_organelles.slurm.sh`:
+**Step 2 — put those in the script and run it.** Set the two variables at the top of
+`screen_organelles.slurm.sh` (they have no default; you can also pass them with
+`sbatch --export=ALL,SOURCE_GENOME=...,ORGANELLE_CONTIGS=...`):
 
 ```bash
 SOURCE_GENOME="AF293"

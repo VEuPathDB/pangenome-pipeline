@@ -16,7 +16,7 @@ Usage:
     python3 extract_cds_sequences.py \
         --gene-table te_annotation_integration/gene_te_overlap.tsv \
         --gff-indir gff_originals \
-        --genomes-dir /Users/aludwig/Documents/MobilomePyricularia/genomes \
+        --genomes-dir genomes \
         --outdir te_annotation_integration/flagged_gff \
         [--min-pct 20] [--max-pct 80] [--extra-genes confirmed.tsv]
 

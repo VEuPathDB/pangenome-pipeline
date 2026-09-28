@@ -43,7 +43,6 @@ OUTDIR="te_aid_final_potential_new_TEs"
 
 GENOMES="genomes"                 # <genome_id><suffix> assemblies (step-01 folder), or a full path
 GENOME_SUFFIX=".fna"              # removed from the assembly file name to get <genome_id>
-TEAID="/home/aludwig/hc-storage/bin/TE-Aid/TE-Aid"   # path to the TE-Aid executable
 # OUTDIR is set together with INPUT_FASTA above — one sub-folder per candidate is created under it
 # ───────────────────────────────────────────────────────────────────────────────
 
@@ -60,6 +59,8 @@ module load R/4.5.1 || true
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 activate_env "$ENV_TE_ANNOT"  # env names / micromamba: pipeline_config.sh
 set -u
+require_config TE_AID
+TEAID="$TE_AID"   # the TE-Aid executable, set in pipeline_config.sh
 ### END ADAPT ###
 
 [[ -s "$INPUT_FASTA" ]] || { echo "ERROR: candidate FASTA not found or empty: $INPUT_FASTA (run from the project folder)" >&2; exit 1; }

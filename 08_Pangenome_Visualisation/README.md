@@ -47,17 +47,19 @@ curl -L -o /path/to/interpro_entry.list https://ftp.ebi.ac.uk/pub/databases/inte
 
 The file comes from the current InterPro release, which changes over time, so note the download date.
 
-**Tell the scripts where it is.** The jobs have the author's path as default
-(`/home/aludwig/hc-storage/interpro_entry.list`). Use one of these:
+**Tell the scripts where it is.** Use one of these:
 
-- On the command line of `plot_all_job.sh`, without editing any file: `--entry-list /path/to/interpro_entry.list`.
-- Or edit the path inside the job, in the line that starts with `ENTRY_LIST=`. It is in
-  [`plot_all_job.sh`](scripts/plot_all_job.sh) and, if you use that job, also in
-  [`plot_domain_enrichment_job.sh`](scripts/plot_domain_enrichment_job.sh):
+- Set `INTERPRO_ENTRY_LIST` in the project's `pipeline_config.sh` (see the
+  [main README](../README.md#getting-the-pipeline-into-a-project)) - both jobs use it by default:
 
   ```bash
-  ENTRY_LIST="/path/to/interpro_entry.list"
+  INTERPRO_ENTRY_LIST="/path/to/interpro_entry.list"
   ```
+
+- On the command line of `plot_all_job.sh`: `--entry-list /path/to/interpro_entry.list`, or the
+  `ENTRY_LIST=` line of [`plot_domain_enrichment_job.sh`](scripts/plot_domain_enrichment_job.sh).
+
+With neither, the jobs warn and label terms by IPR id.
 
 - Running `plot_domain_enrichment.py` by hand: `--entry-list /path/to/interpro_entry.list`. Without it, the script
   downloads the file next to the figure, as `<out-prefix>_entry.list`.
@@ -197,10 +199,10 @@ The Python scripts need no change. What is specific to one cluster and one user 
 In [`plot_all_job.sh`](scripts/plot_all_job.sh):
 
 - The `#SBATCH` lines at the top: partition, memory, time and the log folder (`pangenome_plots/logs`).
-- The block between `### ADAPT ###` and `### END ADAPT ###`: the micromamba root (`MAMBA_ROOT_PREFIX`), the
-  micromamba executable (`MAMBA_EXE`) and the environment name (`synteny`). Set `SKIP_ENV=1` to skip it when already
-  inside an environment.
-- The line that starts with `ENTRY_LIST=`, the path of the InterPro `entry.list` (see
+- The block between `### ADAPT ###` and `### END ADAPT ###` activates the environment named by `ENV_SYNTENY`; the
+  micromamba paths come from the project's `pipeline_config.sh`. Set `SKIP_ENV=1` to skip it when already inside an
+  environment.
+- The InterPro `entry.list`: `INTERPRO_ENTRY_LIST` in `pipeline_config.sh` (see
   [InterPro entry list](#interpro-entry-list)), or pass your own path with `--entry-list`.
 - The default of `--contig-sizes` (`01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv`), if the step 01 table
   is elsewhere.

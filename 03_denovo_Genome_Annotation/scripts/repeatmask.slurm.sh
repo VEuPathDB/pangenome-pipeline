@@ -11,7 +11,9 @@
 
 set -euo pipefail
 
-SHARED="${FUNANNOTATE_SHARED:-/mnt/hc-storage/groups/veupathdb_annotation/eb_tools/funannotate}"
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # pipeline_config.sh
+require_config FUNANNOTATE_SHARED
+SHARED="$FUNANNOTATE_SHARED"   # shared funannotate install, set in pipeline_config.sh
 GENOME_IN="funannotate/GENOME.sorted.fna"
 TE_LIB="curated_TE_library.fa"
 OUTDIR="funannotate/repeatmask"

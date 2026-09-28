@@ -11,12 +11,14 @@
 
 set -euo pipefail
 
-SHARED="${FUNANNOTATE_SHARED:-/mnt/hc-storage/groups/veupathdb_annotation/eb_tools/funannotate}"
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # pipeline_config.sh
+require_config FUNANNOTATE_SHARED
+SHARED="$FUNANNOTATE_SHARED"   # shared funannotate install, set in pipeline_config.sh
 GENOME_MASKED="funannotate/repeatmask/GENOME.masked.fna"
 LEFT_READS="combined_left_trinity.fixed_headers.fastq.gz"
 RIGHT_READS="combined_right_trinity.fixed_headers.fastq.gz"
-SPECIES="Aspergillus fumigatus"
-STRAIN="Af293"
+SPECIES="${SPECIES:?set SPECIES here (e.g. \"Aspergillus fumigatus\") or with sbatch --export=ALL,SPECIES=...}"
+STRAIN="${STRAIN:?set STRAIN here (e.g. Af293) or with sbatch --export=ALL,STRAIN=...}"
 OUTDIR="funannotate_train"
 
 export _JAVA_OPTIONS="-Xmx32g"

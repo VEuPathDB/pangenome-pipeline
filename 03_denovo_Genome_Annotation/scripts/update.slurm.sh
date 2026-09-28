@@ -11,7 +11,9 @@
 
 set -euo pipefail
 
-SHARED="${FUNANNOTATE_SHARED:-/mnt/hc-storage/groups/veupathdb_annotation/eb_tools/funannotate}"
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # pipeline_config.sh
+require_config FUNANNOTATE_SHARED
+SHARED="$FUNANNOTATE_SHARED"   # shared funannotate install, set in pipeline_config.sh
 GENOME_FASTA="funannotate_predict/predict_results/GENOME.scaffolds.fa"
 GBK_INPUT="funannotate_annotate/annotate_results/GENOME.gbk"
 # Or from predict if skipping initial annotate:

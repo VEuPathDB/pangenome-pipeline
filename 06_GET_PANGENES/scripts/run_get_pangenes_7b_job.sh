@@ -14,7 +14,6 @@
 set -euo pipefail
 
 # Edit these for your run.
-GET_PANGENES_ENV="/home/aludwig/hc-storage/micromamba/envs/get_pangenes/bin"   # bin/ of the get_pangenes micromamba environment
 INPUT_DIR="./for_get_pangenes_7b"   # link_for_get_pangenes_7b.slurm.sh's OUT_DIR
 N_CPUS=32                           # match --cpus-per-task above
 TAXA_THRESHOLD=0                    # get_pangenes' -t: minimum number of genomes a cluster must appear in to

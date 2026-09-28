@@ -18,7 +18,7 @@ set -euo pipefail
 PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"   # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
 TAGGED_DIR="tagged_annotation"                    # step 05's 7b OUT_DIR (tagged GFFs + <genome>_intersect_pairs.tsv)
 OUT_DIR="multigene_pangenes"
-LABEL="Toxo7b"                                    # prefix of every output file
+LABEL="${LABEL:?set LABEL (prefix of every output file, e.g. Toxo7b) here or with sbatch --export=ALL,LABEL=...}"
 
 set +u
 module purge

@@ -83,6 +83,7 @@ def test_run_get_pangenes_calls_tool_with_settings(tmp_path, taxon_regex, expect
     script = (
         "set -euo pipefail\n"
         "module() { :; }\n"  # no environment modules outside the cluster
+        f"source {REPO_ROOT / 'lib' / 'slurm_common.sh'}\n"
         f"source {SCRIPTS / 'get_pangenes_common.sh'}\n"
         f"GET_PANGENES_ENV={env_bin} INPUT_DIR=in N_CPUS=4 TAXA_THRESHOLD=0 VARIANT=7a\n"
         "run_get_pangenes\n"
@@ -91,3 +92,15 @@ def test_run_get_pangenes_calls_tool_with_settings(tmp_path, taxon_regex, expect
     assert result.returncode == 0, result.stderr
     assert "get_pangenes (7a) completed" in result.stdout
     assert (env_bin / "called_with").read_text().strip() == expected_args.format(env=env_bin)
+
+
+def test_run_get_pangenes_needs_the_env_setting(tmp_path):
+    script = (
+        f"source {REPO_ROOT / 'lib' / 'slurm_common.sh'}\n"
+        f"source {SCRIPTS / 'get_pangenes_common.sh'}\n"
+        "INPUT_DIR=in N_CPUS=4 TAXA_THRESHOLD=0 VARIANT=7a\n"
+        "run_get_pangenes\n"
+    )
+    result = _bash(["-c", script], cwd=tmp_path, GET_PANGENES_ENV="", PIPELINE_CONFIG=str(tmp_path / "none.sh"))
+    assert result.returncode == 1
+    assert "GET_PANGENES_ENV not set" in result.stderr

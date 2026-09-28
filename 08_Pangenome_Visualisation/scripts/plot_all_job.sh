@@ -31,7 +31,7 @@
 #                        and --overlap yes for 7b, no for 7a
 #   --overlap yes|no     also plot the unsupported overlapping genes; needs the tagged 7b GFFs (intersect=)  (default no)
 #   --contig-sizes FILE  step-01 table with genome_label, contig, length   (default 01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv)
-#   --entry-list FILE    InterPro IPR id -> name, downloaded there if missing (default /home/aludwig/hc-storage/interpro_entry.list)
+#   --entry-list FILE    InterPro IPR id -> name, downloaded there if missing (default INTERPRO_ENTRY_LIST from pipeline_config.sh)
 #   --out-dir DIR        output folder                                     (default pangenome_plots)
 #   --core-missing A  --softcore-missing B  --cloud-max C   how the categories are cut, in numbers of genomes
 #                        (default 0 1 2: core = all genomes, soft-core = missing from at most 1 genome, cloud = in at
@@ -51,7 +51,7 @@ set -uo pipefail
 PANGENES_DIR=""; MATRIX_SUBDIR=""; GFF_DIR=""; GFF_SUFFIX="_for_get_pangenes.gff"; LABEL=""; SET=""
 OVERLAP="no"
 CONTIG_SIZES="01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv"
-ENTRY_LIST="/home/aludwig/hc-storage/interpro_entry.list"
+ENTRY_LIST=""
 OUT_DIR="pangenome_plots"
 CATEGORIES="Core,Cloud"; ALPHA="0.05"; MIN_TOTAL="5"; MIN_COUNT="3"; TOP="15"
 CORE_MISSING="0"; SOFTCORE_MISSING="1"; CLOUD_MAX="2"
@@ -147,12 +147,15 @@ step "pan/core, occupancy, singletons, POCS" bash "$SCRIPTS/plot_all.sh" -i "$MA
 
 # Compute nodes may not reach the internet: download the list once on the login node,
 # otherwise the plot falls back to IPR ids.
-if [[ ! -f "$ENTRY_LIST" ]]; then
+[[ -n "$ENTRY_LIST" ]] || ENTRY_LIST="${INTERPRO_ENTRY_LIST:-}"
+if [[ -z "$ENTRY_LIST" ]]; then
+    echo "WARNING: no InterPro entry list set (INTERPRO_ENTRY_LIST in pipeline_config.sh); terms will be labelled by IPR id" >&2
+elif [[ ! -f "$ENTRY_LIST" ]]; then
     curl -sfL -o "$ENTRY_LIST" "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list" \
         || { echo "WARNING: could not download the InterPro entry list; terms will be labelled by IPR id" >&2; rm -f "$ENTRY_LIST"; }
 fi
 ENTRY_ARGS=()
-[[ -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
+[[ -n "$ENTRY_LIST" && -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
 step "domain enrichment" python3 "$SCRIPTS/plot_domain_enrichment.py" "${GENE_ARGS[@]}" \
     -o "$OUT_DIR/${LABEL}_domain_enrichment" \
     --categories "$CATEGORIES" --alpha "$ALPHA" --min-total "$MIN_TOTAL" --min-count "$MIN_COUNT" --top "$TOP" \

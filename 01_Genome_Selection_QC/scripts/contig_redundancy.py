@@ -7,8 +7,8 @@ Goal: find small contigs that are really duplicated pieces of the chromosomes
 assembly they inflate the pangenome with redundant genes.
 
 For every genome, one row per contig, three questions:
-  1. Placement  - how much of the contig aligns to the AF293 reference, and to
-                  which chromosome        (from  synteny/<label>_vs_AF293.paf).
+  1. Placement  - how much of the contig aligns to the reference (the first genome in
+                  genome_order.txt), and to which chromosome  (from  synteny/<label>_vs_<ref>.paf).
   2. Redundancy - how much of the contig is a near-duplicate of a LONGER contig
                   in the same assembly    (from  contig_redundancy/<label>.self.paf,
                   a  minimap2 -xasm5 -DP  self-alignment, the same call purge_dups uses).
@@ -217,7 +217,8 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("project_dir")
-    ap.add_argument("--ref", default="AF293", help="reference label (default AF293)")
+    ap.add_argument("--ref", default=None,
+                    help="reference label (default: the first genome in <project>/genome_order.txt)")
     ap.add_argument("--order", default="genome_order.txt")
     ap.add_argument("--self-dir", default="contig_redundancy",
                     help="dir with <label>.fai and <label>.self.paf (rel. to project)")
@@ -243,6 +244,10 @@ def main():
         sys.exit(f"no {order}")
     labels = [ln.split()[0] for ln in open(order)
               if ln.strip() and not ln.lstrip().startswith("#")]
+    if a.ref is None:
+        if not labels:
+            sys.exit(f"no genomes in {order}")
+        a.ref = labels[0]  # the reference is the first genome, as everywhere else in the pipeline
 
     out_dir = os.path.join(proj, a.self_dir)
     os.makedirs(out_dir, exist_ok=True)

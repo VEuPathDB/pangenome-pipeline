@@ -36,8 +36,11 @@ link_for_get_pangenes() {
 }
 
 # Run get_pangenes.pl on INPUT_DIR from the get_pangenes micromamba environment.
-# Needs: GET_PANGENES_ENV INPUT_DIR N_CPUS TAXA_THRESHOLD VARIANT; optional TAXON_REGEX
+# Needs: INPUT_DIR N_CPUS TAXA_THRESHOLD VARIANT; optional TAXON_REGEX. GET_PANGENES_ENV (bin/ of the
+# get_pangenes micromamba environment) comes from pipeline_config.sh, via lib/slurm_common.sh.
 run_get_pangenes() {
+  require_config GET_PANGENES_ENV
+
   # Remove any previously loaded cluster modules.
   module purge
 

@@ -39,8 +39,8 @@
 # ORGANELLE_CONTIGS : the contig name(s) in that genome, space-separated. You
 #                     find these by looking at the assembly description and the
 #                     contig names of that genome.
-SOURCE_GENOME="AF293"
-ORGANELLE_CONTIGS="mito_A_fumigatus_Af293"
+SOURCE_GENOME="${SOURCE_GENOME:?set SOURCE_GENOME (e.g. AF293) here or with sbatch --export=ALL,SOURCE_GENOME=...}"
+ORGANELLE_CONTIGS="${ORGANELLE_CONTIGS:?set ORGANELLE_CONTIGS (e.g. mito_A_fumigatus_Af293) here or with sbatch --export}"
 # --------------------------------------------------------------------------
 
 set -eo pipefail

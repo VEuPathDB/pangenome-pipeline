@@ -106,9 +106,22 @@ git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 
 `genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01. 
 
-Every script has an `### ADAPT ###` block
-(cluster module names / conda-env paths / container paths) and, occasionally, a project-specific variable at the top of the script (e.g.
-which genome is the reference).
+**Cluster settings - once per project.** Where micromamba, the tool installs and the databases live
+on your cluster is set in one file, `pipeline_config.sh` at the project root. It is not part of the
+repository; start from the template:
+
+```bash
+cp pipeline_config.example.sh pipeline_config.sh   # then fill in the paths you need
+```
+
+Every job script loads it through [`lib/slurm_common.sh`](lib/slurm_common.sh), so submit jobs from
+the project folder. A job stops with a message naming any setting it needs that is still empty.
+Any setting can also be given for a single job, e.g. `sbatch --export=ALL,LABEL=Toxo7a ...`.
+
+What stays in each script: the `#SBATCH` lines, the `### ADAPT ###` block (cluster module names;
+the micromamba environment it activates is named in `pipeline_config.sh`), and the run's own
+settings at the top of the script (input folders, thresholds, and species-specific values such as
+`SPECIES`, `LABEL` or the organelle contigs, which have no default and must be set).
 
 If a script fails with `Permission denied`, restore the executable bit on all scripts:
 

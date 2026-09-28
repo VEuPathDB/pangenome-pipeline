@@ -11,7 +11,9 @@
 
 set -euo pipefail
 
-SHARED="${FUNANNOTATE_SHARED:-/mnt/hc-storage/groups/veupathdb_annotation/eb_tools/funannotate}"
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # pipeline_config.sh
+require_config FUNANNOTATE_SHARED
+SHARED="$FUNANNOTATE_SHARED"   # shared funannotate install, set in pipeline_config.sh
 PROTEINS_FASTA="funannotate_annotate/annotate_results/GENOME.proteins.fa"
 LINEAGE="${SHARED}/databases/funannotate_db/dikarya" # or ascomycota / fungi_odb10
 OUTNAME="busco_assessment"
