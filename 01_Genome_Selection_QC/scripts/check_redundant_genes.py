@@ -31,6 +31,10 @@ import subprocess
 import sys
 import tempfile
 import urllib.parse
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.intervals import merged_len
 
 
 def sh(cmd):
@@ -42,22 +46,6 @@ def find_file(*paths):
         if os.path.exists(p):
             return p
     return None
-
-
-def merged_len(iv):
-    if not iv:
-        return 0
-    iv = sorted(iv)
-    tot = 0
-    cs, ce = iv[0]
-    for s, e in iv[1:]:
-        if s <= ce:
-            ce = max(ce, e)
-        else:
-            tot += ce - cs
-            cs, ce = s, e
-    tot += ce - cs
-    return tot
 
 
 def _desc(attrs):

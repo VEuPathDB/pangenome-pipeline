@@ -12,13 +12,13 @@ def get_python_version():
 
 
 def get_source_dirs():
-    """Every folder holding pipeline code: the numbered steps, the alternative pipeline, species_specific/ and scripts/.
+    """Every folder holding pipeline code: the numbered steps, the alternative pipeline, species_specific/, scripts/ and lib/.
 
     There is no single package here, so this replaces the PACKAGE_NAME target. results/ only holds
     snapshot copies of pipeline scripts.
     """
     dirs = sorted(p for p in Path(".").glob("[0-9][0-9]_*") if p.is_dir())
-    dirs += [Path("Alternative_Get_PanLoci_pipeline/scripts"), Path("species_specific"), Path("scripts")]
+    dirs += [Path("Alternative_Get_PanLoci_pipeline/scripts"), Path("species_specific"), Path("scripts"), Path("lib")]
     return [str(d) for d in dirs if d.is_dir()]
 
 

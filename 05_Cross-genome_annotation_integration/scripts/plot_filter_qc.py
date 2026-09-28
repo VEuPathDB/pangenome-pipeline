@@ -34,6 +34,7 @@ import os
 import re
 import sys
 from collections import defaultdict
+from pathlib import Path
 
 try:
     import matplotlib
@@ -46,7 +47,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from filter_final_annotation import ID_RE, PARENT_RE, _int_attr, _float_attr, _valid_orf, find_cds_overlaps
+from filter_final_annotation import ID_RE, PARENT_RE, _float_attr, _int_attr, _valid_orf, find_cds_overlaps
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.io import read_strains
 
 REASON_CATEGORIES = [
     (r"^extra copy with no valid ORF", "extra copy: no valid ORF"),
@@ -62,13 +66,6 @@ def categorize_reason(reason):
         if re.search(pattern, reason):
             return label
     return "other"
-
-
-def read_strains(value):
-    if os.path.isfile(value):
-        with open(value) as fh:
-            return [l.strip() for l in fh if l.strip() and not l.startswith("#")]
-    return [s.strip() for s in value.split(",") if s.strip()]
 
 
 def parse_gff_for_qc(path, gene_feature_type):

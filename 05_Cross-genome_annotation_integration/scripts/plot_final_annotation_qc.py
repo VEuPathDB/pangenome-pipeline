@@ -54,7 +54,12 @@ import os
 import re
 import sys
 from collections import defaultdict
+from pathlib import Path
 from urllib.parse import unquote
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.intervals import segments_overlap_bp
+from pangenome_common.io import read_strains
 
 try:
     import matplotlib
@@ -167,16 +172,6 @@ def parse_gff(path):
     return genes
 
 
-def segments_overlap_bp(segs1, segs2):
-    total = 0
-    for s1, e1 in segs1:
-        for s2, e2 in segs2:
-            lo, hi = max(s1, s2), min(e1, e2)
-            if hi >= lo:
-                total += hi - lo + 1
-    return total
-
-
 def classify_pair_case(g1, g2):
     """Which of the 6 mutually-exclusive overlap-resolution cases this pair falls into (see the
     "Refined overlap-resolution rule" in the general README, step 7) - computed the same way
@@ -236,13 +231,6 @@ def find_cds_overlaps(genes):
                     pairs.append((other["id"], gene["id"], ov_bp, other["strand"] == gene["strand"]))
             active.append(gene)
     return pairs
-
-
-def read_strains(value):
-    if os.path.isfile(value):
-        with open(value) as fh:
-            return [l.strip() for l in fh if l.strip() and not l.startswith("#")]
-    return [s.strip() for s in value.split(",") if s.strip()]
 
 
 def count_original_protein_coding(path):

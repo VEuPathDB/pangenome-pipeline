@@ -26,26 +26,13 @@ import collections
 import os
 import re
 import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.intervals import merged_len
 
 
 # ---------------------------------------------------------------- helpers -----
-def merged_len(intervals):
-    """Total length covered by a set of [start, end) intervals after merging."""
-    if not intervals:
-        return 0
-    intervals = sorted(intervals)
-    tot = 0
-    cs, ce = intervals[0]
-    for s, e in intervals[1:]:
-        if s <= ce:
-            ce = max(ce, e)
-        else:
-            tot += ce - cs
-            cs, ce = s, e
-    tot += ce - cs
-    return tot
-
-
 def chrom_label(name):
     """Short chromosome tag from a messy FASTA header (Chr1_A_fumigatus_Af293 -> Chr1)."""
     m = re.search(r"(chr[0-9IVXab]+)", name, re.I)

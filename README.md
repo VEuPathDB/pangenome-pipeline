@@ -97,6 +97,8 @@ git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 │   └── scripts/
 ├── 08_Pangenome_Visualisation/
 │   └── scripts/
+├── lib/pangenome_common/       Python helpers shared by the step scripts (keep it with them)
+├── species_specific/           one-off scripts for a single species (Afum/, Tgondii/)
 ├── genome_order.txt            the genome list (generated in step 01)
 ├── genomes/                    <basename>.fna    – assemblies
 └── gff_originals/              <basename>.gff3   – each genome's own annotation

@@ -16,7 +16,16 @@ own dominant orientation (by aligned bp to its main reference chromosome); only
 alignment blocks that run *against their own contig's* orientation, on the same
 reference chromosome, are counted as candidate internal inversions.
 """
-import argparse, glob, os, re, sys, collections
+import argparse
+import collections
+import glob
+import os
+import re
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.intervals import merged_len
 
 TRANSLOC_MIN = 20_000   # bp to a 2nd ref chrom before a contig counts as split/chimeric
 INV_MIN      = 20_000   # min block size to list an internal inversion
@@ -50,22 +59,6 @@ def read_paf(path, min_aln):
 def second_bp_g(d):
     mt = max(d, key=d.get)
     return sum(v for k, v in d.items() if k != mt)
-
-
-def merged_len(intervals):
-    if not intervals:
-        return 0
-    intervals = sorted(intervals)
-    tot = 0
-    cs, ce = intervals[0]
-    for s, e in intervals[1:]:
-        if s <= ce:
-            ce = max(ce, e)
-        else:
-            tot += ce - cs
-            cs, ce = s, e
-    tot += ce - cs
-    return tot
 
 
 def analyse(paf, min_aln, ref_mb):

@@ -31,22 +31,12 @@ Also prints a per-organelle summary.
 import argparse
 import glob
 import os
+import sys
 from collections import defaultdict
+from pathlib import Path
 
-
-def merged_len(intervals):
-    if not intervals:
-        return 0
-    intervals = sorted(intervals)
-    total = 0
-    cs, ce = intervals[0]
-    for s, e in intervals[1:]:
-        if s <= ce:
-            ce = max(ce, e)
-        else:
-            total += ce - cs
-            cs, ce = s, e
-    return total + (ce - cs)
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.intervals import merged_len
 
 
 def organelle_lengths(path):

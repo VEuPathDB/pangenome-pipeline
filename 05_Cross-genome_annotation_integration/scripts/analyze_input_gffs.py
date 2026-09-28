@@ -81,8 +81,12 @@ import csv
 import os
 import re
 import sys
-from urllib.parse import unquote
 from collections import defaultdict
+from pathlib import Path
+from urllib.parse import unquote
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.intervals import segments_overlap_bp
 
 try:
     import matplotlib
@@ -325,16 +329,6 @@ def parse_gff(path):
         })
 
     return genes, attribute_table
-
-
-def segments_overlap_bp(segs1, segs2):
-    total = 0
-    for s1, e1 in segs1:
-        for s2, e2 in segs2:
-            lo, hi = max(s1, s2), min(e1, e2)
-            if hi >= lo:
-                total += hi - lo + 1
-    return total
 
 
 def cds_bp(gene):

@@ -91,7 +91,12 @@ import os
 import re
 import sys
 from collections import defaultdict
+from pathlib import Path
 from urllib.parse import unquote_plus
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.intervals import segments_overlap_bp
+from pangenome_common.io import read_strains
 
 ID_RE = re.compile(r"ID=([^;]+)")
 PARENT_RE = re.compile(r"Parent=([^;]+)")
@@ -113,13 +118,6 @@ CHILD_FEATURE_TYPES = {
     "mRNA", "CDS", "exon", "five_prime_UTR", "three_prime_UTR",
     "ncRNA", "tRNA", "rRNA", "snRNA", "snoRNA", "pseudogenic_transcript",
 }
-
-
-def read_strains(value):
-    if os.path.isfile(value):
-        with open(value) as fh:
-            return [l.strip() for l in fh if l.strip() and not l.startswith("#")]
-    return [s.strip() for s in value.split(",") if s.strip()]
 
 
 def parse_gff(path):
@@ -222,16 +220,6 @@ def _valid_orf(attrs):
     if m:
         return int(m.group(1)) >= 1
     return None
-
-
-def segments_overlap_bp(segs1, segs2):
-    total = 0
-    for s1, e1 in segs1:
-        for s2, e2 in segs2:
-            lo, hi = max(s1, s2), min(e1, e2)
-            if hi >= lo:
-                total += hi - lo + 1
-    return total
 
 
 def find_cds_overlaps(genes, min_overlap_bp):
