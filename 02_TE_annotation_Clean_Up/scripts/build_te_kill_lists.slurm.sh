@@ -41,10 +41,7 @@ find_script PY 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py
 mkdir -p "$GFF_OUTDIR"
 
 ### ADAPT ### — put a python3 with pandas on the PATH:
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 command -v python3 >/dev/null || { echo "ERROR: python3 not on PATH" >&2; exit 1; }
@@ -61,10 +58,7 @@ echo "=== 2/2: AGAT filter (${GFF_INDIR} -> ${GFF_OUTDIR}) ==="
 ### ADAPT ### — put AGAT (agat_sp_filter_feature_from_kill_list.pl) on the PATH.
 #              Re-exports the hook so this activation doesn't depend on the
 #              first ADAPT block above still being in scope:
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 command -v agat_sp_filter_feature_from_kill_list.pl >/dev/null \

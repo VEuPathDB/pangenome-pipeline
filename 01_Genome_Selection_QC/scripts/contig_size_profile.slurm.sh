@@ -43,10 +43,7 @@ find_script PY 01_Genome_Selection_QC/scripts/contig_size_profile.py
 ### ADAPT ### — put samtools on the PATH (env stacking with the python env
 #              below isn't reliable across micromamba versions, so .fai
 #              generation and the python step use separate activations):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 command -v samtools >/dev/null || { echo "ERROR: samtools not on PATH" >&2; exit 1; }
@@ -68,10 +65,7 @@ echo "$n genome(s) indexed"
 echo
 echo "=== 2/2: contig_size_profile.py ==="
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH:
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 command -v python3 >/dev/null || { echo "ERROR: python3 not on PATH" >&2; exit 1; }

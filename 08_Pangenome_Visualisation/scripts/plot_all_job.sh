@@ -96,12 +96,10 @@ fi
 # SKIP_ENV=1 skips the micromamba block (already inside an environment, or running locally).
 set +u
 module purge 2>/dev/null || true
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib + pandas + seaborn):
 if [[ -z "${SKIP_ENV:-}" ]]; then
-    export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-    export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-    eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-    micromamba activate synteny
+    activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 fi
 ### END ADAPT ###
 set -u
@@ -111,7 +109,6 @@ for mod in numpy scipy matplotlib pandas seaborn; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy, matplotlib, pandas and seaborn)" >&2; exit 1; }
 done
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 find_script PLOT_ALL 08_Pangenome_Visualisation/scripts/plot_all.sh
 SCRIPTS="$(cd "$(dirname "$PLOT_ALL")" && pwd)"
 mkdir -p "$OUT_DIR"

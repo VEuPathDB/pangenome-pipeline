@@ -45,11 +45,9 @@ ORGANELLE_CONTIGS="mito_A_fumigatus_Af293"
 
 set -eo pipefail
 
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put blastn / samtools / python3 on the PATH:
-export MAMBA_ROOT_PREFIX="$HOME/hc-storage/micromamba"
-export MAMBA_EXE="$HOME/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 set -u

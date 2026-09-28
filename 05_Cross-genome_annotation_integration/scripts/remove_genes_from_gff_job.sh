@@ -25,15 +25,12 @@ OUT_DIR="gff_curated"                              # where the curated GFFs go (
 
 set +u
 module purge
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (standard library only):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 find_script PY 05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff.py
 
 [[ -f "$KILL_LIST" ]] || { echo "ERROR: kill list not found: $KILL_LIST" >&2; exit 1; }
