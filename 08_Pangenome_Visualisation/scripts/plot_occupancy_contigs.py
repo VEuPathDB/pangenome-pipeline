@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Size of the contigs that carry each pangene, by pangene occupancy.
 
-Only pangenes with exactly one gene in every genome they are present in are used. Each pangene gets ONE
-value: the median, over its genes, of the length of the contig the gene lies on. One boxplot per
+Every pangene is used, including the ones with more than one gene in a genome. The occupancy is the number
+of genomes the pangene is present in. Each pangene gets ONE value: the median, over all its genes, of the
+length of the contig the gene lies on. One boxplot per
 occupancy, coloured by category (Core / Soft-core / Shell / Cloud, same definition as plot_occupancy.py).
 The Tukey HSD p-value of Core versus Cloud is computed on log10 of the contig length and written on the
 line joining the two; genes of one pangene come from different genomes and are not independent samples,
@@ -14,7 +15,7 @@ Inputs:
   --gff-dir        GFFs whose gene IDs match the matrix, named <genome><--gff-suffix>
   --contig-sizes   tab-separated table with columns genome_label, contig, length
                    (step 01: contig_size_profile/contig_sizes.tsv)
-Writes <out-prefix>.png/.svg and <out-prefix>.tsv (one row per pangene used).
+Writes <out-prefix>.png/.svg and <out-prefix>.tsv (one row per pangene).
 
 Needs numpy, scipy, matplotlib.
 """
@@ -86,7 +87,7 @@ def main():
             sys.exit(f"ERROR: missing {path}")
         contig_of[genome] = gene_contigs(path)
 
-    used, multi, missing = [], 0, 0
+    used, missing = [], 0
     for r in rows[1:]:
         if r[0].startswith("chr"):
             continue
@@ -97,24 +98,24 @@ def main():
                 members.append((genome, cell.split(",")))
         if not members:
             continue
-        if any(len(ids) > 1 for _, ids in members):
-            multi += 1
-            continue
         lengths = []
         for genome, ids in members:
-            c = contig_of[genome].get(ids[0])
-            L = sizes.get((genome, c)) if c else None
-            if L is None:
-                lengths = None
+            for gid in ids:
+                c = contig_of[genome].get(gid)
+                L = sizes.get((genome, c)) if c else None
+                if L is None:
+                    lengths = None
+                    break
+                lengths.append(L)
+            if lengths is None:
                 break
-            lengths.append(L)
         if lengths is None:
             missing += 1
             continue
         occ = len(members)
         used.append((r[0], occ, categorize(occ, n_genomes, args.core_missing, args.softcore_missing, args.cloud_max),
                      float(np.median(lengths))))
-    print(f"{len(used)} pangenes used; {multi} left out (more than one gene in a genome)"
+    print(f"{len(used)} pangenes used"
           + (f"; {missing} skipped (contig length not found)" if missing else ""), file=sys.stderr)
     if not used:
         sys.exit("ERROR: no pangene left; check the GFF gene IDs, the contig names and --contig-sizes")
