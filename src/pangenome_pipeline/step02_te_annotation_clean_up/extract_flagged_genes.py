@@ -10,7 +10,7 @@ descendant feature (mRNA/tRNA/rRNA, exon, CDS), in their original file order.
 Nothing else from the source GFF is included.
 
 Usage:
-    python3 extract_flagged_genes.py \
+    python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_flagged_genes \
         --gene-table te_annotation_integration/gene_te_overlap.tsv \
         --gff-indir gff_originals \
         --outdir te_annotation_integration/flagged_gff
@@ -30,17 +30,17 @@ GFF files (genome_label.gff or .gff3).
 from __future__ import annotations
 
 import argparse
-import sys
 from functools import partial
 from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from te_gene_overlap import GENE_FTYPE_TO_BIOTYPE, parse_attributes, strip_prefix
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 from pangenome_pipeline.common.gff import find_gff as _find_gff
+from pangenome_pipeline.step02_te_annotation_clean_up.te_gene_overlap import (
+    GENE_FTYPE_TO_BIOTYPE,
+    parse_attributes,
+    strip_prefix,
+)
 
 # <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
 find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)

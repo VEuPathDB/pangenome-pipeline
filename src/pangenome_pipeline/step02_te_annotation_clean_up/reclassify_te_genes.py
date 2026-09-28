@@ -32,7 +32,7 @@ Which genes get reclassified:
      reclassified - nothing in the 20-80% band is touched automatically.
 
 Usage:
-    python3 reclassify_te_genes.py \
+    python3 -m pangenome_pipeline.step02_te_annotation_clean_up.reclassify_te_genes \
         --gene-table te_annotation_integration/gene_te_overlap.tsv \
         --gff-indir gff_originals \
         --outdir gff_updated \
@@ -42,13 +42,15 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from te_gene_overlap import GENE_FTYPE_TO_BIOTYPE, parse_attributes, strip_prefix
+from pangenome_pipeline.step02_te_annotation_clean_up.te_gene_overlap import (
+    GENE_FTYPE_TO_BIOTYPE,
+    parse_attributes,
+    strip_prefix,
+)
 
 # Same set of gene-level feature types (GFF3 column 3) te_gene_overlap.py
 # recognises when it builds gene_te_overlap.tsv in the first place - not just

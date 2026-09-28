@@ -36,7 +36,7 @@ written for every gene_id; the extra lines that don't match anything in a
 given lifted GFF are simply no-ops for AGAT (see above).
 
 Usage:
-    python3 build_te_kill_lists.py \
+    python3 -m pangenome_pipeline.step02_te_annotation_clean_up.build_te_kill_lists \
         --gene-table te_annotation_integration/gene_te_overlap.tsv \
         --outdir kill_lists \
         [--min-pct 80] [--extra-genes confirmed_20_80.tsv]

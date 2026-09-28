@@ -46,8 +46,6 @@ EXTRA_GENES=""                        # optional: genome_label<TAB>gene_id TSV, 
 set -euo pipefail
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script PY 02_TE_annotation_Clean_Up/scripts/te_gene_overlap.py
-SCRIPTS="$(dirname "$PY")"
 
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH
 #              (the 'synteny' env from step 01 once pandas is added, or
@@ -67,37 +65,37 @@ compgen -G "$TE_INDIR"/RM_*/ >/dev/null || compgen -G "$TE_INDIR"/R_*/ >/dev/nul
 echo "=== 1/4: te_gene_overlap.py ==="
 OVERLAP_ARGS=(--te-indir "$TE_INDIR" --gff-indir "$GFF_INDIR" --outdir "$OUTDIR")
 [[ -n "${GENOME_MAP:-}" ]] && OVERLAP_ARGS+=(--genome-map "$GENOME_MAP")
-python3 "$SCRIPTS/te_gene_overlap.py" "${OVERLAP_ARGS[@]}"
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.te_gene_overlap "${OVERLAP_ARGS[@]}"
 GENE_TABLE="$OUTDIR/gene_te_overlap.tsv"
 
 echo
 echo "=== 2/4: review band (${MIN_PCT}% <= overlap < ${MAX_PCT}%) - mandatory check ==="
-python3 "$SCRIPTS/extract_flagged_genes.py" \
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_flagged_genes \
     --gene-table "$GENE_TABLE" --gff-indir "$GFF_INDIR" --outdir "$OUTDIR" \
     --min-pct "$MIN_PCT" --max-pct "$MAX_PCT" --out-prefix flagged_genes
 CDS_ARGS=(--gene-table "$GENE_TABLE" --gff-indir "$GFF_INDIR" --genomes-dir "$GENOMES" \
           --outdir "$OUTDIR" --min-pct "$MIN_PCT" --max-pct "$MAX_PCT" \
           --out-name flagged_genes_cds.fna)
 [[ -n "${EXTRA_GENES:-}" ]] && CDS_ARGS+=(--extra-genes "$EXTRA_GENES")
-python3 "$SCRIPTS/extract_cds_sequences.py" "${CDS_ARGS[@]}"
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_cds_sequences "${CDS_ARGS[@]}"
 
 echo
 echo "=== 3/4: eliminated band (overlap >= ${MAX_PCT}%) - all of them ==="
-python3 "$SCRIPTS/extract_flagged_genes.py" \
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_flagged_genes \
     --gene-table "$GENE_TABLE" --gff-indir "$GFF_INDIR" --outdir "$OUTDIR" \
     --min-pct "$MAX_PCT" --max-pct 100.01 --out-prefix eliminated_genes
-python3 "$SCRIPTS/extract_cds_sequences.py" \
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_cds_sequences \
     --gene-table "$GENE_TABLE" --gff-indir "$GFF_INDIR" --genomes-dir "$GENOMES" \
     --outdir "$OUTDIR" --min-pct "$MAX_PCT" --max-pct 100.01 \
     --out-name eliminated_genes_cds.fna
 
 echo
 echo "=== 4/4: eliminated_review band (overlap >= ${MAX_PCT}%, divergence >= ${REVIEW_MIN_DIV}%) ==="
-python3 "$SCRIPTS/extract_flagged_genes.py" \
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_flagged_genes \
     --gene-table "$GENE_TABLE" --gff-indir "$GFF_INDIR" --outdir "$OUTDIR" \
     --min-pct "$MAX_PCT" --max-pct 100.01 --min-div "$REVIEW_MIN_DIV" \
     --out-prefix eliminated_genes_review
-python3 "$SCRIPTS/extract_cds_sequences.py" \
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_cds_sequences \
     --gene-table "$GENE_TABLE" --gff-indir "$GFF_INDIR" --genomes-dir "$GENOMES" \
     --outdir "$OUTDIR" --min-pct "$MAX_PCT" --max-pct 100.01 --min-div "$REVIEW_MIN_DIV" \
     --out-name eliminated_genes_review_cds.fna

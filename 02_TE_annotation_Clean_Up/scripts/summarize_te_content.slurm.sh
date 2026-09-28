@@ -25,7 +25,6 @@ TOP_FAMILIES=15                  # families shown individually before folding in
 set -euo pipefail
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script PY 02_TE_annotation_Clean_Up/scripts/summarize_te_content.py
 
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH
 #              (e.g. the 'synteny' env from step 01 already has matplotlib;
@@ -39,7 +38,7 @@ python3 -c "import pandas, matplotlib" 2>/dev/null \
 compgen -G "$INDIR"/RM_*/ >/dev/null || compgen -G "$INDIR"/R_*/ >/dev/null \
     || { echo "ERROR: no RM_<genome_id>/ (or R_<genome_id>/) folders in $INDIR (run from the project folder)" >&2; exit 1; }
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.summarize_te_content \
     --indir "$INDIR" \
     --outdir "$OUTDIR" \
     --top-superfamilies "$TOP_SUPERFAMILIES" \

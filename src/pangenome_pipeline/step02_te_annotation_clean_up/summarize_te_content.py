@@ -17,7 +17,7 @@ as produced by run_repeatmasker.slurm.sh), this script:
   3. Writes summary TSVs and a set of publication-quality plots (matplotlib, static PNG).
 
 Usage:
-    python3 summarize_te_content.py --indir . \
+    python3 -m pangenome_pipeline.step02_te_annotation_clean_up.summarize_te_content --indir . \
         --outdir te_content_summary
 
 Expects, per genome, a directory named RM_<genome_id>/ (or R_<genome_id>/) under --indir

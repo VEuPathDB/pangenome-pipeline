@@ -319,7 +319,7 @@ and redo step 4.
 
 After running RepeatMasker across all genomes, the results can be summarized to evaluate total TE abundance, superfamily distributions, and family-level composition per genome.
 
-Scripts: [`scripts/summarize_te_content.py`](scripts/summarize_te_content.py) ·
+Scripts: [`src/pangenome_pipeline/step02_te_annotation_clean_up/summarize_te_content.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/summarize_te_content.py) ·
 [`scripts/summarize_te_content.slurm.sh`](scripts/summarize_te_content.slurm.sh).
 
 **Dependencies:** python3 + pandas + matplotlib — micromamba env `synteny`, already installed
@@ -378,9 +378,9 @@ To resolve this, we can identify TEs that overlap with gene models using the scr
 ### Quantifying TE Overlap Across Gene Models
 
 Scripts: [`scripts/te_gene_overlap.slurm.sh`](scripts/te_gene_overlap.slurm.sh) (SLURM
-wrapper) · [`scripts/te_gene_overlap.py`](scripts/te_gene_overlap.py) ·
-[`scripts/extract_flagged_genes.py`](scripts/extract_flagged_genes.py) ·
-[`scripts/extract_cds_sequences.py`](scripts/extract_cds_sequences.py) (what the wrapper
+wrapper) · [`src/pangenome_pipeline/step02_te_annotation_clean_up/te_gene_overlap.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/te_gene_overlap.py) ·
+[`src/pangenome_pipeline/step02_te_annotation_clean_up/extract_flagged_genes.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/extract_flagged_genes.py) ·
+[`src/pangenome_pipeline/step02_te_annotation_clean_up/extract_cds_sequences.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/extract_cds_sequences.py) (what the wrapper
 calls, in that order).
 
 **Dependencies:** python3 + pandas + matplotlib — micromamba env `synteny`, already installed
@@ -476,7 +476,7 @@ GFF has one, else the feature type in column 3 — see `infer_biotype()` in
 ### Removing TE-Derived Genes with a Kill List
 
 Scripts: [`scripts/build_te_kill_lists.slurm.sh`](scripts/build_te_kill_lists.slurm.sh) (SLURM
-wrapper) · [`scripts/build_te_kill_lists.py`](scripts/build_te_kill_lists.py) (what it calls).
+wrapper) · [`src/pangenome_pipeline/step02_te_annotation_clean_up/build_te_kill_lists.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/build_te_kill_lists.py) (what it calls).
 
 **Dependencies:** python3 + pandas — micromamba env `synteny`, already installed if you set it
 up for [step 01](../01_Genome_Selection_QC/README.md#dependencies) — and AGAT

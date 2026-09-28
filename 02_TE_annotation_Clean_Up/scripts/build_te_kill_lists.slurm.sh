@@ -34,7 +34,6 @@ GFF_OUTDIR="gff_cleaned"          # filtered copies land here
 set -euo pipefail
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script PY 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py
 
 [[ -f "$GENE_TABLE" ]] || { echo "ERROR: gene table not found: $GENE_TABLE" >&2; exit 1; }
 [[ -d "$GFF_INDIR" ]]  || { echo "ERROR: GFF folder not found: $GFF_INDIR" >&2; exit 1; }
@@ -50,7 +49,7 @@ python3 -c "import pandas" 2>/dev/null || { echo "ERROR: python3 is missing pand
 echo "=== 1/2: build_te_kill_lists.py ==="
 KILL_ARGS=(--gene-table "$GENE_TABLE" --outdir "$KILL_OUTDIR" --min-pct "$MIN_PCT")
 [[ -n "${EXTRA_GENES:-}" ]] && KILL_ARGS+=(--extra-genes "$EXTRA_GENES")
-python3 "$PY" "${KILL_ARGS[@]}"
+python3 -m pangenome_pipeline.step02_te_annotation_clean_up.build_te_kill_lists "${KILL_ARGS[@]}"
 KILL_LIST="$KILL_OUTDIR/te_derived_genes.kill_list.txt"
 
 echo

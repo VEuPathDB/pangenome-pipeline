@@ -31,7 +31,7 @@ summaries, and exploratory plots - kept separate for protein_coding genes
 vs. pseudogenes (a different span definition, no gene-model-check panels).
 
 Usage:
-    python3 te_gene_overlap.py --te-indir repeatmasker_curated_annotation_010926 \
+    python3 -m pangenome_pipeline.step02_te_annotation_clean_up.te_gene_overlap --te-indir repeatmasker_curated_annotation_010926 \
         --gff-indir gff_originals --outdir te_annotation_integration
 
 Expected input layout:
@@ -60,11 +60,18 @@ from pathlib import Path
 import matplotlib
 
 matplotlib.use("Agg")
-import sys
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from summarize_te_content import (
+
+from pangenome_pipeline.common.gff import (  # GENE_FTYPE_TO_BIOTYPE, parse_attributes: re-exported to sibling scripts
+    GENE_FTYPE_TO_BIOTYPE,
+    gene_description,
+    gff_seqids,
+    infer_biotype,
+    parse_attributes,
+)
+from pangenome_pipeline.step02_te_annotation_clean_up.summarize_te_content import (
     CATEGORICAL,
     INK_PRIMARY,
     INK_SECONDARY,
@@ -73,15 +80,6 @@ from summarize_te_content import (
     find_genome_dirs,
     parse_out,
     style_axes,
-)
-
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
-from pangenome_pipeline.common.gff import (  # GENE_FTYPE_TO_BIOTYPE, parse_attributes: re-exported to sibling scripts
-    GENE_FTYPE_TO_BIOTYPE,
-    gene_description,
-    gff_seqids,
-    infer_biotype,
-    parse_attributes,
 )
 
 THRESHOLDS = [1, 5, 10, 20, 50, 80, 90, 100]

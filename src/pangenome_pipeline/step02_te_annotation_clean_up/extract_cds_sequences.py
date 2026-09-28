@@ -13,7 +13,7 @@ FASTA record per transcript; a pseudogene with no CDS feature at all (common
 - see te_gene_overlap.py) contributes none, silently.
 
 Usage:
-    python3 extract_cds_sequences.py \
+    python3 -m pangenome_pipeline.step02_te_annotation_clean_up.extract_cds_sequences \
         --gene-table te_annotation_integration/gene_te_overlap.tsv \
         --gff-indir gff_originals \
         --genomes-dir genomes \
@@ -36,14 +36,12 @@ alongside their GFF3, as in this project).
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from reclassify_te_genes import load_extra_genes
-from te_gene_overlap import index_gff_dir, parse_gff, strip_prefix
+from pangenome_pipeline.step02_te_annotation_clean_up.reclassify_te_genes import load_extra_genes
+from pangenome_pipeline.step02_te_annotation_clean_up.te_gene_overlap import index_gff_dir, parse_gff, strip_prefix
 
 COMPLEMENT = str.maketrans("ACGTacgtNn", "TGCAtgcaNn")
 
