@@ -15,78 +15,19 @@ import sys
 import tempfile
 from collections import defaultdict
 
+from panloci_common import (
+    extract_sequence,
+    find_gff_file,
+    is_pseudogene_feature,
+    load_fasta,
+    merge_hal_liftover,
+    parse_gff_attributes,
+    parse_samples,
+    split_parent_ids,
+)
+
 
 STATUS_VALUES = {"PRESENT", "PARTIAL", "ABSENT"}
-
-
-def parse_samples(samples_tsv):
-    samples = []
-    if not os.path.exists(samples_tsv):
-        raise FileNotFoundError(f"samples.tsv not found: {samples_tsv}")
-    with open(samples_tsv, "r", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle, delimiter="\t")
-        required = {"strain_id", "genome_fasta", "annotation_gff", "analysis_order"}
-        missing = required - set(reader.fieldnames or [])
-        if missing:
-            raise ValueError(f"samples.tsv is missing required columns: {', '.join(sorted(missing))}")
-        for row in reader:
-            samples.append({
-                "strain_id": row["strain_id"].strip(),
-                "genome_fasta": row["genome_fasta"].strip(),
-                "annotation_gff": row["annotation_gff"].strip(),
-                "analysis_order": int(row["analysis_order"]),
-            })
-    samples.sort(key=lambda item: item["analysis_order"])
-    return samples
-
-
-def find_gff_file(path_or_dir, strain_id):
-    if path_or_dir == "NA":
-        return None
-    if os.path.isfile(path_or_dir):
-        return path_or_dir
-    if not os.path.isdir(path_or_dir):
-        return None
-    candidates = glob.glob(os.path.join(path_or_dir, "*.gff")) + glob.glob(os.path.join(path_or_dir, "*.gff3"))
-    search_terms = list(dict.fromkeys([
-        strain_id,
-        strain_id.replace("REF", ""),
-        strain_id.replace("ref", ""),
-        strain_id.lower(),
-        strain_id.upper(),
-    ]))
-    for candidate in candidates:
-        filename = os.path.basename(candidate)
-        if any(term and term in filename for term in search_terms):
-            return candidate
-    if len(candidates) == 1:
-        return candidates[0]
-    return None
-
-
-def parse_gff_attributes(attr_text):
-    attrs = {}
-    for part in attr_text.split(";"):
-        if "=" in part:
-            key, value = part.split("=", 1)
-            attrs[key] = value
-    return attrs
-
-
-def split_parent_ids(parent_value):
-    if not parent_value:
-        return []
-    return [item.strip() for item in parent_value.split(",") if item.strip()]
-
-
-def is_pseudogene_feature(feature_type, attrs):
-    feature_values = [
-        feature_type,
-        attrs.get("ebi_biotype", ""),
-        attrs.get("biotype", ""),
-        attrs.get("gene_biotype", ""),
-    ]
-    return any("pseudogene" in value.lower() for value in feature_values)
 
 
 def extract_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
@@ -251,44 +192,6 @@ def write_bed(path, rows):
             handle.write(f"{row['chrom']}\t{row['start']}\t{row['end']}\t{row['name']}\t0\t{row['strand']}\n")
 
 
-def load_fasta(fasta_path):
-    if not os.path.exists(fasta_path):
-        raise FileNotFoundError(f"FASTA not found: {fasta_path}")
-    fasta = {}
-    name = None
-    seq = []
-    with open(fasta_path, "r", encoding="utf-8") as handle:
-        for line in handle:
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith(">"):
-                if name is not None:
-                    fasta[name] = "".join(seq).upper()
-                name = line[1:].split()[0]
-                seq = []
-            else:
-                seq.append(line)
-    if name is not None:
-        fasta[name] = "".join(seq).upper()
-    return fasta
-
-
-def extract_sequence(fasta, chrom, start, end, strand="+"):
-    if chrom not in fasta:
-        return None
-    chrom_len = len(fasta[chrom])
-    start = max(0, min(start, chrom_len))
-    end = max(0, min(end, chrom_len))
-    if start >= end:
-        return None
-    seq = fasta[chrom][start:end]
-    if strand == "-":
-        comp = str.maketrans("ACGTNacgtn", "TGCANtgcan")
-        seq = seq.translate(comp)[::-1]
-    return seq
-
-
 def classify_validation(
     coverage,
     identity,
@@ -347,93 +250,6 @@ def run_minimap2_pairwise(seq_query, seq_target, locus_id, minimap_bin="minimap2
         for path in (q_name, t_name):
             if os.path.exists(path):
                 os.remove(path)
-
-
-def parse_seed_lengths(seed_bed_path):
-    lengths = {}
-    for row in read_bed(seed_bed_path):
-        lengths[row["name"]] = lengths.get(row["name"], 0) + row["end"] - row["start"]
-    return lengths
-
-
-def cluster_mapped_blocks(rows, max_gap=5000):
-    by_group = defaultdict(list)
-    for row in rows:
-        by_group[(row[0], row[5] if len(row) > 5 else "+")].append((int(row[1]), int(row[2])))
-    clusters = []
-    for (chrom, strand), blocks in by_group.items():
-        blocks.sort()
-        current = [blocks[0]]
-        for block in blocks[1:]:
-            if block[0] - current[-1][1] <= max_gap:
-                current.append(block)
-            else:
-                clusters.append(((chrom, strand), current))
-                current = [block]
-        clusters.append(((chrom, strand), current))
-    return clusters
-
-
-def merge_overlapping_intervals(intervals):
-    if not intervals:
-        return []
-    sorted_intervals = sorted(intervals, key=lambda x: x[0])
-    merged = [sorted_intervals[0]]
-    for current in sorted_intervals[1:]:
-        prev_start, prev_end = merged[-1]
-        curr_start, curr_end = current
-        if curr_start <= prev_end:
-            merged[-1] = (prev_start, max(prev_end, curr_end))
-        else:
-            merged.append(current)
-    return merged
-
-
-def merge_hal_liftover(raw_bed_path, seed_bed_path, output_bed_path, qc_multihit_path, max_gap=5000):
-    orig_lengths = parse_seed_lengths(seed_bed_path)
-    groups = defaultdict(list)
-    with open(raw_bed_path, "r", encoding="utf-8") as handle:
-        for line in handle:
-            if not line.strip() or line.startswith("#"):
-                continue
-            cols = line.rstrip("\n").split("\t")
-            if len(cols) >= 4:
-                groups[cols[3]].append(cols)
-    merged = []
-    duplicates = []
-    for name, rows in groups.items():
-        orig_size = orig_lengths.get(name, 0)
-        clusters = []
-        for (chrom, strand), blocks in cluster_mapped_blocks(rows, max_gap):
-            merged_blocks = merge_overlapping_intervals(blocks)
-            mapped_len = sum(end - start for start, end in merged_blocks)
-            clusters.append({
-                "chrom": chrom,
-                "strand": strand,
-                "start": min(start for start, _ in blocks),
-                "end": max(end for _, end in blocks),
-                "mapped_len": mapped_len,
-            })
-        if not clusters:
-            continue
-        clusters.sort(key=lambda item: item["mapped_len"], reverse=True)
-        primary = clusters[0]
-        pct = round((primary["mapped_len"] / orig_size) * 100, 2) if orig_size else 0.0
-        merged.append((primary["chrom"], primary["start"], primary["end"], name, "0", primary["strand"], orig_size, primary["mapped_len"], pct))
-        for rank, dup in enumerate(clusters[1:], start=2):
-            pct_dup = round((dup["mapped_len"] / orig_size) * 100, 2) if orig_size else 0.0
-            duplicates.append((name, dup["chrom"], dup["start"], dup["end"], dup["strand"], orig_size, dup["mapped_len"], pct_dup, rank))
-    merged.sort(key=lambda item: (item[0], item[1]))
-    with open(output_bed_path, "w", encoding="utf-8") as out:
-        for row in merged:
-            out.write("\t".join(map(str, row)) + "\n")
-    if duplicates:
-        exists = os.path.exists(qc_multihit_path)
-        with open(qc_multihit_path, "a", encoding="utf-8") as out:
-            if not exists:
-                out.write("panlocus_id\tdup_chrom\tdup_start\tdup_end\tdup_strand\torig_size\tdup_mapped_len\tdup_percentage\thit_rank\n")
-            for row in duplicates:
-                out.write("\t".join(map(str, row)) + "\n")
 
 
 def overlap_bp(a_start, a_end, b_start, b_end):
@@ -873,7 +689,7 @@ def main():
                     cmd = ["apptainer", "exec", args.cactus_img] + cmd
                 try:
                     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
-                    merge_hal_liftover(raw_bed, novel_bed, merged_bed, qc_multihit, args.gap)
+                    merge_hal_liftover(raw_bed, novel_bed, merged_bed, qc_multihit, args.gap, id_column="panlocus_id")
                 except subprocess.CalledProcessError as exc:
                     print(f"  [Warning] Novel transfer failed {target_id} -> {s_id}: {exc.stderr.strip()}", file=sys.stderr)
                     continue

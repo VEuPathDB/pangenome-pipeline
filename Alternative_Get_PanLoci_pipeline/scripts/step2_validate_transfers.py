@@ -6,60 +6,8 @@ import subprocess
 import csv
 import glob
 import tempfile
-from collections import defaultdict
 
-def load_fasta(fasta_path):
-    """
-    FASTA parser that loads the entire genome into memory.
-    Returns a dictionary of {header: sequence_string}.
-    """
-    fasta_dict = {}
-    if not os.path.exists(fasta_path):
-        print(f"Error: FASTA file not found at '{fasta_path}'", file=sys.stderr)
-        return None
-        
-    current_header = None
-    current_seq = []
-    
-    with open(fasta_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line:
-                continue
-            if line.startswith('>'):
-                if current_header:
-                    fasta_dict[current_header] = "".join(current_seq)
-                current_header = line[1:].split()[0]  # First word of header
-                current_seq = []
-            else:
-                current_seq.append(line.upper())
-                
-        if current_header:
-            fasta_dict[current_header] = "".join(current_seq)
-            
-    return fasta_dict
-
-def extract_sequence(fasta_dict, chrom, start, end, strand="+"):
-    """Extracts a sequence substring from the in-memory genome FASTA dictionary."""
-    if not fasta_dict or chrom not in fasta_dict:
-        return None
-        
-    # Ensure coordinates are within bounds
-    chrom_len = len(fasta_dict[chrom])
-    start = max(0, min(start, chrom_len))
-    end = max(0, min(end, chrom_len))
-    
-    if start >= end:
-        return None
-        
-    seq = fasta_dict[chrom][start:end]
-    
-    if strand == "-":
-        # Reverse complement (efficient translation)
-        comp = str.maketrans("ACGTNacgtn", "TGCANtgcan")
-        seq = seq.translate(comp)[::-1]
-        
-    return seq
+from panloci_common import extract_sequence, load_fasta, parse_samples
 
 def run_batch_minimap2(queries, targets, output_prefix, minimap_bin="minimap2", cactus_img=None):
     """
@@ -222,24 +170,6 @@ def classify_occupancy(
     else:
         return "ABSENT"
 
-def parse_samples(samples_tsv):
-    """Parses samples.tsv to extract strain information."""
-    samples = []
-    if not os.path.exists(samples_tsv):
-        print(f"Error: Metadata file not found at '{samples_tsv}'", file=sys.stderr)
-        sys.exit(1)
-        
-    with open(samples_tsv, 'r', encoding='utf-8') as f:
-        reader = csv.DictReader(f, delimiter='\t')
-        for row in reader:
-            samples.append({
-                "strain_id": row["strain_id"].strip(),
-                "genome_fasta": row["genome_fasta"].strip(),
-                "annotation_gff": row["annotation_gff"].strip(),
-                "analysis_order": row["analysis_order"].strip()
-            })
-    return samples
-
 def main():
     parser = argparse.ArgumentParser(description="Step 2: validate transferred panloci with minimap2")
     parser.add_argument("-s", "--samples", default="samples.tsv", help="Path to samples.tsv metadata (default: samples.tsv)")
@@ -269,11 +199,11 @@ def main():
     print("======================================================================\n")
     
     # 1. Parse Samples
-    samples = parse_samples(args.samples)
+    samples = parse_samples(args.samples, sort_by_order=False)
     print(f"[+] Loaded {len(samples)} strain records from metadata.")
     
     # 2. Locate and load reference seed strain (order = 1)
-    ref_genome = next((s for s in samples if s["analysis_order"] == "1"), None)
+    ref_genome = next((s for s in samples if s["analysis_order"] == 1), None)
     if not ref_genome:
         print("Error: Could not find reference genome with analysis_order = 1 in samples.tsv", file=sys.stderr)
         sys.exit(1)
@@ -283,7 +213,7 @@ def main():
     print(f"[+] Reference Seed Genome identified: {ref_id} ({ref_fasta_path})")
     
     print("[+] Loading reference genome FASTA into memory (cached once)...")
-    ref_fasta = load_fasta(ref_fasta_path)
+    ref_fasta = load_fasta(ref_fasta_path, missing_ok=True)
     if not ref_fasta:
         print(f"Error: Could not load reference FASTA from '{ref_fasta_path}'", file=sys.stderr)
         sys.exit(1)
@@ -353,7 +283,7 @@ def main():
         
         # Load target genome FASTA
         print(f"  --> Loading target genome FASTA: {target_fasta_path} ...")
-        target_fasta = load_fasta(target_fasta_path)
+        target_fasta = load_fasta(target_fasta_path, missing_ok=True)
         if not target_fasta:
             print(f"  [Warning] Failed to load FASTA for {target_strain}. Skipping.", file=sys.stderr)
             continue
