@@ -96,9 +96,9 @@ def extract_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
                 span_start = min(start for start, end in intervals)
                 span_end = max(end for start, end in intervals)
                 transcript_summary.append((total_cds, transcript_id, span_start, span_end, len(intervals)))
-            total_cds, transcript_id, span_start, span_end, exon_count = sorted(
+            total_cds, transcript_id, span_start, span_end, exon_count = min(
                 transcript_summary, key=lambda item: (-item[0], item[1])
-            )[0]
+            )
             status = "protein_coding_cds_span"
         else:
             span_start = record["start"]
@@ -162,24 +162,7 @@ def extract_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
         os.makedirs(os.path.dirname(audit_tsv), exist_ok=True)
         with open(audit_tsv, "w", encoding="utf-8") as audit:
             audit.write(
-                "\t".join(
-                    [
-                        "gene_id",
-                        "feature_class",
-                        "status",
-                        "chrom",
-                        "strand",
-                        "feature_type",
-                        "original_start",
-                        "original_end",
-                        "span_start",
-                        "span_end",
-                        "selected_transcript",
-                        "total_cds_length",
-                        "cds_exon_count",
-                        "n_transcripts_with_cds",
-                    ]
-                )
+                "gene_id\tfeature_class\tstatus\tchrom\tstrand\tfeature_type\toriginal_start\toriginal_end\tspan_start\tspan_end\tselected_transcript\ttotal_cds_length\tcds_exon_count\tn_transcripts_with_cds"
                 + "\n"
             )
             audit.writelines("\t".join(map(str, row)) + "\n" for row in audit_rows)
@@ -265,7 +248,7 @@ def run_minimap2_pairwise(seq_query, seq_target, locus_id, minimap_bin="minimap2
             cmd = ["apptainer", "exec", cactus_img, "minimap2", "-c", t_name, q_name]
         else:
             cmd = [minimap_bin, "-c", t_name, q_name]
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         best = None
         for line in res.stdout.splitlines():
             cols = line.split("\t")
@@ -411,15 +394,14 @@ def load_validation_table(path):
 
 
 def choose_best_relationship(rels):
-    return sorted(
+    return max(
         rels,
         key=lambda rel: (
             rel["overlap_fraction_of_transfer"],
             rel["overlap_bp"],
             rel["overlap_fraction_of_native"],
         ),
-        reverse=True,
-    )[0]
+    )
 
 
 def decide_final_from_validation_and_native(validation_status, has_native):
@@ -502,7 +484,6 @@ def main():
     samples = parse_samples(args.samples)
     ref = samples[0]
     ref_id = ref["strain_id"]
-    sample_by_id = {sample["strain_id"]: sample for sample in samples}
     order_by_id = {sample["strain_id"]: sample["analysis_order"] for sample in samples}
     strain_ids = [sample["strain_id"] for sample in samples]
 
@@ -774,7 +755,7 @@ def main():
                 if args.cactus_img:
                     cmd = ["apptainer", "exec", args.cactus_img] + cmd
                 try:
-                    subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+                    subprocess.run(cmd, capture_output=True, text=True, check=True)
                     merge_hal_liftover(raw_bed, novel_bed, merged_bed, qc_multihit, args.gap, id_column="panlocus_id")
                 except subprocess.CalledProcessError as exc:
                     print(
@@ -932,6 +913,6 @@ def main():
 if __name__ == "__main__":
     try:
         main()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 - report any failure as one line, not a traceback
         print(f"Error: {exc}", file=sys.stderr)
         sys.exit(1)

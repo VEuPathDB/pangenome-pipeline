@@ -113,7 +113,7 @@ def main():
             cls = "fragment"
         else:
             cls = "trace"
-        contig_stat[k] = dict(cov=cov, pid=pid, clen=clen, ol=ol, cls=cls)
+        contig_stat[k] = {"cov": cov, "pid": pid, "clen": clen, "ol": ol, "cls": cls}
 
     # per (genome, organelle) call
     per_go = defaultdict(list)
@@ -166,7 +166,7 @@ def main():
     for o in olen:
         gc = {g: genome_call[(g, o)] for g in genomes}
 
-        def names(*calls):
+        def names(*calls, gc=gc):
             return sorted(g for g, c in gc.items() if c in calls) or ["-"]
 
         multi = sorted(

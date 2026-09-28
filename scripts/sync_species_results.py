@@ -47,7 +47,7 @@ REPORT_FILES = ("README.md", "SUMMARY.md")
 
 def classify(link):
     """-> one of "external", "anchor", "pipeline", "asset" """
-    if link.startswith("http://") or link.startswith("https://") or link.startswith("mailto:"):
+    if link.startswith(("http://", "https://", "mailto:")):
         return "external"
     if link.startswith("#"):
         return "anchor"
@@ -74,7 +74,7 @@ def rewrite_text(text, source_dir, assets_found, assets_missing):
         if kind == "pipeline":
             return f"]({'../../' + link[len(PIPELINE_LINK_PREFIX) :]})"
         # kind == "asset": a path relative to the species folder, optionally with a "#anchor" tail
-        path_part, _, anchor = link.partition("#")
+        path_part, _, _anchor = link.partition("#")
         if path_part in REPORT_FILES or path_part == "":
             return m.group(0)  # README.md/SUMMARY.md linking to each other - already siblings
         src = os.path.join(source_dir, path_part)

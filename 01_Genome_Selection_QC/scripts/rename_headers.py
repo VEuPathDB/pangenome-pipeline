@@ -65,7 +65,7 @@ def trim_headers(in_path, out_path):
     seen = set()
     dupes = set()
     ids = []
-    outfile = open(out_path, "w") if out_path is not None else None
+    outfile = open(out_path, "w") if out_path is not None else None  # noqa: SIM115 - closed in the finally below
     try:
         with open(in_path) as infile:
             for line in infile:

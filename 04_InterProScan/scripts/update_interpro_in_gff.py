@@ -40,7 +40,7 @@ DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 def load_lookup(path):
     table = {}
     with open(path) as fh:
-        header = fh.readline()
+        fh.readline()  # skip the header row
         for line in fh:
             fields = line.rstrip("\n").split("\t")
             if len(fields) < 3:

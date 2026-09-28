@@ -268,7 +268,6 @@ def main():
             if match is None:
                 sys.exit(f"ERROR: could not match {op} to an assembly in {args.genomes_dir}/ (tried {ids})")
             gid = match
-            present = set(contig_lengths_from_out(op)) | set(genomes[gid]["contigs"])
             drop = {c for c in set(contig_lengths_from_out(op)) if c not in genomes[gid]["contigs"]}
         else:
             match = next((c for c in ids if c in dropmap), None)

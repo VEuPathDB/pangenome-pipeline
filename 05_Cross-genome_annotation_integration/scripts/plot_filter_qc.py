@@ -87,7 +87,7 @@ def parse_gff_for_qc(path, gene_feature_type):
         fields = line.rstrip("\n").split("\t")
         if len(fields) < 9:
             continue
-        seqname, source, feature, start, end, score, strand = fields[:7]
+        seqname, source, feature, start, end, _score, strand = fields[:7]
         attrs = fields[8]
         m = ID_RE.search(attrs)
         feat_id = m.group(1) if m else None

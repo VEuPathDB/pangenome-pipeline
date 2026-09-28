@@ -99,7 +99,7 @@ def load_entry_names(path, out_prefix):
             try:
                 print(f"Downloading {ENTRY_LIST_URL}", file=sys.stderr)
                 urllib.request.urlretrieve(ENTRY_LIST_URL, path)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - any download failure falls back to IPR ids
                 print(f"WARNING: could not download entry.list ({e}); using IPR ids as labels", file=sys.stderr)
                 return {}
     names = {}

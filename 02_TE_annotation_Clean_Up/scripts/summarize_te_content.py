@@ -137,7 +137,7 @@ def contig_lengths(hits) -> dict:
     on that contig (any hit gives the same answer; using them all is just
     robustness against a malformed line). Contigs with zero RepeatMasker
     hits at all are invisible to the .out file and cannot be recovered here."""
-    lengths = {}
+    lengths: dict[str, int] = {}
     for seq, start, end, name, cls, seq_left, pct_div, rm_id in hits:
         length = end + seq_left
         if length > lengths.get(seq, 0):
@@ -149,7 +149,7 @@ def merge_bp(intervals_by_seq):
     """intervals_by_seq: dict seq -> list of (start,end), 1-based inclusive.
     Returns total non-redundant bp across all sequences."""
     total = 0
-    for seq, intervals in intervals_by_seq.items():
+    for intervals in intervals_by_seq.values():
         if not intervals:
             continue
         intervals = sorted(intervals)
@@ -230,7 +230,7 @@ def plot_bar(values: pd.Series, title: str, xlabel: str, dest: Path, color=CATEG
     generous floor meant for small genome sets."""
     values = values.sort_values()
     fig, ax = plt.subplots(figsize=(7, 0.28 * len(values) + 1.2))
-    ax.barh(values.index, values.values, color=color, height=0.65, zorder=3)
+    ax.barh(values.index, values.to_numpy(), color=color, height=0.65, zorder=3)
     style_axes(ax, horizontal=True)
     ax.ticklabel_format(style="plain", axis="x")
     ax.xaxis.set_major_formatter(lambda x, pos: f"{x:,.0f}")
@@ -258,7 +258,7 @@ def plot_scatter(
     for i, (genome_id, row) in enumerate(df.sort_values(xcol).iterrows()):
         dy = 6 if i % 2 == 0 else -10
         ax.annotate(
-            genome_id,
+            str(genome_id),
             (row[xcol], row[ycol]),
             fontsize=7,
             color=INK_SECONDARY,
@@ -511,7 +511,7 @@ def main():
     plot_cols = [c for c in folded_categories if c != "Other"]
     superfamily_plot_df = pd.DataFrame(index=superfamily_pivot.index)
     for c in plot_cols:
-        superfamily_plot_df[c] = superfamily_pivot[c] if c in superfamily_pivot else 0.0
+        superfamily_plot_df[c] = superfamily_pivot.get(c, 0.0)
     other_cols = [c for c in superfamily_pivot.columns if c not in plot_cols]
     if other_cols:
         superfamily_plot_df["Other"] = superfamily_pivot[other_cols].sum(axis=1)
@@ -526,7 +526,7 @@ def main():
     fam_plot_cols = [c for c in folded_fam_categories if c != "Other"]
     family_plot_df = pd.DataFrame(index=family_pivot.index)
     for c in fam_plot_cols:
-        family_plot_df[c] = family_pivot[c] if c in family_pivot else 0.0
+        family_plot_df[c] = family_pivot.get(c, 0.0)
     other_fam_cols = [c for c in family_pivot.columns if c not in fam_plot_cols]
     if other_fam_cols:
         family_plot_df["Other"] = family_pivot[other_fam_cols].sum(axis=1)

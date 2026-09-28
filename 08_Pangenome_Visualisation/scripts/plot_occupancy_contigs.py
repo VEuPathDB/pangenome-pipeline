@@ -221,8 +221,8 @@ def main():
         positions=xs,
         widths=0.7,
         patch_artist=True,
-        medianprops=dict(color="black", lw=1.5),
-        flierprops=dict(marker="o", ms=2.5, alpha=0.4, mec="none", mfc="0.3"),
+        medianprops={"color": "black", "lw": 1.5},
+        flierprops={"marker": "o", "ms": 2.5, "alpha": 0.4, "mec": "none", "mfc": "0.3"},
     )
     for patch, k in zip(bp["boxes"], ks):
         patch.set_facecolor(COLORS[cat_of[k]])

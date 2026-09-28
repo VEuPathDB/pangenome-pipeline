@@ -68,7 +68,7 @@ PC_PSEUDO_BIOTYPES = {"protein_coding", "pseudogene"}  # what GET_PANGENES actua
 
 def find_genomes(genomes_dir: Path) -> dict:
     """<genome_label>.fna/.fasta/.fa -> path, one per genome."""
-    found = {}
+    found: dict[str, Path] = {}
     for ext in GENOME_EXTS:
         for p in sorted(genomes_dir.glob(f"*{ext}")):
             found.setdefault(p.stem, p)
@@ -116,8 +116,8 @@ def gene_counts_per_contig(records: list) -> tuple:
     biotypes GET_PANGENES actually uses, so a tRNA/rRNA/ncRNA gene sitting
     on an otherwise-empty small contig doesn't make that contig look
     load-bearing for the pangenome."""
-    all_counts = collections.Counter()
-    pc_pseudo_counts = collections.Counter()
+    all_counts: collections.Counter[str] = collections.Counter()
+    pc_pseudo_counts: collections.Counter[str] = collections.Counter()
     for rec in records:
         all_counts[rec["contig"]] += 1
         if rec["biotype"] in PC_PSEUDO_BIOTYPES:
@@ -251,7 +251,7 @@ def plot_small_contig_count(summary: pd.DataFrame, min_len: int, dest: Path):
     """One horizontal bar per genome: how many contigs fall below --min-len."""
     values = summary.set_index("genome_label")["n_contigs_below"].sort_values()
     fig, ax = plt.subplots(figsize=(7, 0.32 * len(values) + 1.5))
-    ax.barh(values.index, values.values, color="#DD8452", height=0.65, zorder=3)
+    ax.barh(values.index, values.to_numpy(), color="#DD8452", height=0.65, zorder=3)
     style_axes(ax)
     for y, v in enumerate(values.values):
         ax.annotate(
@@ -312,7 +312,7 @@ def main():
     if not genomes:
         raise SystemExit(f"No {'/'.join(GENOME_EXTS)} files found in {genomes_dir}")
 
-    if subprocess.run(["which", "samtools"], capture_output=True).returncode != 0:
+    if subprocess.run(["which", "samtools"], capture_output=True, check=False).returncode != 0:
         print(
             "WARNING: samtools not found on PATH - this only works if every "
             "genome already has an up-to-date .fai next to it",

@@ -51,7 +51,7 @@ def analyse(paf, min_aln, ref_mb):
     rows = read_paf(paf, min_aln)
     strain = os.path.basename(paf).split("_vs_")[0]
     if not rows:
-        return dict(strain=strain, empty=True)
+        return {"strain": strain, "empty": True}
 
     ref_name = os.path.basename(paf).split("_vs_")[1].replace(".paf", "")
     tlen = {r["t"]: r["tlen"] for r in rows}
@@ -141,27 +141,27 @@ def analyse(paf, min_aln, ref_mb):
         issues.append(f"{len(joins)} scaffold(s) joining ≥2 ref chroms end-to-end")
     verdict = "Collinear — 1:1, no rearrangements" if not issues else "; ".join(issues)
 
-    return dict(
-        strain=strain,
-        ref=ref_name,
-        empty=False,
-        n_aln=len(rows),
-        n_qcontig=len(q_rows),
-        clean=clean_contigs,
-        covered=covered,
-        ref_size=ref_size,
-        cov_pct=covered / ref_size * 100,
-        total_aln=total_aln,
-        ident=ident,
-        raw_rev_pct=raw_rev / total_aln * 100,
-        inv_bp=inv_bp,
-        inv_pct=inv_pct,
-        inv_blocks=internal_inv,
-        transloc=transloc,
-        transloc_bp=transloc_bp,
-        chrom_cov=chrom_cov,
-        verdict=verdict,
-    )
+    return {
+        "strain": strain,
+        "ref": ref_name,
+        "empty": False,
+        "n_aln": len(rows),
+        "n_qcontig": len(q_rows),
+        "clean": clean_contigs,
+        "covered": covered,
+        "ref_size": ref_size,
+        "cov_pct": covered / ref_size * 100,
+        "total_aln": total_aln,
+        "ident": ident,
+        "raw_rev_pct": raw_rev / total_aln * 100,
+        "inv_bp": inv_bp,
+        "inv_pct": inv_pct,
+        "inv_blocks": internal_inv,
+        "transloc": transloc,
+        "transloc_bp": transloc_bp,
+        "chrom_cov": chrom_cov,
+        "verdict": verdict,
+    }
 
 
 def main():
@@ -245,7 +245,8 @@ def main():
     out = "\n".join(md)
     print(out)
     if a.md:
-        open(a.md, "w").write(out)
+        with open(a.md, "w") as fh:
+            fh.write(out)
         print(f"\n[wrote {a.md}]", file=sys.stderr)
     if a.tsv:
         with open(a.tsv, "w") as fh:

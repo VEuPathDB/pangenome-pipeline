@@ -79,9 +79,9 @@ def extract_cds_span_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
                 span_start = min(start for start, end in intervals)
                 span_end = max(end for start, end in intervals)
                 transcript_summary.append((total_cds, transcript_id, span_start, span_end, len(intervals)))
-            total_cds, transcript_id, span_start, span_end, exon_count = sorted(
+            total_cds, transcript_id, span_start, span_end, exon_count = min(
                 transcript_summary, key=lambda item: (-item[0], item[1])
-            )[0]
+            )
             status = "protein_coding_cds_span"
         else:
             span_start = record["start"]
@@ -145,24 +145,7 @@ def extract_cds_span_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
         os.makedirs(os.path.dirname(audit_tsv), exist_ok=True)
         with open(audit_tsv, "w", encoding="utf-8") as audit:
             audit.write(
-                "\t".join(
-                    [
-                        "gene_id",
-                        "feature_class",
-                        "status",
-                        "chrom",
-                        "strand",
-                        "feature_type",
-                        "original_start",
-                        "original_end",
-                        "span_start",
-                        "span_end",
-                        "selected_transcript",
-                        "total_cds_length",
-                        "cds_exon_count",
-                        "n_transcripts_with_cds",
-                    ]
-                )
+                "gene_id\tfeature_class\tstatus\tchrom\tstrand\tfeature_type\toriginal_start\toriginal_end\tspan_start\tspan_end\tselected_transcript\ttotal_cds_length\tcds_exon_count\tn_transcripts_with_cds"
                 + "\n"
             )
             audit.writelines("\t".join(map(str, row)) + "\n" for row in audit_rows)
@@ -237,7 +220,7 @@ def main():
         n_seed = extract_cds_span_gene_pseudogene_bed(ref_gff_path, seed_bed_path, audit_tsv)
         print(f"  --\\> Extraction completed successfully: {n_seed} loci.")
         print(f"  --\\> Audit table: {audit_tsv}")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - report any parsing failure as one line
         print(f"Error extracting seed coordinates from GFF: {e}", file=sys.stderr)
         sys.exit(1)
     print("\n[+] Beginning coordinate transfer via halLiftover & distance-based merging...")
@@ -267,7 +250,7 @@ def main():
             raw_output_bed,
         ]
         try:
-            subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
             print(f"      [SUCCESS] halLiftover: {raw_output_bed}")
             n_primary, n_dup = merge_hal_liftover(
                 raw_output_bed, seed_bed_path, merged_output_bed, qc_multihit_path, args.gap

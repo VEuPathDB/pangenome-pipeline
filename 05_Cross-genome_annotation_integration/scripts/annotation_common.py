@@ -83,7 +83,7 @@ def parse_gff(path):
         fields = line.rstrip("\n").split("\t")
         if len(fields) < 9:
             continue
-        seqname, source, feature, start, end, score, strand = fields[:7]
+        seqname, source, feature, start, end, _score, strand = fields[:7]
         attrs = fields[8]
         m = ID_RE.search(attrs)
         feat_id = m.group(1) if m else None
@@ -153,7 +153,7 @@ def find_cds_overlaps(genes, min_overlap_bp=1, with_strand=False):
         by_seq[gene["seqname"]].append(gene)
 
     pairs = []
-    for seqname, seq_genes in by_seq.items():
+    for seq_genes in by_seq.values():
         seq_genes.sort(key=lambda g: g["start"])
         active = []
         for gene in seq_genes:

@@ -69,19 +69,19 @@ def paf_rows(path, min_aln, min_id):
             if alen and nm / alen < min_id:
                 continue
             out.append(
-                dict(
-                    q=f[0],
-                    qlen=int(f[1]),
-                    qs=int(f[2]),
-                    qe=int(f[3]),
-                    strand=f[4],
-                    t=f[5],
-                    tlen=int(f[6]),
-                    ts=int(f[7]),
-                    te=int(f[8]),
-                    nm=nm,
-                    alen=alen,
-                )
+                {
+                    "q": f[0],
+                    "qlen": int(f[1]),
+                    "qs": int(f[2]),
+                    "qe": int(f[3]),
+                    "strand": f[4],
+                    "t": f[5],
+                    "tlen": int(f[6]),
+                    "ts": int(f[7]),
+                    "te": int(f[8]),
+                    "nm": nm,
+                    "alen": alen,
+                }
             )
     return out
 
@@ -188,18 +188,18 @@ def analyse(label, proj, a):
         else:
             cls = "small-unplaced"
         rows.append(
-            dict(
-                contig=c,
-                length=L,
-                cls=cls,
-                ref_chr=chrom_label(dom_chr[c]) if dom_chr[c] != "-" else "-",
-                pct_ref=pct_ref[c],
-                dup_frac=dup_frac[c],
-                covered_by=",".join(sorted(covered_by[c])[:3]),
-                n_genes=ng,
-            )
+            {
+                "contig": c,
+                "length": L,
+                "cls": cls,
+                "ref_chr": chrom_label(dom_chr[c]) if dom_chr[c] != "-" else "-",
+                "pct_ref": pct_ref[c],
+                "dup_frac": dup_frac[c],
+                "covered_by": ",".join(sorted(covered_by[c])[:3]),
+                "n_genes": ng,
+            }
         )
-    return dict(label=label, is_ref=is_ref, rows=rows, has_genes=gc is not None)
+    return {"label": label, "is_ref": is_ref, "rows": rows, "has_genes": gc is not None}
 
 
 # ---------------------------------------------------------------- output ------
@@ -215,19 +215,19 @@ def summarise(res):
             return "NA"
         return sum(x["n_genes"] for x in rows)
 
-    return dict(
-        label=res["label"],
-        n_contig=len(r),
-        n_large=len(large),
-        n_small=len(small),
-        small_bp=sum(x["length"] for x in small),
-        n_red=len(red),
-        red_bp=sum(x["length"] for x in red),
-        red_genes=gsum(red),
-        n_unp=len(unp),
-        unp_bp=sum(x["length"] for x in unp),
-        unp_genes=gsum(unp),
-    )
+    return {
+        "label": res["label"],
+        "n_contig": len(r),
+        "n_large": len(large),
+        "n_small": len(small),
+        "small_bp": sum(x["length"] for x in small),
+        "n_red": len(red),
+        "red_bp": sum(x["length"] for x in red),
+        "red_genes": gsum(red),
+        "n_unp": len(unp),
+        "unp_bp": sum(x["length"] for x in unp),
+        "unp_genes": gsum(unp),
+    }
 
 
 def write_contig_tsv(res, path):
@@ -283,7 +283,8 @@ def main():
     order = os.path.join(proj, a.order)
     if not os.path.exists(order):
         sys.exit(f"no {order}")
-    labels = [ln.split()[0] for ln in open(order) if ln.strip() and not ln.lstrip().startswith("#")]
+    with open(order) as fh:
+        labels = [ln.split()[0] for ln in fh if ln.strip() and not ln.lstrip().startswith("#")]
     if a.ref is None:
         if not labels:
             sys.exit(f"no genomes in {order}")
@@ -368,7 +369,8 @@ def main():
     text = "\n".join(md)
     print(text)
     if a.md:
-        open(os.path.join(proj, a.md) if not os.path.isabs(a.md) else a.md, "w").write(text)
+        with open(os.path.join(proj, a.md) if not os.path.isabs(a.md) else a.md, "w") as fh:
+            fh.write(text)
         sys.stderr.write(f"\n[wrote {a.md}]\n")
 
 

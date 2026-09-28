@@ -77,7 +77,7 @@ def load_contigs(fasta_path: Path, wanted: set) -> dict:
     on a handful of contigs, so there's no need to hold the whole thing."""
     seqs = {}
     current_id = None
-    current_chunks = []
+    current_chunks: list[str] = []
     with fasta_path.open() as fh:
         for line in fh:
             if line.startswith(">"):

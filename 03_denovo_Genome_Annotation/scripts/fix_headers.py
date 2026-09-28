@@ -39,7 +39,7 @@ def process_file(in_path, out_path, suffix):
             if not header:
                 break
             seq = fin.readline()
-            plus = fin.readline()
+            fin.readline()  # the '+' separator line, rewritten as a bare '+' below
             qual = fin.readline()
 
             fixed_header = fix_header(header, suffix)

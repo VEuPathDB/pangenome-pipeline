@@ -257,21 +257,21 @@ def analyse(label, proj, a):
         hit_gene = ";".join(g for g, _ in ann[:3]) if ann else "-"
         hit_desc = " | ".join(sorted({d for _, d in ann if d})[:3]) if ann else ""
         rows.append(
-            dict(
-                contig=seqid,
-                gene=gid,
-                desc=desc or "",
-                hit_contig=hc,
-                cov=cov,
-                ident=idp,
-                hit_gene=hit_gene,
-                hit_desc=hit_desc,
-                verdict="duplicated" if is_dup else "CHECK",
-            )
+            {
+                "contig": seqid,
+                "gene": gid,
+                "desc": desc or "",
+                "hit_contig": hc,
+                "cov": cov,
+                "ident": idp,
+                "hit_gene": hit_gene,
+                "hit_desc": hit_desc,
+                "verdict": "duplicated" if is_dup else "CHECK",
+            }
         )
 
-    subprocess.run(["rm", "-rf", workdir])
-    return dict(label=label, rows=rows, per_contig=dict(per_contig), targets=targets)
+    subprocess.run(["rm", "-rf", workdir], check=False)
+    return {"label": label, "rows": rows, "per_contig": dict(per_contig), "targets": targets}
 
 
 def main():

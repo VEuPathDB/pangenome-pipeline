@@ -38,7 +38,7 @@ def run_batch_minimap2(queries, targets, output_prefix, minimap_bin="minimap2", 
 
     paf_lines = []
     try:
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         paf_output = result.stdout.strip()
         if paf_output:
             paf_lines = paf_output.split("\n")
@@ -110,12 +110,12 @@ def run_minimap2_pairwise_fallback(seq_ref, seq_target, gene_id, minimap_bin="mi
         else:
             cmd = [minimap_bin, "-c", f_target_name, f_ref_name]
 
-        res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
+        res = subprocess.run(cmd, capture_output=True, text=True, check=True)
         paf_output = res.stdout.strip()
         if paf_output:
             paf_lines = paf_output.split("\n")
 
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 - a failed fallback for one gene must not stop the run
         print(f"[Warning] Pairwise fallback failed for {gene_id}: {e}", file=sys.stderr)
     finally:
         # Guarantee cleanup of temporary files

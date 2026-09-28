@@ -111,7 +111,7 @@ ACC_RE = re.compile(r"GC[AF]_\d+\.\d+")
 
 
 def find_gff_for_genome(
-    genome_id: str, gff_by_stem: dict, genome_map: dict, te_contigs: set = None, seqid_cache: dict = None
+    genome_id: str, gff_by_stem: dict, genome_map: dict, te_contigs: set | None = None, seqid_cache: dict | None = None
 ):
     """Match a RepeatMasker genome_id (its R_<genome_id>/ directory name) to a
     GFF file, without assuming any naming convention. Tried in order:
@@ -242,8 +242,8 @@ def build_te_tracks(out_path: Path):
     kept = [h for h in hits if h[4].lower() not in REMOVE_CLASSES]
 
     by_contig = defaultdict(list)
-    by_contig_class = defaultdict(lambda: defaultdict(list))
-    by_contig_name = defaultdict(lambda: defaultdict(list))
+    by_contig_class: defaultdict[str, defaultdict[str, list]] = defaultdict(lambda: defaultdict(list))
+    by_contig_name: defaultdict[str, defaultdict[str, list]] = defaultdict(lambda: defaultdict(list))
     for seq, start, end, name, cls, seq_left, pct_div, rm_id in kept:
         by_contig[seq].append((start, end))
         by_contig_class[seq][cls].append((start, end))
@@ -340,7 +340,7 @@ def parse_gff(gff_path: Path):
             fields = line.rstrip("\n").split("\t")
             if len(fields) < 9:
                 continue
-            seqid, source, ftype, start, end, score, strand, phase, attr_str = fields
+            seqid, _source, ftype, start, end, _score, strand, _phase, attr_str = fields
 
             if ftype in GENE_FTYPE_TO_BIOTYPE:
                 attrs = parse_attributes(attr_str)
@@ -502,7 +502,7 @@ def compute_gene_rows(
 
     rows = []
     transcript_rows = []
-    skipped_biotypes = Counter()
+    skipped_biotypes: Counter[str] = Counter()
     for gene_id, meta in gene_meta.items():
         biotype = meta["gene_biotype"]
         if biotype == "protein_coding":
@@ -535,7 +535,7 @@ def compute_gene_rows(
 
         dominant_class, dominant_class_bp = "", 0
         dominant_name, dominant_name_bp = "", 0
-        overlap_position, ov5_bp, ov3_bp, ov_internal_bp = "", None, None, None
+        overlap_position = ""
         max_fragment_bp, max_fragment_name, max_fragment_overlap_bp = 0, "", 0
         dominant_overlap_bp, dominant_overlap_div = 0, None
         n_te_fragments = 0
@@ -549,7 +549,7 @@ def compute_gene_rows(
                 if bp > dominant_name_bp:
                     dominant_name_bp, dominant_name = bp, name
             if category == "protein_coding":
-                overlap_position, ov5_bp, ov3_bp, ov_internal_bp = classify_overlap_position(
+                overlap_position, _ov5_bp, _ov3_bp, _ov_internal_bp = classify_overlap_position(
                     merged, meta["strand"], track, overlap_bp, transcript_bp
                 )
 
@@ -781,7 +781,7 @@ def plot_band_bar(thresh_df: pd.DataFrame, column: str, xlabel: str, title: str,
     df = thresh_df[thresh_df["genome_label"] != "ALL"].copy()
     values = df.set_index("genome_label")[column].sort_values()
     fig, ax = plt.subplots(figsize=(7, 0.32 * len(values) + 1.5))
-    ax.barh(values.index, values.values, color=color, height=0.65, zorder=3)
+    ax.barh(values.index, values.to_numpy(), color=color, height=0.65, zorder=3)
     style_axes(ax, horizontal=True)
     for y, v in enumerate(values.values):
         ax.annotate(

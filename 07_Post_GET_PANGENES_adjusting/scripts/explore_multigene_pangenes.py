@@ -19,6 +19,7 @@ Standard library only.
 
 import argparse
 import csv
+import itertools
 import os
 import re
 import sys
@@ -122,7 +123,7 @@ def main():
                     continue
                 members.append((gid, g))
             members.sort(key=lambda x: (x[1]["chrom"], x[1]["start"]))
-            for (ida, a), (idb, b) in zip(members, members[1:]):
+            for (ida, a), (idb, b) in itertools.pairwise(members):
                 same_chrom = a["chrom"] == b["chrom"]
                 gap = (b["start"] - a["end"]) if same_chrom else ""
                 out_rows.append(

@@ -189,7 +189,6 @@ def main():
 
     fig, (axb, axc) = plt.subplots(2, 1, figsize=(9, 8), sharex=True)
     xs = np.arange(len(ks))
-    trans = blended_transform_factory(axb.transData, axb.transAxes)
     cloud_x = [x for x, k in zip(xs, ks) if cat_of[k] == "Cloud"]
     core_x = [x for x, k in zip(xs, ks) if cat_of[k] == "Core"]
 
@@ -227,8 +226,8 @@ def main():
         positions=xs,
         widths=0.7,
         patch_artist=True,
-        medianprops=dict(color="black", lw=1.5),
-        flierprops=dict(marker="o", ms=2.5, alpha=0.4, mec="none", mfc="0.3"),
+        medianprops={"color": "black", "lw": 1.5},
+        flierprops={"marker": "o", "ms": 2.5, "alpha": 0.4, "mec": "none", "mfc": "0.3"},
     )
     for patch, k in zip(bp["boxes"], ks):
         patch.set_facecolor(COLORS[cat_of[k]])
