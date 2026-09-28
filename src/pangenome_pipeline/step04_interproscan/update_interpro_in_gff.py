@@ -24,7 +24,7 @@ Everything else already in Dbxref= (e.g. "NCBI_GP:...") is left untouched. A CDS
 becomes empty after stripping, with nothing new to add, has the attribute removed entirely.
 
 Usage:
-    python3 update_interpro_in_gff.py --gff gff_cleaned/AF293.gff3 \\
+    python3 -m pangenome_pipeline.step04_interproscan.update_interpro_in_gff --gff gff_cleaned/AF293.gff3 \\
         --lookup interpro/interpro_lookup/AF293_interpro.tsv \\
         --out gff_with_interpro/AF293.gff3
 """

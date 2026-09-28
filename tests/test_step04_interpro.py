@@ -1,8 +1,8 @@
-"""04_InterProScan/scripts/update_interpro_in_gff.py - replacing domain Dbxrefs."""
+"""step04_interproscan/update_interpro_in_gff.py - replacing domain Dbxrefs."""
 
 import pytest
 
-SCRIPT = "04_InterProScan/scripts/update_interpro_in_gff.py"
+SCRIPT = "src/pangenome_pipeline/step04_interproscan/update_interpro_in_gff.py"
 
 
 @pytest.fixture(scope="module")

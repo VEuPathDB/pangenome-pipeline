@@ -26,7 +26,7 @@ accession found for it (semicolon-separated), for
 update_interpro_in_gff.py to consume.
 
 Usage:
-    python3 merge_interpro_results.py \\
+    python3 -m pangenome_pipeline.step04_interproscan.merge_interpro_results \\
         --results-dir interproscan_results/GCA_000002495.2 \\
         --out interpro_lookup/GCA_000002495.2_interpro.tsv
 """

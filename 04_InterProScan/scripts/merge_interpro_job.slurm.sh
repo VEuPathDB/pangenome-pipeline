@@ -29,7 +29,6 @@ OUT_DIR="interpro/interpro_lookup"
 set -euo pipefail
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script PY 04_InterProScan/scripts/merge_interpro_results.py
 
 [[ -d "$RESULTS_DIR" ]] || { echo "ERROR: results folder not found: $RESULTS_DIR (run the array job first)" >&2; exit 1; }
 [[ -f "$ORDER" ]] || { echo "ERROR: genome list not found: $ORDER" >&2; exit 1; }
@@ -43,7 +42,7 @@ i=0
 for genome in "${GENOMES[@]}"; do
   i=$((i + 1))
   echo "=== Genome $i/${#GENOMES[@]}: $genome ==="
-  python3 "$PY" \
+  python3 -m pangenome_pipeline.step04_interproscan.merge_interpro_results \
       --results-dir "$RESULTS_DIR/${genome}" \
       --out "$OUT_DIR/${genome}_interpro.tsv" \
       --fasta "$PROTEIN_DIR/${genome}.faa"

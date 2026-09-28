@@ -78,7 +78,7 @@ Scripts, in the order they run:
    ```
 
 4. [`scripts/merge_interpro_job.slurm.sh`](scripts/merge_interpro_job.slurm.sh) (calls
-   [`scripts/merge_interpro_results.py`](scripts/merge_interpro_results.py)) — run only once
+   [`src/pangenome_pipeline/step04_interproscan/merge_interpro_results.py`](../src/pangenome_pipeline/step04_interproscan/merge_interpro_results.py)) — run only once
    **every** array task has finished. For each genome, collapses all its
    `chunk_*_interproscan.tsv` files into one `<genome>_interpro.tsv`:
    `protein_id, interpro_ids, pfam_ids, n_domain_hits` (semicolon-separated IDs when a protein
@@ -99,7 +99,7 @@ Scripts, in the order they run:
    ```
 
 5. [`scripts/update_interpro_in_gff.slurm.sh`](scripts/update_interpro_in_gff.slurm.sh) (calls
-   [`scripts/update_interpro_in_gff.py`](scripts/update_interpro_in_gff.py)) — writes the
+   [`src/pangenome_pipeline/step04_interproscan/update_interpro_in_gff.py`](../src/pangenome_pipeline/step04_interproscan/update_interpro_in_gff.py)) — writes the
    `Dbxref=InterPro:.../PFAM:...` evidence into each genome's own
    GFF — the field step 05's domain-evidence check actually reads. One genome at a time: for
    each CDS line, strips any `InterPro:`/`PFAM:` entries the original annotation already had

@@ -38,9 +38,7 @@ GFF_DIR="$PROJECT_DIR/$GFF_INDIR"
 LOOKUP_PATH="$PROJECT_DIR/$LOOKUP_DIR"
 ORDER_FILE="$PROJECT_DIR/$ORDER"
 OUT_DIR="$PROJECT_DIR/$GFF_OUTDIR"
-PY="$PROJECT_DIR/04_InterProScan/scripts/update_interpro_in_gff.py"
 
-[[ -f "$PY" ]]         || { echo "ERROR: $PY not found" >&2; exit 1; }
 [[ -d "$GFF_DIR" ]]    || { echo "ERROR: GFF folder not found: $GFF_DIR" >&2; exit 1; }
 [[ -d "$LOOKUP_PATH" ]] || { echo "ERROR: lookup folder not found: $LOOKUP_PATH (run merge_interpro_job.slurm.sh first)" >&2; exit 1; }
 [[ -f "$ORDER_FILE" ]] || { echo "ERROR: genome list not found: $ORDER_FILE" >&2; exit 1; }
@@ -65,7 +63,7 @@ for label in "${LABELS[@]}"; do
     fi
     ext="${gff##*.}"
     echo "=== $label ==="
-    python3 "$PY" --gff "$gff" --lookup "$lookup" --out "$OUT_DIR/${label}.${ext}"
+    python3 -m pangenome_pipeline.step04_interproscan.update_interpro_in_gff --gff "$gff" --lookup "$lookup" --out "$OUT_DIR/${label}.${ext}"
     n=$((n + 1))
 done
 (( n > 0 )) || { echo "ERROR: no genome had both a GFF and a lookup table - nothing done" >&2; exit 1; }
