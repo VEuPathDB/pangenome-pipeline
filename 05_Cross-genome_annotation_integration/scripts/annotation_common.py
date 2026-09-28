@@ -46,8 +46,14 @@ def int_attr(attrs, key):
 
 
 def float_attr(attrs, key):
-    m = re.search(rf"(?:^|;){re.escape(key)}=([\d.]+)", attrs)
-    return float(m.group(1)) if m else None
+    """The whole value as a float (so "1e-05" is 1e-05, not 1), or None if absent or not a number."""
+    m = re.search(rf"(?:^|;){re.escape(key)}=([^;]+)", attrs)
+    if not m:
+        return None
+    try:
+        return float(m.group(1))
+    except ValueError:
+        return None
 
 
 def valid_orf(attrs):

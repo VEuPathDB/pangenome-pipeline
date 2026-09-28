@@ -102,6 +102,14 @@ def test_attribute_readers_are_anchored(common):
 
 
 @pytest.mark.parametrize(
+    ("attrs", "expected"),
+    [("coverage=0.95", 0.95), ("coverage=1e-05", 1e-05), ("coverage=1", 1.0), ("coverage=NA", None), ("ID=g", None)],
+)
+def test_float_attr_reads_whole_number(common, attrs, expected):
+    assert common.float_attr(attrs, "coverage") == expected
+
+
+@pytest.mark.parametrize(
     ("attrs", "key", "old", "new", "expected"),
     [
         ("ID=g1;Name=x", "ID", "g1", "Tst1g00001", "ID=Tst1g00001;Name=x"),
