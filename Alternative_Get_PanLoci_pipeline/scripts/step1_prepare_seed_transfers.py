@@ -160,7 +160,7 @@ def main():
     if not ref_gff_path:
         print(f"Error: Could not dynamically find GFF file for reference strain '{ref_id}' in directory: {ref_gff_dir}", file=sys.stderr)
         sys.exit(1)
-    print(f"  --\> Reference GFF located: {ref_gff_path}")
+    print(f"  --\\> Reference GFF located: {ref_gff_path}")
     gff_basename = os.path.basename(ref_gff_path)
     prefix = os.path.splitext(gff_basename)[0]
     seed_bed_path = os.path.join(args.outdir, f"{prefix}_seed.bed")
@@ -171,12 +171,12 @@ def main():
     if os.path.exists(qc_multihit_path):
         os.remove(qc_multihit_path)
     print("\n[+] Extracting seed panlocus coordinates to BED...")
-    print(f"  --\> Generating seed BED: {seed_bed_path}")
+    print(f"  --\\> Generating seed BED: {seed_bed_path}")
     try:
         audit_tsv = os.path.join(qc_dir, f"{ref_id}_cds_span_annotation_audit.tsv")
         n_seed = extract_cds_span_gene_pseudogene_bed(ref_gff_path, seed_bed_path, audit_tsv)
-        print(f"  --\> Extraction completed successfully: {n_seed} loci.")
-        print(f"  --\> Audit table: {audit_tsv}")
+        print(f"  --\\> Extraction completed successfully: {n_seed} loci.")
+        print(f"  --\\> Audit table: {audit_tsv}")
     except Exception as e:
         print(f"Error extracting seed coordinates from GFF: {e}", file=sys.stderr)
         sys.exit(1)
@@ -188,7 +188,7 @@ def main():
         target_strain = s["strain_id"]
         if target_strain == ref_id:
             continue
-        print(f"\n  --\> Mapped Transfer: {ref_id} -> {target_strain} ...")
+        print(f"\n  --\\> Mapped Transfer: {ref_id} -> {target_strain} ...")
         raw_dir = os.path.join(args.outdir, "raw_liftovers")
         os.makedirs(raw_dir, exist_ok=True)
         raw_output_bed = os.path.join(raw_dir, f"{ref_id}_to_{target_strain}_raw.bed")

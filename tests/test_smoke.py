@@ -18,10 +18,6 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 # results/ only holds snapshot copies of pipeline scripts.
 EXCLUDED_PREFIXES = ("results/",)
 
-KNOWN_COMPILE_WARNINGS = {
-    "Alternative_Get_PanLoci_pipeline/scripts/step1_prepare_seed_transfers.py": 'invalid "\\>" escape sequences',
-}
-
 
 def tracked_files(*patterns):
     out = subprocess.run(
@@ -35,13 +31,7 @@ SHELL_FILES = tracked_files("*.sh", "*.slurm")
 ARGPARSE_FILES = [f for f in PY_FILES if "argparse" in (REPO_ROOT / f).read_text()]
 
 
-def _mark_known(path):
-    if path in KNOWN_COMPILE_WARNINGS:
-        return pytest.param(path, marks=pytest.mark.xfail(reason=KNOWN_COMPILE_WARNINGS[path], strict=True))
-    return path
-
-
-@pytest.mark.parametrize("path", [_mark_known(f) for f in PY_FILES])
+@pytest.mark.parametrize("path", PY_FILES)
 def test_python_compiles(path, tmp_path):
     with warnings.catch_warnings():
         warnings.simplefilter("error")
