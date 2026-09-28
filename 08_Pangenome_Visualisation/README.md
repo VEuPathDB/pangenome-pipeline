@@ -86,7 +86,7 @@ with, so the job looks for them by file name. There are two sets of pangenes, an
 
 **Occupancy categories.** Occupancy is the number of genomes (N) a pangene is present in. The categories are cut in
 numbers of genomes, not in percentages. Each pangene falls in exactly one, decided in this order (`categorize` in
-[`plot_occupancy.py`](scripts/plot_occupancy.py), used by every plot that has categories):
+[`plot_occupancy.py`](../src/pangenome_pipeline/step08_pangenome_visualisation/plot_occupancy.py), used by every plot that has categories):
 
 | Category | Default rule | Parameter |
 | :--- | :--- | :--- |
@@ -236,7 +236,7 @@ change how the pangenes are counted. The job does not make these; to get one, ru
 active. For example, the contig size plot as boxplots, for the 7b set:
 
 ```bash
-python3 08_Pangenome_Visualisation/scripts/plot_occupancy_contigs.py \
+PYTHONPATH=src python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_contigs \
   --genes-matrix <get_pangenes folder>/pangene_matrix_genes.tr.tab \
   --gff-dir for_get_pangenes_7b --gff-suffix _for_get_pangenes.gff \
   --contig-sizes 01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv \

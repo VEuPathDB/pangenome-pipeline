@@ -26,18 +26,20 @@ done
 [[ -f "$MATRIX" ]] || { echo "ERROR: matrix not found: $MATRIX" >&2; exit 1; }
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# the pipeline's Python package, so this also works when run directly (not only from plot_all_job.sh)
+export PYTHONPATH="$DIR/../../src${PYTHONPATH:+:$PYTHONPATH}"
 mkdir -p "$OUT_DIR"
 
-python3 "$DIR/plot_pancore.py"   -i "$MATRIX" -o "$OUT_DIR/${LABEL}_pancore"
-python3 "$DIR/plot_pancore.py"   -i "$MATRIX" -o "$OUT_DIR/${LABEL}_pancore_separate" --layout separate
-python3 "$DIR/plot_occupancy.py" -i "$MATRIX" -o "$OUT_DIR/${LABEL}_occupancy" \
+python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_pancore   -i "$MATRIX" -o "$OUT_DIR/${LABEL}_pancore"
+python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_pancore   -i "$MATRIX" -o "$OUT_DIR/${LABEL}_pancore_separate" --layout separate
+python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy -i "$MATRIX" -o "$OUT_DIR/${LABEL}_occupancy" \
     --core-missing "${CORE_MISSING:-0}" --softcore-missing "${SOFTCORE_MISSING:-1}" --cloud-max "${CLOUD_MAX:-2}"
-python3 "$DIR/plot_singletons.py" -i "$MATRIX" -o "$OUT_DIR/${LABEL}_singletons"
+python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_singletons -i "$MATRIX" -o "$OUT_DIR/${LABEL}_singletons"
 
 # POCS.matrix.tab is written by get_pangenes next to pangene_matrix.tr.tab
 POCS="$(dirname "$MATRIX")/POCS.matrix.tab"
 if [[ -f "$POCS" ]]; then
-    python3 "$DIR/plot_pocs.py" -i "$POCS" -o "$OUT_DIR/${LABEL}_POCS_heatmap"
+    python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_pocs -i "$POCS" -o "$OUT_DIR/${LABEL}_POCS_heatmap"
 else
     echo "WARNING: $POCS not found, skipping the POCS heatmap" >&2
 fi

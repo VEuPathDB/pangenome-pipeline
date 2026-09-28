@@ -38,8 +38,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from plot_occupancy import ORDER, categorize
 from scipy.stats import false_discovery_control, fisher_exact
+
+from pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy import ORDER, categorize
 
 ENTRY_LIST_URL = "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list"
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")

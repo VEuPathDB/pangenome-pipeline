@@ -17,7 +17,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from plot_pancore import read_presence
+
+from pangenome_pipeline.step08_pangenome_visualisation.plot_pancore import read_presence
 
 SINGLETON_COLOR = "#CC79A7"
 

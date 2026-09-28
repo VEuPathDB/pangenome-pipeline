@@ -1,8 +1,13 @@
-"""08_Pangenome_Visualisation - pangene occupancy categories and matrix reading."""
+"""step08_pangenome_visualisation - pangene occupancy categories, matrix reading and plot_all.sh."""
+
+import os
+import subprocess
+import sys
 
 import pytest
+from conftest import REPO_ROOT
 
-SCRIPTS = "08_Pangenome_Visualisation/scripts/"
+SCRIPTS = "src/pangenome_pipeline/step08_pangenome_visualisation/"
 
 
 @pytest.fixture(scope="module")
@@ -38,3 +43,34 @@ def test_read_presence(pancore, write_file):
     genomes, pres = pancore.read_presence(write_file("matrix.tab", text))
     assert genomes == ["A", "B", "C"]
     assert pres.tolist() == [[True, True, False], [False, True, True]]
+
+
+def test_plot_all_runs_every_plot(tmp_path):
+    """plot_all.sh, run directly, finds the package itself and writes every figure."""
+    rows = ["cluster\tA_for_get_pangenes\tB_for_get_pangenes\tC_for_get_pangenes\tD_for_get_pangenes"]
+    for i in range(40):  # a spread of occupancies: core, shell and cloud clusters
+        present = [(i + j) % 4 != 0 or i % 3 == 0 for j in range(4)]
+        rows.append(f"c{i}\t" + "\t".join(f"g{i}_{j}" if p else "-" for j, p in enumerate(present)))
+    matrix = tmp_path / "pangene_matrix.tr.tab"
+    matrix.write_text("\n".join(rows) + "\n")
+    venv_bin = os.path.dirname(sys.executable)  # stands in for the environment the job activates (matplotlib, scipy)
+    result = subprocess.run(
+        [
+            "bash",
+            str(REPO_ROOT / "08_Pangenome_Visualisation" / "scripts" / "plot_all.sh"),
+            "-i",
+            str(matrix),
+            "-o",
+            str(tmp_path / "out"),
+            "-l",
+            "T",
+        ],
+        cwd=tmp_path,
+        env={**os.environ, "MPLBACKEND": "Agg", "PATH": f"{venv_bin}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    for name in ("T_pancore.png", "T_pancore_separate.png", "T_occupancy.png", "T_singletons.png"):
+        assert (tmp_path / "out" / name).is_file(), name

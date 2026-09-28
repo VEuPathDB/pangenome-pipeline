@@ -156,37 +156,37 @@ elif [[ ! -f "$ENTRY_LIST" ]]; then
 fi
 ENTRY_ARGS=()
 [[ -n "$ENTRY_LIST" && -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
-step "domain enrichment" python3 "$SCRIPTS/plot_domain_enrichment.py" "${GENE_ARGS[@]}" \
+step "domain enrichment" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_domain_enrichment "${GENE_ARGS[@]}" \
     -o "$OUT_DIR/${LABEL}_domain_enrichment" \
     --categories "$CATEGORIES" --alpha "$ALPHA" --min-total "$MIN_TOTAL" --min-count "$MIN_COUNT" --top "$TOP" \
     ${ENTRY_ARGS[@]+"${ENTRY_ARGS[@]}"}
 
-step "gene properties by occupancy (linear axis)" python3 "$SCRIPTS/plot_occupancy_properties.py" "${GFF_ARGS[@]}" \
+step "gene properties by occupancy (linear axis)" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_properties "${GFF_ARGS[@]}" \
     -o "$OUT_DIR/${LABEL}_occupancy_properties"
-step "gene properties by occupancy (log axis)" python3 "$SCRIPTS/plot_occupancy_properties.py" "${GFF_ARGS[@]}" --yscale log \
+step "gene properties by occupancy (log axis)" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_properties "${GFF_ARGS[@]}" --yscale log \
     -o "$OUT_DIR/${LABEL}_occupancy_properties_log"
 
 if [[ -f "$CONTIG_SIZES" ]]; then
-    step "contig size by occupancy category" python3 "$SCRIPTS/plot_occupancy_contigs.py" "${GFF_ARGS[@]}" \
+    step "contig size by occupancy category" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_contigs "${GFF_ARGS[@]}" \
         --contig-sizes "$CONTIG_SIZES" --style classes -o "$OUT_DIR/${LABEL}_contig_classes"
 else
     echo; echo "WARNING: $CONTIG_SIZES not found; the contig size plot is skipped (--contig-sizes FILE)" >&2
     FAILED+=("contig size by occupancy category (no $CONTIG_SIZES)")
 fi
 
-step "mostly invalid ORFs, percentage" python3 "$SCRIPTS/plot_occupancy_invalid.py" "${GFF_ARGS[@]}" --style percent \
+step "mostly invalid ORFs, percentage" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_invalid "${GFF_ARGS[@]}" --style percent \
     -o "$OUT_DIR/${LABEL}_occupancy_invalid_percent"
-step "mostly invalid ORFs, count" python3 "$SCRIPTS/plot_occupancy_invalid.py" "${GFF_ARGS[@]}" --style invalid \
+step "mostly invalid ORFs, count" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_invalid "${GFF_ARGS[@]}" --style invalid \
     -o "$OUT_DIR/${LABEL}_occupancy_invalid_only"
-step "invalid ORFs, share of invalid genes by category" python3 "$SCRIPTS/plot_occupancy_invalid.py" "${GFF_ARGS[@]}" --style share \
+step "invalid ORFs, share of invalid genes by category" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_invalid "${GFF_ARGS[@]}" --style share \
     -o "$OUT_DIR/${LABEL}_invalid_share"
 
 if [[ "$OVERLAP" == "yes" ]]; then
-    step "mostly unsupported overlapping genes, percentage" python3 "$SCRIPTS/plot_occupancy_invalid.py" --mark overlap \
+    step "mostly unsupported overlapping genes, percentage" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_invalid --mark overlap \
         "${GFF_ARGS[@]}" --style percent -o "$OUT_DIR/${LABEL}_occupancy_unsupported_percent"
-    step "mostly unsupported overlapping genes, count" python3 "$SCRIPTS/plot_occupancy_invalid.py" --mark overlap \
+    step "mostly unsupported overlapping genes, count" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_invalid --mark overlap \
         "${GFF_ARGS[@]}" --style invalid -o "$OUT_DIR/${LABEL}_occupancy_unsupported_only"
-    step "unsupported overlapping genes, share of unsupported genes by category" python3 "$SCRIPTS/plot_occupancy_invalid.py" --mark overlap \
+    step "unsupported overlapping genes, share of unsupported genes by category" python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_invalid --mark overlap \
         "${GFF_ARGS[@]}" --style share -o "$OUT_DIR/${LABEL}_unsupported_share"
 fi
 

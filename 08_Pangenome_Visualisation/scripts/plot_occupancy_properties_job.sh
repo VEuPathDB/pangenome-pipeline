@@ -34,7 +34,6 @@ for mod in numpy scipy matplotlib; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy and matplotlib)" >&2; exit 1; }
 done
 
-find_script PY 08_Pangenome_Visualisation/scripts/plot_occupancy_properties.py
 mkdir -p "$OUT_DIR"
 
 # get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.
@@ -47,10 +46,10 @@ if [[ ${#MATRICES[@]} -ne 1 ]]; then
 fi
 
 # Two versions of the protein-length panel: linear axis and log axis.
-python3 "$PY" \
+python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_properties \
   --genes-matrix "${MATRICES[0]}" --gff-dir "$GFF_DIR" --gff-suffix "$GFF_SUFFIX" \
   -o "$OUT_DIR/${LABEL}_occupancy_properties"
-python3 "$PY" \
+python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_properties \
   --genes-matrix "${MATRICES[0]}" --gff-dir "$GFF_DIR" --gff-suffix "$GFF_SUFFIX" --yscale log \
   -o "$OUT_DIR/${LABEL}_occupancy_properties_log"
 

@@ -39,7 +39,6 @@ for mod in numpy scipy matplotlib; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy and matplotlib)" >&2; exit 1; }
 done
 
-find_script PY 08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py
 mkdir -p "$OUT_DIR"
 
 # get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.
@@ -64,7 +63,7 @@ fi
 ENTRY_ARGS=()
 [[ -n "$ENTRY_LIST" && -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_domain_enrichment \
   --genes-matrix "$GENES_MATRIX" --gff-dir "$GFF_DIR" \
   -o "$OUT_DIR/${LABEL}_domain_enrichment" \
   --categories "$CATEGORIES" --alpha "$ALPHA" --min-total "$MIN_TOTAL" --min-count "$MIN_COUNT" --top "$TOP" \

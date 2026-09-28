@@ -22,7 +22,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from plot_pancore import read_presence
+
+from pangenome_pipeline.step08_pangenome_visualisation.plot_pancore import read_presence
 
 COLORS = {"Core": "#0072B2", "Soft-core": "#E69F00", "Shell": "#009E73", "Cloud": "#CC79A7"}
 ORDER = ["Core", "Soft-core", "Shell", "Cloud"]

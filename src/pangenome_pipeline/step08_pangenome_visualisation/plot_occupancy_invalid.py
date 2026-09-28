@@ -44,7 +44,8 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from plot_occupancy import COLORS, ORDER, categorize
+
+from pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy import COLORS, ORDER, categorize
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 

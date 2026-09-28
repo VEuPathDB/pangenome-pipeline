@@ -32,8 +32,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FuncFormatter, NullFormatter
 from matplotlib.transforms import blended_transform_factory
-from plot_occupancy import COLORS, ORDER, categorize
 from scipy.stats import tukey_hsd
+
+from pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy import COLORS, ORDER, categorize
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 
