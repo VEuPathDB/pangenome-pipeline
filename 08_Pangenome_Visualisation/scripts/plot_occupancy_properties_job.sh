@@ -1,0 +1,70 @@
+#!/bin/bash
+#SBATCH --job-name=plot_occupancy_properties
+#SBATCH --partition=low
+#SBATCH --output=pangenome_plots/logs/%x_%j.out
+#SBATCH --error=pangenome_plots/logs/%x_%j.err
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+
+set -euo pipefail
+
+# Run this after get_pangenes has finished. Submit from your project folder. The log folder must
+# exist BEFORE submitting (SLURM does not create it):
+#     mkdir -p pangenome_plots/logs && sbatch 08_Pangenome_Visualisation/scripts/plot_occupancy_properties_job.sh
+
+# Edit these for your run.
+PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"   # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
+GFF_DIR="for_get_pangenes_7b"                     # the GFFs given to get_pangenes (link_for_get_pangenes_7b.slurm.sh's OUT_DIR)
+GFF_SUFFIX="_for_get_pangenes.gff"                # <genome><suffix> inside GFF_DIR
+OUT_DIR="pangenome_plots"
+LABEL="Toxo7b"                                    # prefix of every output file
+
+set +u
+module purge
+### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib):
+export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
+export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
+eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
+micromamba activate synteny
+### END ADAPT ###
+set -u
+
+for mod in numpy scipy matplotlib; do
+    python3 -c "import $mod" 2>/dev/null \
+        || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy and matplotlib)" >&2; exit 1; }
+done
+
+# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
+# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
+# relative to the directory you submitted from.
+PY=""
+for cand in \
+    "$(dirname "${BASH_SOURCE[0]}")/plot_occupancy_properties.py" \
+    "${SLURM_SUBMIT_DIR:-$PWD}/08_Pangenome_Visualisation/scripts/plot_occupancy_properties.py" \
+    "08_Pangenome_Visualisation/scripts/plot_occupancy_properties.py"
+do
+    [[ -f "$cand" ]] && { PY="$cand"; break; }
+done
+[[ -n "$PY" ]] || { echo "ERROR: cannot find plot_occupancy_properties.py (run from the project folder)" >&2; exit 1; }
+mkdir -p "$OUT_DIR"
+
+# get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.
+shopt -s nullglob
+MATRICES=("$PANGENES_OUT_DIR"/*2neigh_algMmap_/pangene_matrix_genes.tr.tab)
+shopt -u nullglob
+if [[ ${#MATRICES[@]} -ne 1 ]]; then
+    echo "ERROR: expected exactly one $PANGENES_OUT_DIR/*2neigh_algMmap_/pangene_matrix_genes.tr.tab, found ${#MATRICES[@]}" >&2
+    exit 1
+fi
+
+# Two versions of the protein-length panel: linear axis and log axis.
+python3 "$PY" \
+  --genes-matrix "${MATRICES[0]}" --gff-dir "$GFF_DIR" --gff-suffix "$GFF_SUFFIX" \
+  -o "$OUT_DIR/${LABEL}_occupancy_properties"
+python3 "$PY" \
+  --genes-matrix "${MATRICES[0]}" --gff-dir "$GFF_DIR" --gff-suffix "$GFF_SUFFIX" --yscale log \
+  -o "$OUT_DIR/${LABEL}_occupancy_properties_log"
+
+echo "Occupancy properties plot completed. Outputs are in $OUT_DIR"

@@ -4,11 +4,5 @@ __pycache__/
 .DS_Store
 node_modules/
 
-# Not published yet - steps 07 onwards, added once each is finalised. Leading slash anchors
-# each pattern to this repo's root, so it does NOT also match e.g. results/Tgondii/05_.../ -
-# the curated assets a species report links to under that same step-folder name.
-/07_Post_GET_PANGENES_adjusting/
-/08_Pangenome_Visualisation/
-
 # A colleague's own scripts, kept locally for reference only (not ours to publish)
 04_InterProScan/scripts/reference_colleague_scripts/

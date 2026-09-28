@@ -1,0 +1,83 @@
+#!/bin/bash
+#SBATCH --job-name=plot_domain_enrichment
+#SBATCH --partition=low
+#SBATCH --output=pangenome_plots/logs/%x_%j.out
+#SBATCH --error=pangenome_plots/logs/%x_%j.err
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=1
+#SBATCH --mem=8G
+#SBATCH --time=01:00:00
+
+set -euo pipefail
+
+# Run this after get_pangenes has finished. Submit from your project folder. The log folder must
+# exist BEFORE submitting (SLURM does not create it):
+#     mkdir -p pangenome_plots/logs && sbatch 08_Pangenome_Visualisation/scripts/plot_domain_enrichment_job.sh
+
+# Edit these for your run.
+PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"                             # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
+GFF_DIR="for_get_pangenes_7b"                                             # the GFFs given to get_pangenes (link_for_get_pangenes_7b.slurm.sh's OUT_DIR)
+ENTRY_LIST="/home/aludwig/hc-storage/interpro_entry.list"                # InterPro IPR id -> name, shared by all projects; downloaded here if missing
+OUT_DIR="pangenome_plots"
+LABEL="Toxo7b"                                                            # prefix of every output file
+CATEGORIES="Core,Cloud"                                                   # comma-separated: Core, Soft-core, Shell, Cloud
+ALPHA="0.05"                                                              # adjusted p-value cutoff
+MIN_TOTAL="5"                                                             # entries carried by fewer clusters in the whole universe are not tested
+MIN_COUNT="3"                                                             # min clusters carrying the entry in the category, to be drawn
+TOP="15"                                                                  # max entries shown per category
+
+set +u
+module purge
+### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib):
+export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
+export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
+eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
+micromamba activate synteny
+### END ADAPT ###
+set -u
+
+for mod in numpy scipy matplotlib; do
+    python3 -c "import $mod" 2>/dev/null \
+        || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy and matplotlib)" >&2; exit 1; }
+done
+
+# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
+# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
+# relative to the directory you submitted from.
+PY=""
+for cand in \
+    "$(dirname "${BASH_SOURCE[0]}")/plot_domain_enrichment.py" \
+    "${SLURM_SUBMIT_DIR:-$PWD}/08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py" \
+    "08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py"
+do
+    [[ -f "$cand" ]] && { PY="$cand"; break; }
+done
+[[ -n "$PY" ]] || { echo "ERROR: cannot find plot_domain_enrichment.py (run from the project folder)" >&2; exit 1; }
+mkdir -p "$OUT_DIR"
+
+# get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.
+shopt -s nullglob
+MATRICES=("$PANGENES_OUT_DIR"/*2neigh_algMmap_/pangene_matrix_genes.tr.tab)
+shopt -u nullglob
+if [[ ${#MATRICES[@]} -ne 1 ]]; then
+    echo "ERROR: expected exactly one $PANGENES_OUT_DIR/*2neigh_algMmap_/pangene_matrix_genes.tr.tab, found ${#MATRICES[@]}" >&2
+    exit 1
+fi
+GENES_MATRIX="${MATRICES[0]}"
+
+# Compute nodes may not reach the internet: download the list once on the login node (the curl below),
+# otherwise the plot falls back to IPR ids.
+if [[ ! -f "$ENTRY_LIST" ]]; then
+    curl -sfL -o "$ENTRY_LIST" "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list" \
+        || { echo "WARNING: could not download the InterPro entry list; terms will be labelled by IPR id" >&2; rm -f "$ENTRY_LIST"; }
+fi
+ENTRY_ARGS=()
+[[ -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
+
+python3 "$PY" \
+  --genes-matrix "$GENES_MATRIX" --gff-dir "$GFF_DIR" \
+  -o "$OUT_DIR/${LABEL}_domain_enrichment" \
+  --categories "$CATEGORIES" --alpha "$ALPHA" --min-total "$MIN_TOTAL" --min-count "$MIN_COUNT" --top "$TOP" \
+  ${ENTRY_ARGS[@]+"${ENTRY_ARGS[@]}"}
+
+echo "Domain enrichment plot completed. Outputs are in $OUT_DIR"
