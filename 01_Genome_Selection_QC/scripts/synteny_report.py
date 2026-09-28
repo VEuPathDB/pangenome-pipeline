@@ -26,6 +26,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 from pangenome_common.intervals import merged_len
+from pangenome_common.io import read_paf
 
 TRANSLOC_MIN = 20_000   # bp to a 2nd ref chrom before a contig counts as split/chimeric
 INV_MIN      = 20_000   # min block size to list an internal inversion
@@ -38,22 +39,6 @@ def chrom_label(name):
     if m:
         return m.group(1)
     return name.split("_")[-1] if "_" in name else name
-
-
-def read_paf(path, min_aln):
-    rows = []
-    with open(path) as fh:
-        for line in fh:
-            f = line.rstrip("\n").split("\t")
-            if len(f) < 12:
-                continue
-            if int(f[10]) < min_aln:
-                continue
-            rows.append(dict(q=f[0], qlen=int(f[1]), qs=int(f[2]), qe=int(f[3]),
-                             strand=f[4], t=f[5], tlen=int(f[6]),
-                             ts=int(f[7]), te=int(f[8]),
-                             nmatch=int(f[9]), alen=int(f[10])))
-    return rows
 
 
 def second_bp_g(d):

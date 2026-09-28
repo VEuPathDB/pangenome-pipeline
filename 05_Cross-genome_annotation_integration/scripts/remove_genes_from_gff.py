@@ -28,24 +28,14 @@ import re
 import shutil
 import sys
 from collections import defaultdict
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import find_gff
+from pangenome_common.io import read_id_list
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-
-
-def read_list(value):
-    if os.path.isfile(value):
-        with open(value) as fh:
-            return [l.split()[0] for l in fh if l.strip() and not l.startswith("#")]
-    return [g.strip() for g in value.split(",") if g.strip()]
-
-
-def find_gff(gff_dir, genome):
-    for ext in ("gff3", "gff"):
-        path = os.path.join(gff_dir, f"{genome}.{ext}")
-        if os.path.isfile(path):
-            return path
-    return None
 
 
 def read_kill_list(path):
@@ -149,7 +139,7 @@ def main():
     if os.path.abspath(args.out_dir) == os.path.abspath(args.gff_dir):
         sys.exit("ERROR: --out-dir must be different from --gff-dir - the input GFFs are never edited in place")
 
-    genomes = read_list(args.genomes)
+    genomes = read_id_list(args.genomes)
     if not os.path.isdir(args.gff_dir):
         sys.exit(f"ERROR: --gff-dir {args.gff_dir!r} does not exist - did the previous step run, and are you in the project folder?")
     missing = [g for g in genomes if find_gff(args.gff_dir, g) is None]

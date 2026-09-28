@@ -27,12 +27,20 @@ import argparse
 import collections
 import subprocess
 import sys
+from functools import partial
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import find_gff as _find_gff
+
+# <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
+find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)
 
 GENOME_EXTS = (".fna", ".fasta", ".fa")
 
@@ -103,20 +111,6 @@ def find_genomes(genomes_dir: Path) -> dict:
         for p in sorted(genomes_dir.glob(f"*{ext}")):
             found.setdefault(p.stem, p)
     return found
-
-
-def find_gff(gff_indir: Path, genome_label: str):
-    """<genome_label>.gff/.gff3, falling back to a case-insensitive glob for
-    naming-convention mismatches (mirrors the other scripts' find_gff)."""
-    for ext in (".gff", ".gff3"):
-        cand = gff_indir / f"{genome_label}{ext}"
-        if cand.exists():
-            return cand
-    lowered = genome_label.lower()
-    for f in gff_indir.glob("*.gff*"):
-        if f.stem.lower() == lowered:
-            return f
-    return None
 
 
 def parse_gene_records(gff_path: Path) -> list:

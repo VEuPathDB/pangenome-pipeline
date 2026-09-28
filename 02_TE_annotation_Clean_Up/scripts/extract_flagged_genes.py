@@ -30,12 +30,19 @@ from __future__ import annotations
 
 import argparse
 import sys
+from functools import partial
 from pathlib import Path
 
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from te_gene_overlap import parse_attributes, strip_prefix, GENE_FTYPE_TO_BIOTYPE
+from te_gene_overlap import GENE_FTYPE_TO_BIOTYPE, parse_attributes, strip_prefix
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import find_gff as _find_gff
+
+# <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
+find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)
 
 # The set of gene-level feature types (GFF3 column 3) recognised here must be
 # the SAME set te_gene_overlap.py recognises when it builds gene_te_overlap.tsv
@@ -49,20 +56,6 @@ GENE_FTYPES = set(GENE_FTYPE_TO_BIOTYPE)
 
 FEATURE_TYPES_WITH_PARENT_GENE = {"mRNA", "tRNA", "rRNA"}
 FEATURE_TYPES_WITH_PARENT_RNA = {"exon", "CDS"}
-
-
-def find_gff(gff_indir: Path, genome_label: str) -> Path | None:
-    for ext in (".gff", ".gff3"):
-        candidate = gff_indir / f"{genome_label}{ext}"
-        if candidate.exists():
-            return candidate
-    # case-insensitive fallback (genome_label is te_gene_overlap.py's gff_path.stem,
-    # so this only matters if the filesystem/GFF filename casing disagree)
-    lower = f"{genome_label}".lower()
-    for f in gff_indir.glob("*.gff*"):
-        if f.stem.lower() == lower:
-            return f
-    return None
 
 
 ALWAYS_KEEP_HEADER_PREFIXES = ("##gff-version", "#!")

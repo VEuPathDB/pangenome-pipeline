@@ -30,6 +30,15 @@ import argparse
 import os
 import re
 import sys
+from functools import partial
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import find_gff as _find_gff
+from pangenome_common.gff import gff_seqids
+
+# Also accepts gzipped GFFs, unlike most steps.
+find_gff = partial(_find_gff, exts=(".gff3", ".gff", ".gff3.gz", ".gff.gz"))
 
 FASTA_EXTS = (".fna", ".fasta", ".fa")
 ACC_RE = re.compile(r"^(GC[AF]_\d+\.\d+)")
@@ -85,24 +94,6 @@ def trim_headers(in_path, out_path):
         sys.exit(f"ERROR: {in_path}: headers collide after trimming to first token: "
                  f"{sorted(dupes)[:10]} - fix the source assembly.")
     return n_seqs, ids
-
-
-def gff_seqids(gff_path):
-    ids = set()
-    with open(gff_path) as fh:
-        for line in fh:
-            if line.startswith("#") or not line.strip():
-                continue
-            ids.add(line.split("\t", 1)[0])
-    return ids
-
-
-def find_gff(gff_dir, name):
-    for ext in (".gff3", ".gff", ".gff3.gz", ".gff.gz"):
-        cand = os.path.join(gff_dir, name + ext)
-        if os.path.isfile(cand):
-            return cand
-    return None
 
 
 def main():

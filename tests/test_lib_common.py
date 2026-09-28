@@ -1,7 +1,10 @@
 """lib/pangenome_common - helpers shared across step scripts."""
 
+from pathlib import Path
+
+from pangenome_common.gff import find_gff, gff_seqids
 from pangenome_common.intervals import merged_len, segments_overlap_bp
-from pangenome_common.io import read_strains
+from pangenome_common.io import read_id_list, read_paf, read_strains
 
 
 def test_merged_len_half_open():
@@ -24,3 +27,60 @@ def test_read_strains_from_file_and_string(tmp_path):
     order.write_text("# reference first\nREF\n\n  S2  \nS3\n")
     assert read_strains(str(order)) == ["REF", "S2", "S3"]
     assert read_strains("REF, S2,,S3") == ["REF", "S2", "S3"]
+
+
+def test_find_gff_extension_order_and_return_type(tmp_path):
+    (tmp_path / "G1.gff").write_text("")
+    (tmp_path / "G1.gff3").write_text("")
+    assert find_gff(str(tmp_path), "G1") == str(tmp_path / "G1.gff3")  # default prefers .gff3
+    assert find_gff(tmp_path, "G1", exts=(".gff", ".gff3")) == tmp_path / "G1.gff"
+    assert isinstance(find_gff(tmp_path, "G1"), Path)
+    assert find_gff(str(tmp_path), "missing") is None
+
+
+def test_find_gff_optional_gz_and_case_insensitive(tmp_path):
+    (tmp_path / "Af293.gff3.gz").write_text("")
+    (tmp_path / "FungiDB-68_AF293.gff").write_text("")
+    assert find_gff(str(tmp_path), "Af293") is None
+    assert find_gff(str(tmp_path), "Af293", exts=(".gff3.gz",)) == str(tmp_path / "Af293.gff3.gz")
+    assert find_gff(tmp_path, "fungidb-68_af293", case_insensitive=True) == tmp_path / "FungiDB-68_AF293.gff"
+
+
+def test_gff_seqids_column_one_only(tmp_path):
+    gff = tmp_path / "g.gff3"
+    gff.write_text(
+        "##sequence-region chrX 1 5\nchr1\tsrc\tgene\t1\t5\t.\t+\t.\tID=g\n\nchr2\tsrc\tgene\t1\t5\t.\t+\t.\tID=h\n"
+    )
+    assert gff_seqids(gff) == {"chr1", "chr2"}
+
+
+def test_read_id_list_takes_first_column(tmp_path):
+    ids = tmp_path / "ids.txt"
+    ids.write_text("# comment\ngeneA  some note\n\ngeneB\n")
+    assert read_id_list(str(ids)) == ["geneA", "geneB"]
+    assert read_id_list("geneA,geneB") == ["geneA", "geneB"]
+
+
+def test_read_paf_filters_short_alignments(tmp_path):
+    paf = tmp_path / "a.paf"
+    paf.write_text(
+        "ctg1\t1000\t0\t900\t+\tchr1\t5000\t100\t1000\t880\t900\t60\n"
+        "ctg2\t1000\t0\t50\t-\tchr1\t5000\t100\t150\t50\t50\t60\n"
+        "short line\n"
+    )
+    rows = read_paf(paf, min_aln=100)
+    assert rows == [
+        {
+            "q": "ctg1",
+            "qlen": 1000,
+            "qs": 0,
+            "qe": 900,
+            "strand": "+",
+            "t": "chr1",
+            "tlen": 5000,
+            "ts": 100,
+            "te": 1000,
+            "nmatch": 880,
+            "alen": 900,
+        }
+    ]

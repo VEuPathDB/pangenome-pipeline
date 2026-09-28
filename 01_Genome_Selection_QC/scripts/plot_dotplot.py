@@ -16,24 +16,14 @@ import sys
 from collections import defaultdict
 
 import matplotlib
+
 matplotlib.use("Agg")
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
-
-def read_paf(path, min_aln):
-    rows = []
-    with open(path) as fh:
-        for line in fh:
-            f = line.rstrip("\n").split("\t")
-            if len(f) < 12:
-                continue
-            aln = int(f[10])
-            if aln < min_aln:
-                continue
-            rows.append(dict(
-                q=f[0], qlen=int(f[1]), qs=int(f[2]), qe=int(f[3]), strand=f[4],
-                t=f[5], tlen=int(f[6]), ts=int(f[7]), te=int(f[8])))
-    return rows
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.io import read_paf
 
 
 def main():

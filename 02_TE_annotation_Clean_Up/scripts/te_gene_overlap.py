@@ -58,14 +58,25 @@ from pathlib import Path
 from urllib.parse import unquote
 
 import matplotlib
+
 matplotlib.use("Agg")
+import sys
+
 import matplotlib.pyplot as plt
 import pandas as pd
-
 from summarize_te_content import (
-    parse_out, REMOVE_CLASSES, find_genome_dirs,
-    style_axes, CATEGORICAL, SURFACE, INK_PRIMARY, INK_SECONDARY, GRIDLINE,
+    CATEGORICAL,
+    INK_PRIMARY,
+    INK_SECONDARY,
+    REMOVE_CLASSES,
+    SURFACE,
+    find_genome_dirs,
+    parse_out,
+    style_axes,
 )
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import gff_seqids
 
 THRESHOLDS = [1, 5, 10, 20, 50, 80, 90, 100]
 
@@ -91,17 +102,6 @@ def load_genome_map(path) -> dict:
 
 
 ACC_RE = re.compile(r"GC[AF]_\d+\.\d+")
-
-
-def gff_seqids(path: Path) -> set:
-    """Every column-1 seqid in a GFF (cheap: split on the first tab)."""
-    ids = set()
-    with path.open() as fh:
-        for line in fh:
-            if line.startswith("#") or not line.strip():
-                continue
-            ids.add(line.split("\t", 1)[0])
-    return ids
 
 
 def find_gff_for_genome(genome_id: str, gff_by_stem: dict, genome_map: dict,

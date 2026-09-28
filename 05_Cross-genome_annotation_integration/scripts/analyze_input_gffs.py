@@ -86,6 +86,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import find_gff
 from pangenome_common.intervals import segments_overlap_bp
 
 try:
@@ -169,14 +170,6 @@ def read_genomes(value):
         with open(value) as fh:
             return [l.split()[0] for l in fh if l.strip() and not l.startswith("#")]
     return [g.strip() for g in value.split(",") if g.strip()]
-
-
-def find_gff(gff_dir, genome):
-    for ext in ("gff3", "gff"):
-        path = os.path.join(gff_dir, f"{genome}.{ext}")
-        if os.path.isfile(path):
-            return path
-    return None
 
 
 def has_domain_evidence(attrs):
