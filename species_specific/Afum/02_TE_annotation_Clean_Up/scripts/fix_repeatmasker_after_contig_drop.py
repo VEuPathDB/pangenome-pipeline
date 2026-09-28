@@ -39,6 +39,7 @@ Usage:
         --drop-list 01_Genome_Selection_QC/drop_contigs.txt \
         --outdir repeatmasker_contig_filtered
 """
+
 import argparse
 import re
 import shutil
@@ -148,8 +149,7 @@ def genome_id_for(out_path: Path, stem: str):
     cands = [strip_ext(stem), trim_accession(strip_ext(stem))]
     folder = out_path.parent.name
     for pref in ("RM_", "R_"):
-        if folder.startswith(pref):
-            folder = folder[len(pref):]
+        folder = folder.removeprefix(pref)
     cands += [folder, trim_accession(folder)]
     # de-dup, keep order
     seen, ordered = set(), []
@@ -187,8 +187,10 @@ def filter_lines(path: Path, drop: set, kind: str) -> tuple:
 def patch_tbl(path: Path, new_total) -> None:
     if new_total is None:
         return
-    note = ("# NOTE: 'total length' patched by fix_repeatmasker_after_contig_drop.py "
-            "(contigs removed after RepeatMasker ran); other totals below are stale.\n")
+    note = (
+        "# NOTE: 'total length' patched by fix_repeatmasker_after_contig_drop.py "
+        "(contigs removed after RepeatMasker ran); other totals below are stale.\n"
+    )
     out = [note]
     for line in path.read_text().splitlines(keepends=True):
         m = TBL_LENGTH_RE.match(line)
@@ -207,16 +209,15 @@ def tbl_total(path: Path):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--rm-indir", default=".",
-                    help="folder with the RepeatMasker outputs (RM_*/ subdirs or loose *.out); default: .")
-    ap.add_argument("--drop-list",
-                    help="step-01 manifest: '<genome>  <contig>' per line (# comments ok)")
-    ap.add_argument("--genomes-dir",
-                    help="final assemblies <genome_id>.fna|.fasta|.fa; used instead of --drop-list")
-    ap.add_argument("--outdir", required=True,
-                    help="where the cleaned RM_<genome_id>/ folders go (new dir)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--rm-indir",
+        default=".",
+        help="folder with the RepeatMasker outputs (RM_*/ subdirs or loose *.out); default: .",
+    )
+    ap.add_argument("--drop-list", help="step-01 manifest: '<genome>  <contig>' per line (# comments ok)")
+    ap.add_argument("--genomes-dir", help="final assemblies <genome_id>.fna|.fasta|.fa; used instead of --drop-list")
+    ap.add_argument("--outdir", required=True, help="where the cleaned RM_<genome_id>/ folders go (new dir)")
     args = ap.parse_args()
 
     if not args.drop_list and not args.genomes_dir:
@@ -233,8 +234,10 @@ def main():
     out_files = find_out_files(rm_indir)
     if not out_files:
         listing = ", ".join(sorted(p.name for p in rm_indir.iterdir())[:25]) or "(empty)"
-        sys.exit(f"ERROR: no RepeatMasker *.out files in {rm_indir}/ or its immediate "
-                 f"subfolders.\n{rm_indir}/ contains: {listing}")
+        sys.exit(
+            f"ERROR: no RepeatMasker *.out files in {rm_indir}/ or its immediate "
+            f"subfolders.\n{rm_indir}/ contains: {listing}"
+        )
 
     outdir.mkdir(parents=True, exist_ok=True)
     grand_total = 0
@@ -263,8 +266,7 @@ def main():
             else:
                 how = "name"
             if match is None:
-                sys.exit(f"ERROR: could not match {op} to an assembly in {args.genomes_dir}/ "
-                         f"(tried {ids})")
+                sys.exit(f"ERROR: could not match {op} to an assembly in {args.genomes_dir}/ (tried {ids})")
             gid = match
             present = set(contig_lengths_from_out(op)) | set(genomes[gid]["contigs"])
             drop = {c for c in set(contig_lengths_from_out(op)) if c not in genomes[gid]["contigs"]}
@@ -275,8 +277,7 @@ def main():
             how = "drop-list" + ("" if match else " (no entry - nothing to drop)")
 
         if gid in done:
-            print(f"WARNING: {op.name} and {done[gid]} both resolve to {gid}; later wins",
-                  file=sys.stderr)
+            print(f"WARNING: {op.name} and {done[gid]} both resolve to {gid}; later wins", file=sys.stderr)
         done[gid] = op.name
 
         dest = outdir / f"RM_{gid}"
@@ -323,8 +324,7 @@ def main():
         if drop:
             miss = drop - hit
             extra = f"; {sorted(miss)} not seen in the .out" if miss else ""
-            print(f"{tag}: removed {removed_lines} line(s) for "
-                  f"{', '.join(sorted(drop))}{extra}")
+            print(f"{tag}: removed {removed_lines} line(s) for {', '.join(sorted(drop))}{extra}")
         else:
             print(f"{tag}: nothing to drop")
 

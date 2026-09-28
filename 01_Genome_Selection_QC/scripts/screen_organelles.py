@@ -28,6 +28,7 @@ shows up as several rows.
 
 Also prints a per-organelle summary.
 """
+
 import argparse
 import glob
 import os
@@ -59,10 +60,12 @@ def main():
     ap.add_argument("--blast-dir", required=True)
     ap.add_argument("--organelles", required=True)
     ap.add_argument("--out", required=True)
-    ap.add_argument("--min-cov", type=float, default=0.90,
-                    help="organelle-coverage fraction for a 'full' contig (default 0.90)")
-    ap.add_argument("--min-partial", type=float, default=0.05,
-                    help="coverage below which a contig hit is ignored (default 0.05)")
+    ap.add_argument(
+        "--min-cov", type=float, default=0.90, help="organelle-coverage fraction for a 'full' contig (default 0.90)"
+    )
+    ap.add_argument(
+        "--min-partial", type=float, default=0.05, help="coverage below which a contig hit is ignored (default 0.05)"
+    )
     a = ap.parse_args()
 
     olen = organelle_lengths(a.organelles)
@@ -91,7 +94,7 @@ def main():
                 k = (genome, organelle, contig)
                 qiv[k].append((qs, qe))
                 id_wsum[k] += ident * (qe - qs)
-                id_wlen[k] += (qe - qs)
+                id_wlen[k] += qe - qs
                 contig_len[k] = int(f[13])
 
     # per-contig stats + class
@@ -122,8 +125,7 @@ def main():
         ol = olen.get(o) or 1
         fulls = [c for c, v in lst if v["cls"] == "full"]
         scaf = [c for c, v in lst if v["cls"] == "full_in_scaffold"]
-        union = merged_len([iv for k, ivs in qiv.items()
-                            if k[0] == g and k[1] == o for iv in ivs]) / ol
+        union = merged_len([iv for k, ivs in qiv.items() if k[0] == g and k[1] == o for iv in ivs]) / ol
         if len(fulls) > 1:
             call = "MULTIPLE_COPIES"
         elif len(fulls) == 1:
@@ -143,8 +145,9 @@ def main():
         if v["cls"] == "trace":
             continue
         g, o, c = k
-        rows.append([g, o, c, round(v["pid"], 1), round(v["cov"], 3),
-                     v["clen"], v["ol"], v["cls"], genome_call[(g, o)]])
+        rows.append(
+            [g, o, c, round(v["pid"], 1), round(v["cov"], 3), v["clen"], v["ol"], v["cls"], genome_call[(g, o)]]
+        )
     for g in genomes:
         for o in olen:
             if (g, o) not in genome_call:
@@ -153,23 +156,27 @@ def main():
 
     rows.sort(key=lambda r: (r[1], r[0], -r[4]))
     with open(a.out, "w") as out:
-        out.write("genome\torganelle\tcontig\tpident\tcov_of_organelle\t"
-                  "contig_len\torganelle_len\tcontig_class\tgenome_call\n")
-        for r in rows:
-            out.write("\t".join(map(str, r)) + "\n")
+        out.write(
+            "genome\torganelle\tcontig\tpident\tcov_of_organelle\t"
+            "contig_len\torganelle_len\tcontig_class\tgenome_call\n"
+        )
+        out.writelines("\t".join(map(str, r)) + "\n" for r in rows)
     print(f"wrote {a.out}\n")
 
     for o in olen:
         gc = {g: genome_call[(g, o)] for g in genomes}
+
         def names(*calls):
             return sorted(g for g, c in gc.items() if c in calls) or ["-"]
+
         multi = sorted(
             (g, sum(1 for _, v in per_go[(g, o)] if v["cls"] == "full"))
-            for g, c in gc.items() if c == "MULTIPLE_COPIES")
+            for g, c in gc.items()
+            if c == "MULTIPLE_COPIES"
+        )
         print(f"[{o}]  (len {olen[o]})")
         print(f"   own contig (1 copy)  : {', '.join(names('own_contig'))}")
-        print(f"   MULTIPLE copies      : "
-              f"{', '.join(f'{g} ({n} contigs)' for g, n in multi) or '-'}   <- check")
+        print(f"   MULTIPLE copies      : {', '.join(f'{g} ({n} contigs)' for g, n in multi) or '-'}   <- check")
         print(f"   inside a scaffold    : {', '.join(names('in_scaffold'))}")
         print(f"   split across contigs : {', '.join(names('split_across_contigs'))}")
         print(f"   only fragments       : {', '.join(names('fragments_only'))}")

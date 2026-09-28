@@ -26,7 +26,6 @@ from panloci_common import (
     split_parent_ids,
 )
 
-
 STATUS_VALUES = {"PRESENT", "PARTIAL", "ABSENT"}
 
 
@@ -109,39 +108,81 @@ def extract_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
             exon_count = 0
             status = "gene_without_cds_used_feature_span"
         rows.append((record["chrom"], max(0, span_start - 1), span_end, gene_id, "0", record["strand"]))
-        audit_rows.append([
-            gene_id, "protein_coding_gene", status, record["chrom"], record["strand"],
-            record["feature_type"], record["start"], record["end"], span_start, span_end,
-            transcript_id, total_cds, exon_count, len(transcript_cds)
-        ])
+        audit_rows.append(
+            [
+                gene_id,
+                "protein_coding_gene",
+                status,
+                record["chrom"],
+                record["strand"],
+                record["feature_type"],
+                record["start"],
+                record["end"],
+                span_start,
+                span_end,
+                transcript_id,
+                total_cds,
+                exon_count,
+                len(transcript_cds),
+            ]
+        )
 
     for gene_id, record in sorted(pseudogene_records.items()):
         rows.append((record["chrom"], max(0, record["start"] - 1), record["end"], gene_id, "0", record["strand"]))
-        audit_rows.append([
-            gene_id, "pseudogene", "pseudogene_feature_span", record["chrom"], record["strand"],
-            record["feature_type"], record["start"], record["end"], record["start"], record["end"],
-            "NA", 0, 0, 0
-        ])
+        audit_rows.append(
+            [
+                gene_id,
+                "pseudogene",
+                "pseudogene_feature_span",
+                record["chrom"],
+                record["strand"],
+                record["feature_type"],
+                record["start"],
+                record["end"],
+                record["start"],
+                record["end"],
+                "NA",
+                0,
+                0,
+                0,
+            ]
+        )
 
     if not rows:
         raise RuntimeError(f"No gene/pseudogene records extracted from {gff_path}")
 
     os.makedirs(os.path.dirname(output_bed), exist_ok=True)
     with open(output_bed, "w", encoding="utf-8") as out:
-        for row in sorted(rows, key=lambda item: (item[0], item[1], item[2], item[3])):
-            out.write("\t".join(map(str, row)) + "\n")
+        out.writelines(
+            "\t".join(map(str, row)) + "\n"
+            for row in sorted(rows, key=lambda item: (item[0], item[1], item[2], item[3]))
+        )
 
     if audit_tsv:
         os.makedirs(os.path.dirname(audit_tsv), exist_ok=True)
         with open(audit_tsv, "w", encoding="utf-8") as audit:
-            audit.write("\t".join([
-                "gene_id", "feature_class", "status", "chrom", "strand", "feature_type",
-                "original_start", "original_end", "span_start", "span_end",
-                "selected_transcript", "total_cds_length", "cds_exon_count",
-                "n_transcripts_with_cds"
-            ]) + "\n")
-            for row in audit_rows:
-                audit.write("\t".join(map(str, row)) + "\n")
+            audit.write(
+                "\t".join(
+                    [
+                        "gene_id",
+                        "feature_class",
+                        "status",
+                        "chrom",
+                        "strand",
+                        "feature_type",
+                        "original_start",
+                        "original_end",
+                        "span_start",
+                        "span_end",
+                        "selected_transcript",
+                        "total_cds_length",
+                        "cds_exon_count",
+                        "n_transcripts_with_cds",
+                    ]
+                )
+                + "\n"
+            )
+            audit.writelines("\t".join(map(str, row)) + "\n" for row in audit_rows)
 
     return len(rows)
 
@@ -158,18 +199,20 @@ def read_bed(path):
             if len(cols) < 6:
                 continue
             try:
-                rows.append({
-                    "chrom": cols[0],
-                    "start": int(cols[1]),
-                    "end": int(cols[2]),
-                    "name": cols[3],
-                    "score": cols[4],
-                    "strand": cols[5],
-                    "orig_size": int(cols[6]) if len(cols) > 6 and cols[6] else int(cols[2]) - int(cols[1]),
-                    "lifted_size": int(cols[7]) if len(cols) > 7 and cols[7] else int(cols[2]) - int(cols[1]),
-                    "source_file": os.path.basename(path),
-                    "line_no": line_no,
-                })
+                rows.append(
+                    {
+                        "chrom": cols[0],
+                        "start": int(cols[1]),
+                        "end": int(cols[2]),
+                        "name": cols[3],
+                        "score": cols[4],
+                        "strand": cols[5],
+                        "orig_size": int(cols[6]) if len(cols) > 6 and cols[6] else int(cols[2]) - int(cols[1]),
+                        "lifted_size": int(cols[7]) if len(cols) > 7 and cols[7] else int(cols[2]) - int(cols[1]),
+                        "source_file": os.path.basename(path),
+                        "line_no": line_no,
+                    }
+                )
             except ValueError:
                 continue
     return rows
@@ -188,8 +231,9 @@ def find_existing_annotation_bed(beddir, strain_id):
 
 def write_bed(path, rows):
     with open(path, "w", encoding="utf-8") as handle:
-        for row in rows:
-            handle.write(f"{row['chrom']}\t{row['start']}\t{row['end']}\t{row['name']}\t0\t{row['strand']}\n")
+        handle.writelines(
+            f"{row['chrom']}\t{row['start']}\t{row['end']}\t{row['name']}\t0\t{row['strand']}\n" for row in rows
+        )
 
 
 def classify_validation(
@@ -208,8 +252,10 @@ def classify_validation(
 
 
 def run_minimap2_pairwise(seq_query, seq_target, locus_id, minimap_bin="minimap2", cactus_img=None):
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".fa", delete=False) as qf, \
-            tempfile.NamedTemporaryFile(mode="w", suffix=".fa", delete=False) as tf:
+    with (
+        tempfile.NamedTemporaryFile(mode="w", suffix=".fa", delete=False) as qf,
+        tempfile.NamedTemporaryFile(mode="w", suffix=".fa", delete=False) as tf,
+    ):
         qf.write(f">{locus_id}\n{seq_query}\n")
         tf.write(f">{locus_id}\n{seq_target}\n")
         q_name = qf.name
@@ -378,19 +424,35 @@ def choose_best_relationship(rels):
 
 def decide_final_from_validation_and_native(validation_status, has_native):
     if validation_status == "PRESENT":
-        return "PRESENT", "transfer_validation_plus_native_annotation" if has_native else "transfer_validation", "high", "FALSE", "NA"
+        return (
+            "PRESENT",
+            "transfer_validation_plus_native_annotation" if has_native else "transfer_validation",
+            "high",
+            "FALSE",
+            "NA",
+        )
     if validation_status == "PARTIAL":
         if has_native:
             return "PRESENT", "transfer_partial_plus_native_annotation", "medium", "FALSE", "NA"
         return "PARTIAL", "transfer_partial_only", "medium", "FALSE", "NA"
     if has_native:
-        return "PRESENT", "native_annotation_overlap_without_transfer_validation", "low", "TRUE", "native_gene_overlaps_absent_transfer"
+        return (
+            "PRESENT",
+            "native_annotation_overlap_without_transfer_validation",
+            "low",
+            "TRUE",
+            "native_gene_overlaps_absent_transfer",
+        )
     return "ABSENT", "no_valid_transfer", "none", "FALSE", "NA"
 
 
 def validate_novel_transfer(locus_id, donor_coord, target_coord, donor_fasta, target_fasta, args):
-    seq_query = extract_sequence(donor_fasta, donor_coord["chrom"], donor_coord["start"], donor_coord["end"], donor_coord["strand"])
-    seq_target = extract_sequence(target_fasta, target_coord["chrom"], target_coord["start"], target_coord["end"], target_coord["strand"])
+    seq_query = extract_sequence(
+        donor_fasta, donor_coord["chrom"], donor_coord["start"], donor_coord["end"], donor_coord["strand"]
+    )
+    seq_target = extract_sequence(
+        target_fasta, target_coord["chrom"], target_coord["start"], target_coord["end"], target_coord["strand"]
+    )
     if not seq_query or not seq_target:
         return None
     res = run_minimap2_pairwise(seq_query, seq_target, locus_id, args.minimap_bin, args.cactus_img)
@@ -421,7 +483,9 @@ def write_tsv(path, rows, fieldnames):
 def main():
     parser = argparse.ArgumentParser(description="Step 3: build sequential panlocus catalogue")
     parser.add_argument("-s", "--samples", default="samples.tsv", help="Path to samples.tsv")
-    parser.add_argument("-b", "--beddir", default="./candidate_transfers", help="Directory with candidate transfer BED files")
+    parser.add_argument(
+        "-b", "--beddir", default="./candidate_transfers", help="Directory with candidate transfer BED files"
+    )
     parser.add_argument("-v", "--valdir", default="./validation", help="Directory with step 2 validation TSV files")
     parser.add_argument("-o", "--outdir", default="./panlocus_catalogue", help="Output directory")
     parser.add_argument("-l", "--hal", help="HAL alignment file for transferring novel panloci")
@@ -489,21 +553,23 @@ def main():
 
     for locus_id in panloci:
         ev = new_empty_evidence("PRESENT")
-        ev.update({
-            "validation_status": "PRESENT",
-            "query_coverage": "1.0",
-            "percent_identity": "100.0",
-            "alignment_length": str(coords[locus_id][ref_id]["end"] - coords[locus_id][ref_id]["start"]),
-            "evidence_type": "seed_reference_annotation",
-            "confidence_class": "high",
-            "native_annotation_available": "TRUE",
-            "native_gene_ids": locus_id,
-            "native_gene_count": "1",
-            "annotation_structure": "seed_model",
-            "coordinates": coord_string(coords[locus_id][ref_id]),
-            "source_gene_id": locus_id,
-            "source_strain": ref_id,
-        })
+        ev.update(
+            {
+                "validation_status": "PRESENT",
+                "query_coverage": "1.0",
+                "percent_identity": "100.0",
+                "alignment_length": str(coords[locus_id][ref_id]["end"] - coords[locus_id][ref_id]["start"]),
+                "evidence_type": "seed_reference_annotation",
+                "confidence_class": "high",
+                "native_annotation_available": "TRUE",
+                "native_gene_ids": locus_id,
+                "native_gene_count": "1",
+                "annotation_structure": "seed_model",
+                "coordinates": coord_string(coords[locus_id][ref_id]),
+                "source_gene_id": locus_id,
+                "source_strain": ref_id,
+            }
+        )
         evidence[(locus_id, ref_id)] = ev
 
     print(f"[+] Loaded {len(panloci)} seed panloci from {seed_bed}")
@@ -513,23 +579,29 @@ def main():
         strain_id = sample["strain_id"]
         val_path = os.path.join(args.valdir, f"{ref_id}_to_{strain_id}.validation.tsv")
         val_records = load_validation_table(val_path)
-        transfer_by_locus = {row["name"]: row for row in read_bed(os.path.join(args.beddir, f"{ref_id}_to_{strain_id}_merged.bed"))}
+        transfer_by_locus = {
+            row["name"]: row for row in read_bed(os.path.join(args.beddir, f"{ref_id}_to_{strain_id}_merged.bed"))
+        }
         for locus_id in panloci:
             val = val_records.get(locus_id)
             status = val["validation_status"] if val else "ABSENT"
             ev = new_empty_evidence(status)
             if val:
-                ev.update({
-                    "validation_status": status,
-                    "query_coverage": val.get("query_coverage", "0.0"),
-                    "percent_identity": val.get("percent_identity", "0.0"),
-                    "alignment_length": val.get("alignment_length", "0"),
-                    "target_length": val.get("target_length", "0"),
-                    "evidence_type": "transfer_validation" if status != "ABSENT" else "no_valid_transfer",
-                    "confidence_class": "high" if status == "PRESENT" else ("medium" if status == "PARTIAL" else "none"),
-                    "source_gene_id": locus_id,
-                    "source_strain": ref_id,
-                })
+                ev.update(
+                    {
+                        "validation_status": status,
+                        "query_coverage": val.get("query_coverage", "0.0"),
+                        "percent_identity": val.get("percent_identity", "0.0"),
+                        "alignment_length": val.get("alignment_length", "0"),
+                        "target_length": val.get("target_length", "0"),
+                        "evidence_type": "transfer_validation" if status != "ABSENT" else "no_valid_transfer",
+                        "confidence_class": "high"
+                        if status == "PRESENT"
+                        else ("medium" if status == "PARTIAL" else "none"),
+                        "source_gene_id": locus_id,
+                        "source_strain": ref_id,
+                    }
+                )
             if status in {"PRESENT", "PARTIAL"} and locus_id in transfer_by_locus:
                 coords[locus_id][strain_id] = transfer_by_locus[locus_id]
                 ev["coordinates"] = coord_string(transfer_by_locus[locus_id])
@@ -583,59 +655,69 @@ def main():
                 annotation_structure = "single_native_model"
 
             validation_status = evidence.get((locus_id, target_id), new_empty_evidence())["validation_status"]
-            final_call, evidence_type, confidence, review_flag, review_reason = decide_final_from_validation_and_native(validation_status, True)
+            final_call, evidence_type, confidence, review_flag, review_reason = decide_final_from_validation_and_native(
+                validation_status, True
+            )
             best = choose_best_relationship(rels)
             coords[locus_id][target_id] = best["native"].copy()
             coords[locus_id][target_id]["gene_id"] = best["native_gene_id"]
 
             current_ev = evidence.get((locus_id, target_id), new_empty_evidence())
-            current_ev.update({
-                "final_call": final_call,
-                "evidence_type": evidence_type,
-                "confidence_class": confidence,
-                "review_flag": review_flag,
-                "review_reason": review_reason,
-                "annotation_structure": annotation_structure,
-                "native_annotation_available": "TRUE",
-                "native_gene_ids": ",".join(native_ids),
-                "native_gene_count": str(len(native_ids)),
-                "matched_locus_ids": ",".join(sorted(matched_loci_by_native)),
-                "best_native_overlap_fraction": str(best["overlap_fraction_of_native"]),
-                "best_transfer_overlap_fraction": str(best["overlap_fraction_of_transfer"]),
-                "combined_native_overlap_fraction": str(union_coverage_on_transfer(rels)),
-                "coordinates": coord_string(coords[locus_id][target_id]),
-                "source_gene_id": panloci[locus_id]["source_gene_id"],
-                "source_strain": panloci[locus_id]["source_strain"],
-            })
+            current_ev.update(
+                {
+                    "final_call": final_call,
+                    "evidence_type": evidence_type,
+                    "confidence_class": confidence,
+                    "review_flag": review_flag,
+                    "review_reason": review_reason,
+                    "annotation_structure": annotation_structure,
+                    "native_annotation_available": "TRUE",
+                    "native_gene_ids": ",".join(native_ids),
+                    "native_gene_count": str(len(native_ids)),
+                    "matched_locus_ids": ",".join(sorted(matched_loci_by_native)),
+                    "best_native_overlap_fraction": str(best["overlap_fraction_of_native"]),
+                    "best_transfer_overlap_fraction": str(best["overlap_fraction_of_transfer"]),
+                    "combined_native_overlap_fraction": str(union_coverage_on_transfer(rels)),
+                    "coordinates": coord_string(coords[locus_id][target_id]),
+                    "source_gene_id": panloci[locus_id]["source_gene_id"],
+                    "source_strain": panloci[locus_id]["source_strain"],
+                }
+            )
             evidence[(locus_id, target_id)] = current_ev
 
             if annotation_structure != "single_native_model":
-                annotation_events.append({
-                    "strain_id": target_id,
-                    "panlocus_id": locus_id,
-                    "annotation_structure": annotation_structure,
-                    "native_gene_ids": ",".join(native_ids),
-                    "matched_locus_ids": ",".join(sorted(matched_loci_by_native)),
-                    "combined_native_overlap_fraction": current_ev["combined_native_overlap_fraction"],
-                    "final_call": final_call,
-                    "validation_status": validation_status,
-                    "review_flag": review_flag,
-                })
+                annotation_events.append(
+                    {
+                        "strain_id": target_id,
+                        "panlocus_id": locus_id,
+                        "annotation_structure": annotation_structure,
+                        "native_gene_ids": ",".join(native_ids),
+                        "matched_locus_ids": ",".join(sorted(matched_loci_by_native)),
+                        "combined_native_overlap_fraction": current_ev["combined_native_overlap_fraction"],
+                        "final_call": final_call,
+                        "validation_status": validation_status,
+                        "review_flag": review_flag,
+                    }
+                )
             if review_flag == "TRUE":
-                review_rows.append({
-                    "strain_id": target_id,
-                    "panlocus_id": locus_id,
-                    "review_reason": review_reason,
-                    "validation_status": validation_status,
-                    "final_call": final_call,
-                    "native_gene_ids": ",".join(native_ids),
-                    "annotation_structure": annotation_structure,
-                })
+                review_rows.append(
+                    {
+                        "strain_id": target_id,
+                        "panlocus_id": locus_id,
+                        "review_reason": review_reason,
+                        "validation_status": validation_status,
+                        "final_call": final_call,
+                        "native_gene_ids": ",".join(native_ids),
+                        "annotation_structure": annotation_structure,
+                    }
+                )
 
         novel_candidates = [gene for gene in native_genes if gene["name"] not in represented_native_ids]
         novel_bed = os.path.join(reports_dir, f"donor_{target_id}_novel_candidates.bed")
         write_bed(novel_bed, novel_candidates)
-        print(f"  Native genes: {len(native_genes)} | represented: {len(represented_native_ids)} | novel: {len(novel_candidates)}")
+        print(
+            f"  Native genes: {len(native_genes)} | represented: {len(represented_native_ids)} | novel: {len(novel_candidates)}"
+        )
 
         novel_id_by_native = {}
         for gene in novel_candidates:
@@ -646,31 +728,35 @@ def main():
             panloci[locus_id] = {"panlocus_id": locus_id, "source_strain": target_id, "source_gene_id": gene["name"]}
             coords[locus_id][target_id] = gene
             ev = new_empty_evidence("PRESENT")
-            ev.update({
-                "validation_status": "PRESENT",
-                "query_coverage": "1.0",
-                "percent_identity": "100.0",
-                "evidence_type": "native_annotation_novel_locus",
-                "confidence_class": "high",
-                "annotation_structure": "single_native_model",
-                "native_annotation_available": "TRUE",
-                "native_gene_ids": gene["name"],
-                "native_gene_count": "1",
-                "coordinates": coord_string(gene),
-                "source_gene_id": gene["name"],
-                "source_strain": target_id,
-            })
+            ev.update(
+                {
+                    "validation_status": "PRESENT",
+                    "query_coverage": "1.0",
+                    "percent_identity": "100.0",
+                    "evidence_type": "native_annotation_novel_locus",
+                    "confidence_class": "high",
+                    "annotation_structure": "single_native_model",
+                    "native_annotation_available": "TRUE",
+                    "native_gene_ids": gene["name"],
+                    "native_gene_count": "1",
+                    "coordinates": coord_string(gene),
+                    "source_gene_id": gene["name"],
+                    "source_strain": target_id,
+                }
+            )
             evidence[(locus_id, target_id)] = ev
-            novel_rows.append({
-                "source_strain": target_id,
-                "panlocus_id": locus_id,
-                "native_gene_id": gene["name"],
-                "chrom": gene["chrom"],
-                "start": gene["start"],
-                "end": gene["end"],
-                "strand": gene["strand"],
-                "reason": "no_existing_panlocus_overlap_at_cutoff",
-            })
+            novel_rows.append(
+                {
+                    "source_strain": target_id,
+                    "panlocus_id": locus_id,
+                    "native_gene_id": gene["name"],
+                    "chrom": gene["chrom"],
+                    "start": gene["start"],
+                    "end": gene["end"],
+                    "strand": gene["strand"],
+                    "reason": "no_existing_panlocus_overlap_at_cutoff",
+                }
+            )
 
         if novel_candidates and args.hal:
             donor_fasta = fasta_cache.get(target["genome_fasta"])
@@ -691,7 +777,10 @@ def main():
                     subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
                     merge_hal_liftover(raw_bed, novel_bed, merged_bed, qc_multihit, args.gap, id_column="panlocus_id")
                 except subprocess.CalledProcessError as exc:
-                    print(f"  [Warning] Novel transfer failed {target_id} -> {s_id}: {exc.stderr.strip()}", file=sys.stderr)
+                    print(
+                        f"  [Warning] Novel transfer failed {target_id} -> {s_id}: {exc.stderr.strip()}",
+                        file=sys.stderr,
+                    )
                     continue
                 target_fasta = fasta_cache.get(sample["genome_fasta"])
                 if target_fasta is None:
@@ -704,23 +793,29 @@ def main():
                     if not transfer:
                         evidence[(locus_id, s_id)] = new_empty_evidence("ABSENT")
                         continue
-                    result = validate_novel_transfer(locus_id, coords[locus_id][target_id], transfer, donor_fasta, target_fasta, args)
+                    result = validate_novel_transfer(
+                        locus_id, coords[locus_id][target_id], transfer, donor_fasta, target_fasta, args
+                    )
                     if not result:
                         evidence[(locus_id, s_id)] = new_empty_evidence("ABSENT")
                         continue
                     status = result["validation_status"]
                     ev = new_empty_evidence(status)
-                    ev.update({
-                        "validation_status": status,
-                        "query_coverage": str(result["query_coverage"]),
-                        "percent_identity": str(result["percent_identity"]),
-                        "alignment_length": str(result["alignment_length"]),
-                        "target_length": str(result["target_length"]),
-                        "evidence_type": "novel_transfer_validation" if status != "ABSENT" else "no_valid_transfer",
-                        "confidence_class": "high" if status == "PRESENT" else ("medium" if status == "PARTIAL" else "none"),
-                        "source_gene_id": panloci[locus_id]["source_gene_id"],
-                        "source_strain": panloci[locus_id]["source_strain"],
-                    })
+                    ev.update(
+                        {
+                            "validation_status": status,
+                            "query_coverage": str(result["query_coverage"]),
+                            "percent_identity": str(result["percent_identity"]),
+                            "alignment_length": str(result["alignment_length"]),
+                            "target_length": str(result["target_length"]),
+                            "evidence_type": "novel_transfer_validation" if status != "ABSENT" else "no_valid_transfer",
+                            "confidence_class": "high"
+                            if status == "PRESENT"
+                            else ("medium" if status == "PARTIAL" else "none"),
+                            "source_gene_id": panloci[locus_id]["source_gene_id"],
+                            "source_strain": panloci[locus_id]["source_strain"],
+                        }
+                    )
                     if status in {"PRESENT", "PARTIAL"}:
                         coords[locus_id][s_id] = transfer
                         ev["coordinates"] = coord_string(transfer)
@@ -734,7 +829,11 @@ def main():
                 evidence[key] = new_empty_evidence("ABSENT")
             if sample["annotation_gff"] == "NA":
                 evidence[key]["native_annotation_available"] = "FALSE"
-            evidence[key]["coordinates"] = coord_string(coords.get(locus_id, {}).get(sample["strain_id"])) if coords.get(locus_id, {}).get(sample["strain_id"]) else evidence[key]["coordinates"]
+            evidence[key]["coordinates"] = (
+                coord_string(coords.get(locus_id, {}).get(sample["strain_id"]))
+                if coords.get(locus_id, {}).get(sample["strain_id"])
+                else evidence[key]["coordinates"]
+            )
             evidence[key]["source_gene_id"] = panloci[locus_id]["source_gene_id"]
             evidence[key]["source_strain"] = panloci[locus_id]["source_strain"]
 
@@ -743,16 +842,35 @@ def main():
         writer = csv.writer(handle, delimiter="\t")
         writer.writerow(["panlocus_id", "source_strain", "source_gene_id", "mapped_strains_count"])
         for locus_id in sorted(panloci):
-            mapped = sum(1 for strain_id in strain_ids if evidence[(locus_id, strain_id)]["final_call"] in {"PRESENT", "PARTIAL"})
+            mapped = sum(
+                1 for strain_id in strain_ids if evidence[(locus_id, strain_id)]["final_call"] in {"PRESENT", "PARTIAL"}
+            )
             writer.writerow([locus_id, panloci[locus_id]["source_strain"], panloci[locus_id]["source_gene_id"], mapped])
 
     long_fields = [
-        "panlocus_id", "strain_id", "final_call", "validation_status", "query_coverage",
-        "percent_identity", "alignment_length", "target_length", "coordinates", "evidence_type",
-        "confidence_class", "review_flag", "review_reason", "annotation_structure",
-        "native_annotation_available", "native_gene_ids", "native_gene_count", "matched_locus_ids",
-        "best_native_overlap_fraction", "best_transfer_overlap_fraction",
-        "combined_native_overlap_fraction", "source_gene_id", "source_strain",
+        "panlocus_id",
+        "strain_id",
+        "final_call",
+        "validation_status",
+        "query_coverage",
+        "percent_identity",
+        "alignment_length",
+        "target_length",
+        "coordinates",
+        "evidence_type",
+        "confidence_class",
+        "review_flag",
+        "review_reason",
+        "annotation_structure",
+        "native_annotation_available",
+        "native_gene_ids",
+        "native_gene_count",
+        "matched_locus_ids",
+        "best_native_overlap_fraction",
+        "best_transfer_overlap_fraction",
+        "combined_native_overlap_fraction",
+        "source_gene_id",
+        "source_strain",
     ]
     long_rows = []
     for locus_id in sorted(panloci):
@@ -772,12 +890,30 @@ def main():
     write_tsv(
         os.path.join(args.outdir, "annotation_structure_events.tsv"),
         annotation_events,
-        ["strain_id", "panlocus_id", "annotation_structure", "native_gene_ids", "matched_locus_ids", "combined_native_overlap_fraction", "final_call", "validation_status", "review_flag"],
+        [
+            "strain_id",
+            "panlocus_id",
+            "annotation_structure",
+            "native_gene_ids",
+            "matched_locus_ids",
+            "combined_native_overlap_fraction",
+            "final_call",
+            "validation_status",
+            "review_flag",
+        ],
     )
     write_tsv(
         os.path.join(args.outdir, "review_flags.tsv"),
         review_rows,
-        ["strain_id", "panlocus_id", "review_reason", "validation_status", "final_call", "native_gene_ids", "annotation_structure"],
+        [
+            "strain_id",
+            "panlocus_id",
+            "review_reason",
+            "validation_status",
+            "final_call",
+            "native_gene_ids",
+            "annotation_structure",
+        ],
     )
     write_tsv(
         os.path.join(args.outdir, "novel_candidates.tsv"),

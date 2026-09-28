@@ -138,7 +138,7 @@ def parse_gff(path):
         # sorted left-to-right by genomic position - needed by classify_minor_position below,
         # which walks segments outermost-to-innermost.
         gene["cds_segments"] = sorted(cds_by_mrna.get(best_mrna, []))
-        gene["cds_bp"] = best_bp if best_bp > 0 else 0
+        gene["cds_bp"] = max(0, best_bp)
         gene["has_domain"] = any(mrna_has_domain.get(m, False) for m in gene_mrnas)
 
     return genes

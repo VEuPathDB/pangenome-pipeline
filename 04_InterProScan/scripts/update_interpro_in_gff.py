@@ -28,6 +28,7 @@ Usage:
         --lookup interpro/interpro_lookup/AF293_interpro.tsv \\
         --out gff_with_interpro/AF293.gff3
 """
+
 import argparse
 import re
 import sys
@@ -51,8 +52,7 @@ def load_lookup(path):
 
 def strip_old_domain_xrefs(dbxref_value):
     """Remove InterPro:/PFAM: entries (any case) from a Dbxref= value, keep the rest."""
-    kept = [tok for tok in dbxref_value.split(",")
-            if not tok.strip().lower().startswith(("interpro:", "pfam:"))]
+    kept = [tok for tok in dbxref_value.split(",") if not tok.strip().lower().startswith(("interpro:", "pfam:"))]
     return kept
 
 
@@ -131,11 +131,13 @@ def main():
         out_fh.writelines(out_lines)
 
     pct = 100 * n_matched / n_cds if n_cds else 0
-    print(f"[{args.gff}] {n_cds} CDS line(s): {n_had_old} had old InterPro/PFAM evidence "
-          f"stripped, {n_matched} ({pct:.1f}%) got fresh evidence -> {args.out}", file=sys.stderr)
+    print(
+        f"[{args.gff}] {n_cds} CDS line(s): {n_had_old} had old InterPro/PFAM evidence "
+        f"stripped, {n_matched} ({pct:.1f}%) got fresh evidence -> {args.out}",
+        file=sys.stderr,
+    )
     if n_no_mrna_id:
-        print(f"  NOTE: {n_no_mrna_id} CDS line(s) had no Parent= - left untouched.",
-              file=sys.stderr)
+        print(f"  NOTE: {n_no_mrna_id} CDS line(s) had no Parent= - left untouched.", file=sys.stderr)
 
 
 if __name__ == "__main__":

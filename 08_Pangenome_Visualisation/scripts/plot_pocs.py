@@ -9,10 +9,12 @@ Writes <out-prefix>.png/.svg.
 
 Needs seaborn and pandas.
 """
+
 import argparse
 import sys
 
 import matplotlib
+
 matplotlib.use("Agg")
 import numpy as np
 import pandas as pd
@@ -24,8 +26,11 @@ def main():
     ap.add_argument("-i", "--pocs", required=True, help="POCS.matrix.tab (tab-separated, genomes as rows and columns)")
     ap.add_argument("-o", "--out-prefix", required=True, help="output prefix (writes .png/.svg)")
     ap.add_argument("--cmap", default="mako_r", help="matplotlib colormap (default mako_r: darker = more similar)")
-    ap.add_argument("--full-scale", action="store_true",
-                    help="colour scale up to 100 (default: limited to the off-diagonal range, so the diagonal does not compress it)")
+    ap.add_argument(
+        "--full-scale",
+        action="store_true",
+        help="colour scale up to 100 (default: limited to the off-diagonal range, so the diagonal does not compress it)",
+    )
     ap.add_argument("--title", default="", help="plot title (none by default)")
     args = ap.parse_args()
 
@@ -38,8 +43,18 @@ def main():
     if not args.full_scale:
         off = pocs.values[~np.eye(len(pocs), dtype=bool)]
         vmin, vmax = off.min(), off.max()
-    g = sns.clustermap(pocs, method="complete", metric="euclidean", cmap=args.cmap, vmin=vmin, vmax=vmax,
-                       figsize=(13, 14), annot=True, fmt=".0f", annot_kws={"size": 15})
+    g = sns.clustermap(
+        pocs,
+        method="complete",
+        metric="euclidean",
+        cmap=args.cmap,
+        vmin=vmin,
+        vmax=vmax,
+        figsize=(13, 14),
+        annot=True,
+        fmt=".0f",
+        annot_kws={"size": 15},
+    )
     g.ax_cbar.set_xlabel("POCS")
     g.ax_heatmap.tick_params(axis="both", labelsize=15)
     g.ax_heatmap.set_xlabel("")

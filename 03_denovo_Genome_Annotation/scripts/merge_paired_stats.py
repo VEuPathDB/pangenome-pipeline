@@ -16,8 +16,8 @@ This script removes the mate suffixes "_1/1" and "_2/2" before matching read
 IDs, then writes the paired stats file expected by Trinity's nbkc_normalize.pl.
 """
 
-from pathlib import Path
 import sys
+from pathlib import Path
 
 LEFT_STATS = Path("left.fa.K25.stats.sort")
 RIGHT_STATS = Path("right.fa.K25.stats.sort")
@@ -117,8 +117,7 @@ def merge_paired_stats(left_file, right_file, output_file):
 
     if pairs_written == 0:
         sys.exit(
-            "ERROR: No paired reads were merged. Check whether the read IDs use "
-            "the expected suffixes _1/1 and _2/2."
+            "ERROR: No paired reads were merged. Check whether the read IDs use the expected suffixes _1/1 and _2/2."
         )
 
     print(f"Successfully merged {pairs_written:,} paired reads", flush=True)

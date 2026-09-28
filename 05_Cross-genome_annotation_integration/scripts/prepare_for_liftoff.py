@@ -53,14 +53,23 @@ from pangenome_common.io import read_id_list
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-BIOTYPE_RES = [re.compile(r"(?:^|;)gene_biotype=([^;]+)"),
-               re.compile(r"(?:^|;)biotype=([^;]+)"),
-               re.compile(r"(?:^|;)ebi_biotype=([^;]+)")]
+BIOTYPE_RES = [
+    re.compile(r"(?:^|;)gene_biotype=([^;]+)"),
+    re.compile(r"(?:^|;)biotype=([^;]+)"),
+    re.compile(r"(?:^|;)ebi_biotype=([^;]+)"),
+]
 
 TYPE_TO_CATEGORY = {
-    "protein_coding_gene": "protein_coding", "pseudogene": "pseudogene",
-    "trna_gene": "tRNA", "rrna_gene": "rRNA", "ncrna_gene": "ncRNA", "lncrna_gene": "ncRNA",
-    "snrna_gene": "ncRNA", "snorna_gene": "ncRNA", "mirna_gene": "ncRNA", "scrna_gene": "ncRNA",
+    "protein_coding_gene": "protein_coding",
+    "pseudogene": "pseudogene",
+    "trna_gene": "tRNA",
+    "rrna_gene": "rRNA",
+    "ncrna_gene": "ncRNA",
+    "lncrna_gene": "ncRNA",
+    "snrna_gene": "ncRNA",
+    "snorna_gene": "ncRNA",
+    "mirna_gene": "ncRNA",
+    "scrna_gene": "ncRNA",
 }
 NCRNA_CHILD_TYPES = {"ncrna", "lnc_rna", "lncrna", "snrna", "snorna", "mirna", "misc_rna"}
 NONCODING_GENE_TYPE = {"tRNA": "tRNA_gene", "rRNA": "rRNA_gene", "ncRNA": "ncRNA_gene"}
@@ -113,10 +122,15 @@ def prepare(gff_path, out_path, gene_type):
             recs.append(None)
             continue
         m, pm = ID_RE.search(f[8]), PARENT_RE.search(f[8])
-        rec = {"f": f, "type": f[2], "start": int(f[3]), "end": int(f[4]),
-               "id": m.group(1).strip() if m else None,
-               "parents": [p.strip() for p in pm.group(1).split(",")] if pm else [],
-               "drop": False}
+        rec = {
+            "f": f,
+            "type": f[2],
+            "start": int(f[3]),
+            "end": int(f[4]),
+            "id": m.group(1).strip() if m else None,
+            "parents": [p.strip() for p in pm.group(1).split(",")] if pm else [],
+            "drop": False,
+        }
         recs.append(rec)
         if rec["id"]:
             by_id[rec["id"]] = rec
@@ -215,8 +229,12 @@ def prepare(gff_path, out_path, gene_type):
         if rec and not rec["drop"]:
             for p in rec["parents"]:
                 par = by_id.get(p)
-                if par and not par["drop"] and rec["type"] in ("exon", "CDS") \
-                        and (rec["start"] < par["start"] or rec["end"] > par["end"]):
+                if (
+                    par
+                    and not par["drop"]
+                    and rec["type"] in ("exon", "CDS")
+                    and (rec["start"] < par["start"] or rec["end"] > par["end"])
+                ):
                     problems += 1
     stats["problems"] = problems
     return stats, retyped, unclassified
@@ -224,51 +242,76 @@ def prepare(gff_path, out_path, gene_type):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--genomes", required=True, help="Comma-separated genome names or a file with one per line (e.g. genome_order.txt)")
+    parser.add_argument(
+        "--genomes",
+        required=True,
+        help="Comma-separated genome names or a file with one per line (e.g. genome_order.txt)",
+    )
     parser.add_argument("--gff-dir", required=True, help="Directory with each genome's <genome>.gff3 or <genome>.gff")
     parser.add_argument("--out-dir", required=True, help="Where to write the prepared GFFs (must not be --gff-dir)")
-    parser.add_argument("--gene-type", default="protein_coding_gene",
-                        help="Feature type given to every protein-coding gene and pseudogene, and the one Liftoff is "
-                             "told to transfer (default: protein_coding_gene - what the build/filter/QC scripts "
-                             "later in this step look for)")
+    parser.add_argument(
+        "--gene-type",
+        default="protein_coding_gene",
+        help="Feature type given to every protein-coding gene and pseudogene, and the one Liftoff is "
+        "told to transfer (default: protein_coding_gene - what the build/filter/QC scripts "
+        "later in this step look for)",
+    )
     args = parser.parse_args()
 
     if os.path.abspath(args.out_dir) == os.path.abspath(args.gff_dir):
         sys.exit("ERROR: --out-dir must be different from --gff-dir - the input GFFs are never edited in place")
     genomes = read_id_list(args.genomes)
     if not os.path.isdir(args.gff_dir):
-        sys.exit(f"ERROR: --gff-dir {args.gff_dir!r} does not exist - did the previous step run, and are you in the project folder?")
+        sys.exit(
+            f"ERROR: --gff-dir {args.gff_dir!r} does not exist - did the previous step run, and are you in the project folder?"
+        )
     missing = [g for g in genomes if find_gff(args.gff_dir, g) is None]
     if missing:
-        sys.exit(f"ERROR: no GFF ({args.gff_dir}/<genome>.gff3 or .gff) for {len(missing)} of {len(genomes)} genome(s): "
-                 f"{', '.join(missing)}. Nothing was written - a genome silently missing here would be missing from everything after it.")
+        sys.exit(
+            f"ERROR: no GFF ({args.gff_dir}/<genome>.gff3 or .gff) for {len(missing)} of {len(genomes)} genome(s): "
+            f"{', '.join(missing)}. Nothing was written - a genome silently missing here would be missing from everything after it."
+        )
 
     os.makedirs(args.out_dir, exist_ok=True)
 
     with open(os.path.join(args.out_dir, "liftoff_feature_types.txt"), "w") as fh:
         fh.write(args.gene_type + "\n")
 
-    cols = ["transcripts_trimmed", "utr_lines_deleted", "exons_clipped", "exons_deleted",
-            "genes_resized", "bp_trimmed_from_genes"]
+    cols = [
+        "transcripts_trimmed",
+        "utr_lines_deleted",
+        "exons_clipped",
+        "exons_deleted",
+        "genes_resized",
+        "bp_trimmed_from_genes",
+    ]
     rows, all_retyped = [], defaultdict(int)
     for genome in genomes:
         gff_path = find_gff(args.gff_dir, genome)
-        out_path = os.path.join(args.out_dir, f"{genome}.gff3")   # always .gff3, whatever the input's extension
+        out_path = os.path.join(args.out_dir, f"{genome}.gff3")  # always .gff3, whatever the input's extension
         s, retyped, unclassified = prepare(gff_path, out_path, args.gene_type)
         rows.append((genome, [s[c] for c in cols]))
-        print(f"[{genome}] {s['transcripts_trimmed']} transcripts trimmed, {s['utr_lines_deleted']} UTR lines "
-              f"deleted, {s['exons_clipped']} exons clipped, {s['exons_deleted']} exons deleted, "
-              f"{s['genes_resized']} genes resized ({s['bp_trimmed_from_genes']} bp) -> {out_path}", file=sys.stderr)
+        print(
+            f"[{genome}] {s['transcripts_trimmed']} transcripts trimmed, {s['utr_lines_deleted']} UTR lines "
+            f"deleted, {s['exons_clipped']} exons clipped, {s['exons_deleted']} exons deleted, "
+            f"{s['genes_resized']} genes resized ({s['bp_trimmed_from_genes']} bp) -> {out_path}",
+            file=sys.stderr,
+        )
         for (old, new), n in sorted(retyped.items()):
             print(f"    {n} x {old} -> {new}", file=sys.stderr)
             all_retyped[(genome, old, new)] += n
         for old, n in sorted(unclassified.items()):
-            print(f"    WARNING: {n} x {old} could not be classified and was left as it is"
-                  + (" - typed \"gene\", so Liftoff's default would still transfer it" if old == "gene" else ""),
-                  file=sys.stderr)
+            print(
+                f"    WARNING: {n} x {old} could not be classified and was left as it is"
+                + (' - typed "gene", so Liftoff\'s default would still transfer it' if old == "gene" else ""),
+                file=sys.stderr,
+            )
         if s["problems"]:
-            print(f"    WARNING: {s['problems']} exon/CDS line(s) still stick out of their parent after "
-                  f"trimming - check {out_path}", file=sys.stderr)
+            print(
+                f"    WARNING: {s['problems']} exon/CDS line(s) still stick out of their parent after "
+                f"trimming - check {out_path}",
+                file=sys.stderr,
+            )
 
     with open(os.path.join(args.out_dir, "prepare_for_liftoff_report.tsv"), "w") as fh:
         fh.write("genome\t" + "\t".join(cols) + "\n")
@@ -277,8 +320,10 @@ def main():
         fh.write("\ngenome\told_gene_type\tnew_gene_type\tn_genes\n")
         for (genome, old, new), n in sorted(all_retyped.items()):
             fh.write(f"{genome}\t{old}\t{new}\t{n}\n")
-    print(f"\nDone - prepared GFFs, liftoff_feature_types.txt and prepare_for_liftoff_report.tsv in {args.out_dir}",
-          file=sys.stderr)
+    print(
+        f"\nDone - prepared GFFs, liftoff_feature_types.txt and prepare_for_liftoff_report.tsv in {args.out_dir}",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

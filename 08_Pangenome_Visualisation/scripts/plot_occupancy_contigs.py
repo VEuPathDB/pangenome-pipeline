@@ -18,6 +18,7 @@ Writes <out-prefix>.png/.svg and <out-prefix>.tsv (one row per pangene used).
 
 Needs numpy, scipy, matplotlib.
 """
+
 import argparse
 import csv
 import os
@@ -25,14 +26,14 @@ import re
 import sys
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FuncFormatter, NullFormatter
 from matplotlib.transforms import blended_transform_factory
+from plot_occupancy import COLORS, ORDER, categorize
 from scipy.stats import tukey_hsd
-
-from plot_occupancy import categorize, COLORS, ORDER
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 
@@ -58,13 +59,25 @@ def main():
     ap.add_argument("--gff-suffix", default="_for_get_pangenes.gff")
     ap.add_argument("--contig-sizes", required=True)
     ap.add_argument("-o", "--out-prefix", required=True)
-    ap.add_argument("--short-kb", default="50,100,500", help="contig-length thresholds (kb) for the share of pangenes on short contigs")
+    ap.add_argument(
+        "--short-kb",
+        default="50,100,500",
+        help="contig-length thresholds (kb) for the share of pangenes on short contigs",
+    )
     ap.add_argument("--yscale", choices=["log", "linear"], default="log")
-    ap.add_argument("--style", choices=["boxplot", "classes"], default="boxplot",
-                    help="boxplot = median contig length per occupancy; classes = share of the pangenes of each category "
-                         "in each contig-size class (stacked bars)")
-    ap.add_argument("--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)")
-    ap.add_argument("--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)")
+    ap.add_argument(
+        "--style",
+        choices=["boxplot", "classes"],
+        default="boxplot",
+        help="boxplot = median contig length per occupancy; classes = share of the pangenes of each category "
+        "in each contig-size class (stacked bars)",
+    )
+    ap.add_argument(
+        "--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)"
+    )
+    ap.add_argument(
+        "--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)"
+    )
     ap.add_argument("--cloud-max", type=int, default=2, help="cloud = present in at most this many genomes (default 2)")
     ap.add_argument("--title", default="")
     args = ap.parse_args()
@@ -112,10 +125,19 @@ def main():
             missing += 1
             continue
         occ = len(members)
-        used.append((r[0], occ, categorize(occ, n_genomes, args.core_missing, args.softcore_missing, args.cloud_max),
-                     float(np.median(lengths))))
-    print(f"{len(used)} pangenes used; {multi} left out (more than one gene in a genome)"
-          + (f"; {missing} skipped (contig length not found)" if missing else ""), file=sys.stderr)
+        used.append(
+            (
+                r[0],
+                occ,
+                categorize(occ, n_genomes, args.core_missing, args.softcore_missing, args.cloud_max),
+                float(np.median(lengths)),
+            )
+        )
+    print(
+        f"{len(used)} pangenes used; {multi} left out (more than one gene in a genome)"
+        + (f"; {missing} skipped (contig length not found)" if missing else ""),
+        file=sys.stderr,
+    )
     if not used:
         sys.exit("ERROR: no pangene left; check the GFF gene IDs, the contig names and --contig-sizes")
 
@@ -135,14 +157,24 @@ def main():
     for cat in ORDER:
         v = val[cat_all == cat]
         if len(v):
-            print(f"  {cat:10s}{len(v):9d}{np.median(v) / 1000:20.0f}" + "".join(f"{100 * (v < t * 1000).mean():9.1f}%" for t in thr))
+            print(
+                f"  {cat:10s}{len(v):9d}{np.median(v) / 1000:20.0f}"
+                + "".join(f"{100 * (v < t * 1000).mean():9.1f}%" for t in thr)
+            )
 
     if args.style == "classes":
-        classes = [(0, 20e3, "10-20 kb"), (20e3, 50e3, "20-50 kb"), (50e3, 200e3, "50-200 kb"),
-                   (200e3, 500e3, "200-500 kb"),
-                   (500e3, 1e6, "0.5-1 Mb"), (1e6, float("inf"), "> 1 Mb")]
+        classes = [
+            (0, 20e3, "10-20 kb"),
+            (20e3, 50e3, "20-50 kb"),
+            (50e3, 200e3, "50-200 kb"),
+            (200e3, 500e3, "200-500 kb"),
+            (500e3, 1e6, "0.5-1 Mb"),
+            (1e6, float("inf"), "> 1 Mb"),
+        ]
         shades = ["#7f2704", "#a63603", "#d94801", "#fd8d3c", "#fdd0a2", "#e8e8e8"]
-        cats = [c for c in reversed(ORDER) if (cat_all == c).any()]   # Cloud on the left, Core on the right, like the occupancy plot
+        cats = [
+            c for c in reversed(ORDER) if (cat_all == c).any()
+        ]  # Cloud on the left, Core on the right, like the occupancy plot
         fig, ax = plt.subplots(figsize=(7.5, 5.2))
         bottom = np.zeros(len(cats))
         for (lo, hi, name), col in zip(classes, shades):
@@ -150,8 +182,15 @@ def main():
             ax.bar(range(len(cats)), share, bottom=bottom, color=col, width=0.7, label=name, edgecolor="white", lw=0.5)
             for x, (sh, b) in enumerate(zip(share, bottom)):
                 if sh >= 3:
-                    ax.text(x, b + sh / 2, f"{sh:.0f}%", ha="center", va="center", fontsize=8,
-                            color="white" if col in shades[:3] else "black")
+                    ax.text(
+                        x,
+                        b + sh / 2,
+                        f"{sh:.0f}%",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        color="white" if col in shades[:3] else "black",
+                    )
             bottom += share
         ax.set_xticks(range(len(cats)))
         ax.set_xticklabels([f"{c}\n(n={int((cat_all == c).sum())})" for c in cats])
@@ -177,9 +216,14 @@ def main():
     cat_of = {k: cat_all[occ_all == k][0] for k in ks}
     xs = np.arange(len(ks))
     fig, ax = plt.subplots(figsize=(9, 4.8))
-    bp = ax.boxplot([val[occ_all == k] for k in ks], positions=xs, widths=0.7, patch_artist=True,
-                    medianprops=dict(color="black", lw=1.5),
-                    flierprops=dict(marker="o", ms=2.5, alpha=0.4, mec="none", mfc="0.3"))
+    bp = ax.boxplot(
+        [val[occ_all == k] for k in ks],
+        positions=xs,
+        widths=0.7,
+        patch_artist=True,
+        medianprops=dict(color="black", lw=1.5),
+        flierprops=dict(marker="o", ms=2.5, alpha=0.4, mec="none", mfc="0.3"),
+    )
     for patch, k in zip(bp["boxes"], ks):
         patch.set_facecolor(COLORS[cat_of[k]])
         patch.set_alpha(0.9)
@@ -203,11 +247,24 @@ def main():
         t = blended_transform_factory(ax.transData, ax.transAxes)
         x0, x1 = float(np.mean(cloud_x)), float(np.mean(core_x))
         ax.plot([x0, x0, x1, x1], [0.90, 0.93, 0.93, 0.90], transform=t, color="black", lw=1, clip_on=False)
-        ax.text((x0 + x1) / 2, 0.94, "p < 0.001" if p < 0.001 else f"p = {p:.3f}", transform=t,
-                ha="center", va="bottom", fontsize=9)
+        ax.text(
+            (x0 + x1) / 2,
+            0.94,
+            "p < 0.001" if p < 0.001 else f"p = {p:.3f}",
+            transform=t,
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
     present = [c for c in ORDER if c in cat_of.values()]
-    ax.legend([plt.Rectangle((0, 0), 1, 1, color=COLORS[c]) for c in present], present,
-              loc="lower center", bbox_to_anchor=(0.5, 1.12), ncol=len(present), frameon=False)
+    ax.legend(
+        [plt.Rectangle((0, 0), 1, 1, color=COLORS[c]) for c in present],
+        present,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.12),
+        ncol=len(present),
+        frameon=False,
+    )
     if args.title:
         fig.suptitle(args.title, x=0.01, ha="left", fontsize=14)
     fig.tight_layout()

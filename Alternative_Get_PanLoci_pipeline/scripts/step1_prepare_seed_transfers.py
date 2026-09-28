@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-import os
-import sys
-import subprocess
 import argparse
+import os
+import subprocess
+import sys
 from collections import defaultdict
 
 from panloci_common import (
@@ -13,6 +13,7 @@ from panloci_common import (
     parse_samples,
     split_parent_ids,
 )
+
 
 def extract_cds_span_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
     """
@@ -90,49 +91,105 @@ def extract_cds_span_gene_pseudogene_bed(gff_path, output_bed, audit_tsv=None):
             exon_count = 0
             status = "gene_without_cds_used_feature_span"
         rows.append((record["chrom"], max(0, span_start - 1), span_end, gene_id, "0", record["strand"]))
-        audit_rows.append([
-            gene_id, "protein_coding_gene", status, record["chrom"], record["strand"],
-            record["feature_type"], record["start"], record["end"], span_start, span_end,
-            transcript_id, total_cds, exon_count, len(transcript_cds)
-        ])
+        audit_rows.append(
+            [
+                gene_id,
+                "protein_coding_gene",
+                status,
+                record["chrom"],
+                record["strand"],
+                record["feature_type"],
+                record["start"],
+                record["end"],
+                span_start,
+                span_end,
+                transcript_id,
+                total_cds,
+                exon_count,
+                len(transcript_cds),
+            ]
+        )
 
     for gene_id, record in sorted(pseudogene_records.items()):
         rows.append((record["chrom"], max(0, record["start"] - 1), record["end"], gene_id, "0", record["strand"]))
-        audit_rows.append([
-            gene_id, "pseudogene", "pseudogene_feature_span", record["chrom"], record["strand"],
-            record["feature_type"], record["start"], record["end"], record["start"], record["end"],
-            "NA", 0, 0, 0
-        ])
+        audit_rows.append(
+            [
+                gene_id,
+                "pseudogene",
+                "pseudogene_feature_span",
+                record["chrom"],
+                record["strand"],
+                record["feature_type"],
+                record["start"],
+                record["end"],
+                record["start"],
+                record["end"],
+                "NA",
+                0,
+                0,
+                0,
+            ]
+        )
 
     if not rows:
         raise RuntimeError(f"No gene/pseudogene records extracted from {gff_path}")
 
     os.makedirs(os.path.dirname(output_bed), exist_ok=True)
     with open(output_bed, "w", encoding="utf-8") as out:
-        for row in sorted(rows, key=lambda item: (item[0], item[1], item[2], item[3])):
-            out.write("\t".join(map(str, row)) + "\n")
+        out.writelines(
+            "\t".join(map(str, row)) + "\n"
+            for row in sorted(rows, key=lambda item: (item[0], item[1], item[2], item[3]))
+        )
 
     if audit_tsv:
         os.makedirs(os.path.dirname(audit_tsv), exist_ok=True)
         with open(audit_tsv, "w", encoding="utf-8") as audit:
-            audit.write("\t".join([
-                "gene_id", "feature_class", "status", "chrom", "strand", "feature_type",
-                "original_start", "original_end", "span_start", "span_end",
-                "selected_transcript", "total_cds_length", "cds_exon_count",
-                "n_transcripts_with_cds"
-            ]) + "\n")
-            for row in audit_rows:
-                audit.write("\t".join(map(str, row)) + "\n")
+            audit.write(
+                "\t".join(
+                    [
+                        "gene_id",
+                        "feature_class",
+                        "status",
+                        "chrom",
+                        "strand",
+                        "feature_type",
+                        "original_start",
+                        "original_end",
+                        "span_start",
+                        "span_end",
+                        "selected_transcript",
+                        "total_cds_length",
+                        "cds_exon_count",
+                        "n_transcripts_with_cds",
+                    ]
+                )
+                + "\n"
+            )
+            audit.writelines("\t".join(map(str, row)) + "\n" for row in audit_rows)
 
     return len(rows)
 
+
 def main():
     parser = argparse.ArgumentParser(description="Step 1: prepare seed panlocus coordinate transfers")
-    parser.add_argument("-s", "--samples", default="samples.tsv", help="Path to samples.tsv metadata (default: samples.tsv)")
+    parser.add_argument(
+        "-s", "--samples", default="samples.tsv", help="Path to samples.tsv metadata (default: samples.tsv)"
+    )
     parser.add_argument("-l", "--hal", required=True, help="Path to Cactus HAL alignment file (.hal)")
     parser.add_argument("-c", "--cactus-img", required=True, help="Path to Cactus Apptainer/Singularity image (.sif)")
-    parser.add_argument("-o", "--outdir", default="./candidate_transfers", help="Output directory for BED coordinate files (default: ./candidate_transfers)")
-    parser.add_argument("-g", "--gap", type=int, default=5000, help="Maximum gap (bp) allowed between segments of the same gene (default: 5000 bp)")
+    parser.add_argument(
+        "-o",
+        "--outdir",
+        default="./candidate_transfers",
+        help="Output directory for BED coordinate files (default: ./candidate_transfers)",
+    )
+    parser.add_argument(
+        "-g",
+        "--gap",
+        type=int,
+        default=5000,
+        help="Maximum gap (bp) allowed between segments of the same gene (default: 5000 bp)",
+    )
     args = parser.parse_args()
     print("======================================================================")
     print(" Step 1: Prepare Seed Panlocus Coordinate Transfers")
@@ -158,7 +215,10 @@ def main():
     ref_gff_dir = ref_genome["annotation_gff"]
     ref_gff_path = find_gff_file(ref_gff_dir, ref_id)
     if not ref_gff_path:
-        print(f"Error: Could not dynamically find GFF file for reference strain '{ref_id}' in directory: {ref_gff_dir}", file=sys.stderr)
+        print(
+            f"Error: Could not dynamically find GFF file for reference strain '{ref_id}' in directory: {ref_gff_dir}",
+            file=sys.stderr,
+        )
         sys.exit(1)
     print(f"  --\\> Reference GFF located: {ref_gff_path}")
     gff_basename = os.path.basename(ref_gff_path)
@@ -194,16 +254,27 @@ def main():
         raw_output_bed = os.path.join(raw_dir, f"{ref_id}_to_{target_strain}_raw.bed")
         merged_output_bed = os.path.join(args.outdir, f"{ref_id}_to_{target_strain}_merged.bed")
         cmd = [
-            "apptainer", "exec", cactus_sif, "halLiftover",
-            args.hal, "--bedType", "6",
-            ref_id, seed_bed_path,
-            target_strain, raw_output_bed
+            "apptainer",
+            "exec",
+            cactus_sif,
+            "halLiftover",
+            args.hal,
+            "--bedType",
+            "6",
+            ref_id,
+            seed_bed_path,
+            target_strain,
+            raw_output_bed,
         ]
         try:
             subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, check=True)
             print(f"      [SUCCESS] halLiftover: {raw_output_bed}")
-            n_primary, n_dup = merge_hal_liftover(raw_output_bed, seed_bed_path, merged_output_bed, qc_multihit_path, args.gap)
-            print(f"      [SUCCESS] Merged:    {merged_output_bed} ({n_primary} primary, {n_dup} duplicate hits logged)")
+            n_primary, n_dup = merge_hal_liftover(
+                raw_output_bed, seed_bed_path, merged_output_bed, qc_multihit_path, args.gap
+            )
+            print(
+                f"      [SUCCESS] Merged:    {merged_output_bed} ({n_primary} primary, {n_dup} duplicate hits logged)"
+            )
             success_count += 1
         except subprocess.CalledProcessError as e:
             print(f"      [FAILURE] Failed to transfer. Error: {e.stderr.strip()}", file=sys.stderr)
@@ -216,6 +287,7 @@ def main():
     print(f"  Successful Transfers: {success_count} / {len(samples) - 1}")
     print(f"  Failed Transfers:     {fail_count} / {len(samples) - 1}")
     print("======================================================================")
+
 
 if __name__ == "__main__":
     main()

@@ -68,6 +68,7 @@ from annotation_common import (
 
 TAG_PRIORITY = {"with_main": 3, "with_other_with_domain": 2, "with_other_no_domain": 1}
 
+
 def compute_tags(genes, overlap_pairs, ref_tag):
     """gene_id -> (tag, [(partner_id, overlap_bp), ...]) for every gene involved in >=1 pair."""
     best_tag = {}
@@ -139,14 +140,33 @@ def write_tagged_gff(gff_path, out_path, best_tag, id_mapping):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--strains", required=True, help="Comma-separated genome names or a file with one per line - first one must be the reference, same as the rest of this pipeline's ORDER")
-    parser.add_argument("--final-dir", required=True, help="Directory with <strain>_final_annotation.gff (this pipeline's raw output)")
-    parser.add_argument("--out-dir", default="./tagged_annotation", help="Where to write the tagged GFFs + intersect-pair reports")
-    parser.add_argument("--min-overlap-bp", type=int, default=20,
-                         help="CDS-to-CDS overlaps under this many bp are ignored entirely - boundary-rounding noise, not treated as a real overlap (default: 20)")
-    parser.add_argument("--reference-source-tag", default="main",
-                         help="The source tag marking the reference-derived tier in this pipeline's output (default: 'main')")
-    parser.add_argument("--id-prefix", default="Afu", help="Prefix for renamed gene IDs (default: 'Afu', this project's own convention - change for other species)")
+    parser.add_argument(
+        "--strains",
+        required=True,
+        help="Comma-separated genome names or a file with one per line - first one must be the reference, same as the rest of this pipeline's ORDER",
+    )
+    parser.add_argument(
+        "--final-dir", required=True, help="Directory with <strain>_final_annotation.gff (this pipeline's raw output)"
+    )
+    parser.add_argument(
+        "--out-dir", default="./tagged_annotation", help="Where to write the tagged GFFs + intersect-pair reports"
+    )
+    parser.add_argument(
+        "--min-overlap-bp",
+        type=int,
+        default=20,
+        help="CDS-to-CDS overlaps under this many bp are ignored entirely - boundary-rounding noise, not treated as a real overlap (default: 20)",
+    )
+    parser.add_argument(
+        "--reference-source-tag",
+        default="main",
+        help="The source tag marking the reference-derived tier in this pipeline's output (default: 'main')",
+    )
+    parser.add_argument(
+        "--id-prefix",
+        default="Afu",
+        help="Prefix for renamed gene IDs (default: 'Afu', this project's own convention - change for other species)",
+    )
     args = parser.parse_args()
 
     strains = read_strains(args.strains)
@@ -168,24 +188,33 @@ def main():
         with open(pairs_report_path, "w") as fh:
             fh.write("gene_id\tintersect\tpartner_id\toverlap_bp\n")
             for gid, tag in best_tag.items():
-                for partner_id, ov_bp in partners[gid]:
-                    fh.write(f"{gid}\t{tag}\t{partner_id}\t{ov_bp}\n")
+                fh.writelines(f"{gid}\t{tag}\t{partner_id}\t{ov_bp}\n" for partner_id, ov_bp in partners[gid])
 
         n_total = len(genes)
         tag_counts = defaultdict(int)
         for gid in genes:
             tag_counts[best_tag.get(gid, "NA")] += 1
-        print(f"  {n_total} protein-coding genes -> "
-              f"NA={tag_counts['NA']}, with_main={tag_counts['with_main']}, "
-              f"with_other_with_domain={tag_counts['with_other_with_domain']}, "
-              f"with_other_no_domain={tag_counts['with_other_no_domain']} -> {out_path}", file=sys.stderr)
-        summary_rows.append((s, n_total, tag_counts["NA"], tag_counts["with_main"],
-                              tag_counts["with_other_with_domain"], tag_counts["with_other_no_domain"]))
+        print(
+            f"  {n_total} protein-coding genes -> "
+            f"NA={tag_counts['NA']}, with_main={tag_counts['with_main']}, "
+            f"with_other_with_domain={tag_counts['with_other_with_domain']}, "
+            f"with_other_no_domain={tag_counts['with_other_no_domain']} -> {out_path}",
+            file=sys.stderr,
+        )
+        summary_rows.append(
+            (
+                s,
+                n_total,
+                tag_counts["NA"],
+                tag_counts["with_main"],
+                tag_counts["with_other_with_domain"],
+                tag_counts["with_other_no_domain"],
+            )
+        )
 
     with open(os.path.join(args.out_dir, "tag_summary.tsv"), "w") as fh:
         fh.write("strain\tn_total\tn_NA\tn_with_main\tn_with_other_with_domain\tn_with_other_no_domain\n")
-        for row in summary_rows:
-            fh.write("\t".join(str(x) for x in row) + "\n")
+        fh.writelines("\t".join(str(x) for x in row) + "\n" for row in summary_rows)
 
     print(f"All genomes tagged (nothing removed). Outputs are in {args.out_dir}", file=sys.stderr)
 

@@ -270,8 +270,7 @@ def merge_hal_liftover(
 
     merged.sort(key=lambda item: (item[0], item[1]))
     with open(output_bed_path, "w", encoding="utf-8") as out:
-        for row in merged:
-            out.write("\t".join(map(str, row)) + "\n")
+        out.writelines("\t".join(map(str, row)) + "\n" for row in merged)
     if duplicates:
         exists = os.path.exists(qc_multihit_path)
         with open(qc_multihit_path, "a", encoding="utf-8") as out:
@@ -279,6 +278,5 @@ def merge_hal_liftover(
                 out.write(
                     f"{id_column}\tdup_chrom\tdup_start\tdup_end\tdup_strand\torig_size\tdup_mapped_len\tdup_percentage\thit_rank\n"
                 )
-            for row in duplicates:
-                out.write("\t".join(map(str, row)) + "\n")
+            out.writelines("\t".join(map(str, row)) + "\n" for row in duplicates)
     return len(merged), len(duplicates)

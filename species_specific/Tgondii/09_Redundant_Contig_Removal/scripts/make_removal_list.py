@@ -12,6 +12,7 @@ Large contigs (>= 1 Mb) are never listed.
 
 Writes a tab-separated table: genome, contig, length, pct_duplicated, n_genes, reason. Standard library only.
 """
+
 import argparse
 import csv
 import glob
@@ -21,14 +22,16 @@ import os
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--red-dir", required=True, help="folder with <label>.contigs.tsv")
-    ap.add_argument("--near-min", type=float, default=75.0, help="lowest %% duplicated counted as just under the cut (default 75)")
+    ap.add_argument(
+        "--near-min", type=float, default=75.0, help="lowest %% duplicated counted as just under the cut (default 75)"
+    )
     ap.add_argument("--dup-frac", type=float, default=90.0, help="the cut used by the screen (default 90)")
     ap.add_argument("-o", "--out", required=True)
     args = ap.parse_args()
 
     rows = []
     for path in sorted(glob.glob(os.path.join(args.red_dir, "*.contigs.tsv"))):
-        genome = os.path.basename(path)[:-len(".contigs.tsv")]
+        genome = os.path.basename(path)[: -len(".contigs.tsv")]
         with open(path, newline="") as fh:
             for r in csv.DictReader(fh, delimiter="\t"):
                 dup, n = float(r["pct_duplicated_in_longer_contig"]), int(r["n_genes"])

@@ -16,6 +16,7 @@ Writes <out-prefix>_pairs.tsv (one row per gene pair) and prints a summary.
 
 Standard library only.
 """
+
 import argparse
 import csv
 import os
@@ -46,9 +47,16 @@ def parse_tagged_gff(path):
                 if not i:
                     continue
                 o, t = ORIG_RE.search(attrs), INTERSECT_RE.search(attrs)
-                genes[i.group(1)] = {"chrom": f[0], "start": int(f[3]), "end": int(f[4]), "strand": f[6],
-                                     "source": f[1], "tag": t.group(1) if t else "NA",
-                                     "orig": o.group(1) if o else "", "domain": False}
+                genes[i.group(1)] = {
+                    "chrom": f[0],
+                    "start": int(f[3]),
+                    "end": int(f[4]),
+                    "strand": f[6],
+                    "source": f[1],
+                    "tag": t.group(1) if t else "NA",
+                    "orig": o.group(1) if o else "",
+                    "domain": False,
+                }
             elif f[2] in ("mRNA", "transcript"):
                 i, p = ID_RE.search(attrs), PARENT_RE.search(attrs)
                 if i and p:
@@ -117,23 +125,63 @@ def main():
             for (ida, a), (idb, b) in zip(members, members[1:]):
                 same_chrom = a["chrom"] == b["chrom"]
                 gap = (b["start"] - a["end"]) if same_chrom else ""
-                out_rows.append([r[0], genome, len(members), ida, idb, a["chrom"], b["chrom"], a["start"], a["end"],
-                                 b["start"], b["end"], "same" if a["strand"] == b["strand"] else "opposite", gap,
-                                 "yes" if frozenset((a["orig"], b["orig"])) in cds_pairs[genome] else "no",
-                                 a["source"], b["source"], a["tag"], b["tag"],
-                                 "yes" if a["domain"] else "no", "yes" if b["domain"] else "no"])
+                out_rows.append(
+                    [
+                        r[0],
+                        genome,
+                        len(members),
+                        ida,
+                        idb,
+                        a["chrom"],
+                        b["chrom"],
+                        a["start"],
+                        a["end"],
+                        b["start"],
+                        b["end"],
+                        "same" if a["strand"] == b["strand"] else "opposite",
+                        gap,
+                        "yes" if frozenset((a["orig"], b["orig"])) in cds_pairs[genome] else "no",
+                        a["source"],
+                        b["source"],
+                        a["tag"],
+                        b["tag"],
+                        "yes" if a["domain"] else "no",
+                        "yes" if b["domain"] else "no",
+                    ]
+                )
 
-    header = ["pangene", "genome", "genes_in_cell", "gene_a", "gene_b", "chrom_a", "chrom_b", "start_a", "end_a",
-              "start_b", "end_b", "strand", "gap_bp", "cds_overlap", "source_a", "source_b", "tag_a", "tag_b",
-              "domain_a", "domain_b"]
+    header = [
+        "pangene",
+        "genome",
+        "genes_in_cell",
+        "gene_a",
+        "gene_b",
+        "chrom_a",
+        "chrom_b",
+        "start_a",
+        "end_a",
+        "start_b",
+        "end_b",
+        "strand",
+        "gap_bp",
+        "cds_overlap",
+        "source_a",
+        "source_b",
+        "tag_a",
+        "tag_b",
+        "domain_a",
+        "domain_b",
+    ]
     with open(args.out_prefix + "_pairs.tsv", "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
         w.writerow(header)
         w.writerows(out_rows)
 
     n = len(out_rows)
-    print(f"\n{len(multi_pangenes)} pangenes with >1 gene in some genome; {n} neighbouring gene pairs"
-          + (f"; {missing} gene IDs not found in the GFFs" if missing else ""))
+    print(
+        f"\n{len(multi_pangenes)} pangenes with >1 gene in some genome; {n} neighbouring gene pairs"
+        + (f"; {missing} gene IDs not found in the GFFs" if missing else "")
+    )
     if n == 0:
         return
 
@@ -156,7 +204,10 @@ def main():
         print(f"  {k:38s} {v:6d}  ({100 * v / n:.1f}%)")
     print("\nStrand:", dict(Counter(r[11] for r in out_rows)))
     print("Domain (gene_a, gene_b):", dict(Counter((r[18], r[19]) for r in out_rows)))
-    print("Source of the pair:", dict(Counter(tuple(sorted((r[14].split("_")[0], r[15].split("_")[0]))) for r in out_rows).most_common(8)))
+    print(
+        "Source of the pair:",
+        dict(Counter(tuple(sorted((r[14].split("_")[0], r[15].split("_")[0]))) for r in out_rows).most_common(8)),
+    )
     cds = {r[0] for r in out_rows if r[13] == "yes"}
     print(f"\nPangenes where at least one pair has a CDS overlap: {len(cds)} of {len(multi_pangenes)}")
 

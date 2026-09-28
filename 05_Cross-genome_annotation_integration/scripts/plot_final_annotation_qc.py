@@ -75,6 +75,7 @@ from annotation_common import (
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 except ImportError:
@@ -90,9 +91,9 @@ def parse_gff(path):
     """Gene-level records, mRNA->gene links, and per-mRNA CDS segments/domain flags -
     same logic this project's filter_final_annotation.py uses, kept here as its own copy
     so this QC script has no dependency on that (or any other) file."""
-    genes = {}       # gene_id -> dict of fields/attrs
+    genes = {}  # gene_id -> dict of fields/attrs
     mrna_to_gene = {}
-    cds_by_mrna = defaultdict(list)   # mrna_id -> [(start, end)]
+    cds_by_mrna = defaultdict(list)  # mrna_id -> [(start, end)]
     mrna_has_domain = defaultdict(bool)
 
     with open(path) as fh:
@@ -111,10 +112,18 @@ def parse_gff(path):
 
         if feature == "protein_coding_gene" and feat_id:
             desc_m = DESCRIPTION_RE.search(attrs) or PRODUCT_RE.search(attrs)
-            cov_m, seqid_m, copy_m = COVERAGE_RE.search(attrs), SEQUENCE_ID_RE.search(attrs), COPY_NUM_ID_RE.search(attrs)
+            cov_m, seqid_m, copy_m = (
+                COVERAGE_RE.search(attrs),
+                SEQUENCE_ID_RE.search(attrs),
+                COPY_NUM_ID_RE.search(attrs),
+            )
             genes[feat_id] = {
-                "id": feat_id, "seqname": seqname, "source": source,
-                "start": int(start), "end": int(end), "strand": strand,
+                "id": feat_id,
+                "seqname": seqname,
+                "source": source,
+                "start": int(start),
+                "end": int(end),
+                "strand": strand,
                 "extra_copy_number": int_attr(attrs, "extra_copy_number"),
                 "valid_ORF": valid_orf(attrs),
                 "description": unquote(desc_m.group(1)) if desc_m else "",
@@ -158,7 +167,7 @@ def parse_gff(path):
         # sorted left-to-right by genomic position, not transcript/exon order - "outermost" here
         # always means the segment with the lowest start or the highest end, regardless of strand.
         gene["cds_segments"] = sorted(cds_by_mrna.get(best_mrna, []))
-        gene["cds_bp"] = best_bp if best_bp > 0 else 0
+        gene["cds_bp"] = max(0, best_bp)
         gene["has_domain"] = any(mrna_has_domain.get(m, False) for m in gene_mrnas)
 
     return genes
@@ -242,11 +251,25 @@ def severity_counts(genes):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--strains", required=True, help="Comma-separated genome names or a file with one per line - first one must be the reference")
-    parser.add_argument("--final-dir", required=True, help="Directory with <strain>_final_annotation.gff (this pipeline's raw output, before filtering)")
+    parser.add_argument(
+        "--strains",
+        required=True,
+        help="Comma-separated genome names or a file with one per line - first one must be the reference",
+    )
+    parser.add_argument(
+        "--final-dir",
+        required=True,
+        help="Directory with <strain>_final_annotation.gff (this pipeline's raw output, before filtering)",
+    )
     parser.add_argument("--genome-dir", required=True, help="Directory with each strain's own original GFF")
-    parser.add_argument("--genome-suffix", required=True, help="Filename suffix for each strain's own original GFF, e.g. '_genomic.gff' (no default - varies by data source)")
-    parser.add_argument("--out-dir", default="./final_annotation_qc_plots", help="Where to write the plots and summary.tsv")
+    parser.add_argument(
+        "--genome-suffix",
+        required=True,
+        help="Filename suffix for each strain's own original GFF, e.g. '_genomic.gff' (no default - varies by data source)",
+    )
+    parser.add_argument(
+        "--out-dir", default="./final_annotation_qc_plots", help="Where to write the plots and summary.tsv"
+    )
     args = parser.parse_args()
 
     strains = read_strains(args.strains)
@@ -302,53 +325,86 @@ def main():
                     minor_position_counts[minor_position] += 1
             else:
                 minor_position = ""
-            pair_rows.append({
-                "genome": s, "seqname": g1["seqname"], "same_strand": same_strand, "severity": severity,
-                "overlap_bp": ov_bp, "minor_position": minor_position,
-                "gene1_id": g1["id"], "gene1_description": g1["description"],
-                "gene1_start": g1["start"], "gene1_end": g1["end"], "gene1_cds_bp": g1["cds_bp"],
-                "gene1_has_domain": g1["has_domain"],
-                "gene1_valid_ORF": "NA" if g1["valid_ORF"] is None else g1["valid_ORF"],
-                "gene1_source": g1["source"],
-                "gene2_id": g2["id"], "gene2_description": g2["description"],
-                "gene2_start": g2["start"], "gene2_end": g2["end"], "gene2_cds_bp": g2["cds_bp"],
-                "gene2_has_domain": g2["has_domain"],
-                "gene2_valid_ORF": "NA" if g2["valid_ORF"] is None else g2["valid_ORF"],
-                "gene2_source": g2["source"],
-            })
+            pair_rows.append(
+                {
+                    "genome": s,
+                    "seqname": g1["seqname"],
+                    "same_strand": same_strand,
+                    "severity": severity,
+                    "overlap_bp": ov_bp,
+                    "minor_position": minor_position,
+                    "gene1_id": g1["id"],
+                    "gene1_description": g1["description"],
+                    "gene1_start": g1["start"],
+                    "gene1_end": g1["end"],
+                    "gene1_cds_bp": g1["cds_bp"],
+                    "gene1_has_domain": g1["has_domain"],
+                    "gene1_valid_ORF": "NA" if g1["valid_ORF"] is None else g1["valid_ORF"],
+                    "gene1_source": g1["source"],
+                    "gene2_id": g2["id"],
+                    "gene2_description": g2["description"],
+                    "gene2_start": g2["start"],
+                    "gene2_end": g2["end"],
+                    "gene2_cds_bp": g2["cds_bp"],
+                    "gene2_has_domain": g2["has_domain"],
+                    "gene2_valid_ORF": "NA" if g2["valid_ORF"] is None else g2["valid_ORF"],
+                    "gene2_source": g2["source"],
+                }
+            )
         minor_position_all[s] = minor_position_counts
         n_pairs = sum(domain_counts.values())
-        domain_summary_rows.append({
-            "strain": s, "n_pairs": n_pairs, "n_genes_in_overlap": len(genes_in_overlap),
-            "n_both_domain": domain_counts["both"],
-            "pct_both_domain": round(100 * domain_counts["both"] / n_pairs, 1) if n_pairs else 0,
-            "n_one_domain": domain_counts["one"],
-            "pct_one_domain": round(100 * domain_counts["one"] / n_pairs, 1) if n_pairs else 0,
-            "n_no_domain": domain_counts["none"],
-            "pct_no_domain": round(100 * domain_counts["none"] / n_pairs, 1) if n_pairs else 0,
-        })
+        domain_summary_rows.append(
+            {
+                "strain": s,
+                "n_pairs": n_pairs,
+                "n_genes_in_overlap": len(genes_in_overlap),
+                "n_both_domain": domain_counts["both"],
+                "pct_both_domain": round(100 * domain_counts["both"] / n_pairs, 1) if n_pairs else 0,
+                "n_one_domain": domain_counts["one"],
+                "pct_one_domain": round(100 * domain_counts["one"] / n_pairs, 1) if n_pairs else 0,
+                "n_no_domain": domain_counts["none"],
+                "pct_no_domain": round(100 * domain_counts["none"] / n_pairs, 1) if n_pairs else 0,
+            }
+        )
 
         for g in genes.values():
             if not g["extra_copy_number"]:
                 continue
-            extra_copy_rows.append({
-                "strain": s, "gene_id": g["id"], "description": g["description"],
-                "seqname": g["seqname"], "start": g["start"], "end": g["end"], "strand": g["strand"],
-                "source": g["source"], "extra_copy_number": g["extra_copy_number"],
-                "copy_num_ID": g["copy_num_ID"],
-                "valid_ORF": "NA" if g["valid_ORF"] is None else g["valid_ORF"],
-                "liftoff_coverage": g["coverage"], "liftoff_sequence_ID": g["sequence_ID"],
-            })
+            extra_copy_rows.append(
+                {
+                    "strain": s,
+                    "gene_id": g["id"],
+                    "description": g["description"],
+                    "seqname": g["seqname"],
+                    "start": g["start"],
+                    "end": g["end"],
+                    "strand": g["strand"],
+                    "source": g["source"],
+                    "extra_copy_number": g["extra_copy_number"],
+                    "copy_num_ID": g["copy_num_ID"],
+                    "valid_ORF": "NA" if g["valid_ORF"] is None else g["valid_ORF"],
+                    "liftoff_coverage": g["coverage"],
+                    "liftoff_sequence_ID": g["sequence_ID"],
+                }
+            )
 
-        rows.append({
-            "strain": s, "n_original": n_original, "n_final": n_final,
-            "n_extra_copy": n_extra_copy,
-            "n_extra_copy_valid_orf": n_extra_copy_valid, "n_extra_copy_invalid_orf": n_extra_copy_invalid,
-            "n_overlap_pairs": sev["minor"] + sev["substantial"] + sev["contained"],
-            "n_minor": sev["minor"], "n_substantial": sev["substantial"], "n_contained": sev["contained"],
-            "n_same_strand_overlap": sev["same_strand"], "n_opposite_strand_overlap": sev["opposite_strand"],
-            "n_genes_in_overlap": len(genes_in_overlap),
-        })
+        rows.append(
+            {
+                "strain": s,
+                "n_original": n_original,
+                "n_final": n_final,
+                "n_extra_copy": n_extra_copy,
+                "n_extra_copy_valid_orf": n_extra_copy_valid,
+                "n_extra_copy_invalid_orf": n_extra_copy_invalid,
+                "n_overlap_pairs": sev["minor"] + sev["substantial"] + sev["contained"],
+                "n_minor": sev["minor"],
+                "n_substantial": sev["substantial"],
+                "n_contained": sev["contained"],
+                "n_same_strand_overlap": sev["same_strand"],
+                "n_opposite_strand_overlap": sev["opposite_strand"],
+                "n_genes_in_overlap": len(genes_in_overlap),
+            }
+        )
 
     with open(os.path.join(args.out_dir, "summary.tsv"), "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()), delimiter="\t")
@@ -356,12 +412,30 @@ def main():
         writer.writerows(rows)
 
     with open(os.path.join(args.out_dir, "cds_overlapping_pairs.tsv"), "w", newline="") as fh:
-        fieldnames = ["genome", "seqname", "same_strand", "severity", "overlap_bp",
-                      "minor_position",
-                      "gene1_id", "gene1_description", "gene1_start", "gene1_end", "gene1_cds_bp",
-                      "gene1_has_domain", "gene1_valid_ORF", "gene1_source",
-                      "gene2_id", "gene2_description", "gene2_start", "gene2_end", "gene2_cds_bp",
-                      "gene2_has_domain", "gene2_valid_ORF", "gene2_source"]
+        fieldnames = [
+            "genome",
+            "seqname",
+            "same_strand",
+            "severity",
+            "overlap_bp",
+            "minor_position",
+            "gene1_id",
+            "gene1_description",
+            "gene1_start",
+            "gene1_end",
+            "gene1_cds_bp",
+            "gene1_has_domain",
+            "gene1_valid_ORF",
+            "gene1_source",
+            "gene2_id",
+            "gene2_description",
+            "gene2_start",
+            "gene2_end",
+            "gene2_cds_bp",
+            "gene2_has_domain",
+            "gene2_valid_ORF",
+            "gene2_source",
+        ]
         writer = csv.DictWriter(fh, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
         writer.writerows(pair_rows)
@@ -376,9 +450,21 @@ def main():
     # to the top of each strain's block for a quick look at what is actually being over-called.
     extra_copy_rows.sort(key=lambda r: (r["strain"], -r["extra_copy_number"]))
     with open(os.path.join(args.out_dir, "extra_copy_genes.tsv"), "w", newline="") as fh:
-        fieldnames = ["strain", "gene_id", "description", "seqname", "start", "end", "strand",
-                      "source", "extra_copy_number", "copy_num_ID", "valid_ORF",
-                      "liftoff_coverage", "liftoff_sequence_ID"]
+        fieldnames = [
+            "strain",
+            "gene_id",
+            "description",
+            "seqname",
+            "start",
+            "end",
+            "strand",
+            "source",
+            "extra_copy_number",
+            "copy_num_ID",
+            "valid_ORF",
+            "liftoff_coverage",
+            "liftoff_sequence_ID",
+        ]
         writer = csv.DictWriter(fh, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
         writer.writerows(extra_copy_rows)
@@ -402,8 +488,13 @@ def main():
     # --- Plot 2: extra-copy genes, split by valid ORF ---
     fig, ax = plt.subplots(figsize=figsize)
     ax.bar(strains, [r["n_extra_copy_valid_orf"] for r in rows], label="valid ORF", color="#2F7A55")
-    ax.bar(strains, [r["n_extra_copy_invalid_orf"] for r in rows],
-           bottom=[r["n_extra_copy_valid_orf"] for r in rows], label="no valid ORF", color="#C0392B")
+    ax.bar(
+        strains,
+        [r["n_extra_copy_invalid_orf"] for r in rows],
+        bottom=[r["n_extra_copy_valid_orf"] for r in rows],
+        label="no valid ORF",
+        color="#C0392B",
+    )
     plt.setp(ax.get_xticklabels(), rotation=45, ha="right")
     ax.set_ylabel("Extra-copy genes")
     ax.legend(fontsize=8, loc="upper center", bbox_to_anchor=(0.5, 1.12), ncol=2, frameon=False)
@@ -428,8 +519,13 @@ def main():
 
     # --- Plot 4: source composition ---
     src_labels = ["main", "original", "reference_rescued", "good_others", "rescued_others"]
-    src_colors = {"main": "#F8766D", "original": "#00BA38", "reference_rescued": "#619CFF",
-                  "good_others": "#B379E0", "rescued_others": "#7A5195"}
+    src_colors = {
+        "main": "#F8766D",
+        "original": "#00BA38",
+        "reference_rescued": "#619CFF",
+        "good_others": "#B379E0",
+        "rescued_others": "#7A5195",
+    }
     fig, ax = plt.subplots(figsize=figsize)
     bottoms = [0] * len(strains)
     for src in src_labels:
@@ -461,7 +557,11 @@ def main():
     # --- Plot 6: overlap pairs by domain support (same pairs as plot 3, split differently) ---
     fig, ax = plt.subplots(figsize=figsize)
     domain_colors = {"n_both_domain": "#2F7A55", "n_one_domain": "#F2B035", "n_no_domain": "#B0B0B0"}
-    domain_labels = {"n_both_domain": "domain on both", "n_one_domain": "domain on one", "n_no_domain": "domain on neither"}
+    domain_labels = {
+        "n_both_domain": "domain on both",
+        "n_one_domain": "domain on one",
+        "n_no_domain": "domain on neither",
+    }
     domain_by_strain = {r["strain"]: r for r in domain_summary_rows}
     bottoms = [0] * len(strains)
     for key in ("n_both_domain", "n_one_domain", "n_no_domain"):
@@ -491,9 +591,12 @@ def main():
     fig.savefig(os.path.join(args.out_dir, "07_minor_overlap_position.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    print(f"\nDone - 8 plots + summary.tsv + extra_copy_genes.tsv ({len(extra_copy_rows)} rows) + "
-          f"cds_overlapping_pairs.tsv ({len(pair_rows)} rows) + overlap_domain_summary.tsv "
-          f"written to {args.out_dir}", file=sys.stderr)
+    print(
+        f"\nDone - 8 plots + summary.tsv + extra_copy_genes.tsv ({len(extra_copy_rows)} rows) + "
+        f"cds_overlapping_pairs.tsv ({len(pair_rows)} rows) + overlap_domain_summary.tsv "
+        f"written to {args.out_dir}",
+        file=sys.stderr,
+    )
 
 
 if __name__ == "__main__":

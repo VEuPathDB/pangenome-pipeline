@@ -21,6 +21,7 @@ Writes <out-prefix>.png/.svg and <out-prefix>.tsv (one row per pangene used).
 
 Needs numpy, scipy, matplotlib.
 """
+
 import argparse
 import csv
 import os
@@ -28,14 +29,14 @@ import re
 import sys
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.ticker import FuncFormatter, NullFormatter
 from matplotlib.transforms import blended_transform_factory
+from plot_occupancy import COLORS, ORDER, categorize
 from scipy.stats import tukey_hsd
-
-from plot_occupancy import categorize, COLORS, ORDER
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
@@ -85,14 +86,25 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--genes-matrix", required=True)
     ap.add_argument("--gff-dir", required=True)
-    ap.add_argument("--gff-suffix", default="_for_get_pangenes.gff",
-                    help="GFF file name after the genome name (default _for_get_pangenes.gff, the names in the get_pangenes input folder)")
+    ap.add_argument(
+        "--gff-suffix",
+        default="_for_get_pangenes.gff",
+        help="GFF file name after the genome name (default _for_get_pangenes.gff, the names in the get_pangenes input folder)",
+    )
     ap.add_argument("-o", "--out-prefix", required=True)
-    ap.add_argument("--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)")
-    ap.add_argument("--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)")
+    ap.add_argument(
+        "--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)"
+    )
+    ap.add_argument(
+        "--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)"
+    )
     ap.add_argument("--cloud-max", type=int, default=2, help="cloud = present in at most this many genomes (default 2)")
-    ap.add_argument("--yscale", choices=["linear", "log"], default="linear",
-                    help="y-axis of the protein-length panel (default linear; on linear the axis stops at the 99th percentile and the number of pangenes above it is written on the panel)")
+    ap.add_argument(
+        "--yscale",
+        choices=["linear", "log"],
+        default="linear",
+        help="y-axis of the protein-length panel (default linear; on linear the axis stops at the 99th percentile and the number of pangenes above it is written on the panel)",
+    )
     ap.add_argument("--title", default="")
     args = ap.parse_args()
 
@@ -132,10 +144,21 @@ def main():
         occ = len(members)
         dom = float(np.mean([v[0] for v in vals]))
         length = float(np.median([v[1] for v in vals]))
-        used.append((r[0], occ, categorize(occ, n_genomes, args.core_missing, args.softcore_missing, args.cloud_max), dom, length))
+        used.append(
+            (
+                r[0],
+                occ,
+                categorize(occ, n_genomes, args.core_missing, args.softcore_missing, args.cloud_max),
+                dom,
+                length,
+            )
+        )
 
-    print(f"{len(used)} pangenes used; {multi} left out (more than one gene in a genome)"
-          + (f"; {missing} skipped (gene not found in the GFFs)" if missing else ""), file=sys.stderr)
+    print(
+        f"{len(used)} pangenes used; {multi} left out (more than one gene in a genome)"
+        + (f"; {missing} skipped (gene not found in the GFFs)" if missing else ""),
+        file=sys.stderr,
+    )
     if not used:
         sys.exit("ERROR: no pangene left; check that --gff-dir IDs match the matrix gene IDs")
 
@@ -175,10 +198,23 @@ def main():
         if p is None or not cloud_x or not core_x:
             return
         x0, x1 = float(np.mean(cloud_x)), float(np.mean(core_x))
-        ax.plot([x0, x0, x1, x1], [0.90, 0.93, 0.93, 0.90], transform=blended_transform_factory(ax.transData, ax.transAxes),
-                color="black", lw=1, clip_on=False)
-        ax.text((x0 + x1) / 2, 0.94, fmt_p(p), transform=blended_transform_factory(ax.transData, ax.transAxes),
-                ha="center", va="bottom", fontsize=9)
+        ax.plot(
+            [x0, x0, x1, x1],
+            [0.90, 0.93, 0.93, 0.90],
+            transform=blended_transform_factory(ax.transData, ax.transAxes),
+            color="black",
+            lw=1,
+            clip_on=False,
+        )
+        ax.text(
+            (x0 + x1) / 2,
+            0.94,
+            fmt_p(p),
+            transform=blended_transform_factory(ax.transData, ax.transAxes),
+            ha="center",
+            va="bottom",
+            fontsize=9,
+        )
 
     axb.bar(xs, [dom_all[occ_all == k].mean() for k in ks], width=0.8, color=[COLORS[cat_of[k]] for k in ks])
     axb.set_ylabel("Proportion of genes with\na domain", fontsize=12)
@@ -186,8 +222,14 @@ def main():
     axb.set_yticks([0, 0.2, 0.4, 0.6, 0.8, 1.0])
     significance_line(axb, core_vs_cloud(dom_all))
 
-    bp = axc.boxplot([len_all[occ_all == k] for k in ks], positions=xs, widths=0.7, patch_artist=True,
-                     medianprops=dict(color="black", lw=1.5), flierprops=dict(marker="o", ms=2.5, alpha=0.4, mec="none", mfc="0.3"))
+    bp = axc.boxplot(
+        [len_all[occ_all == k] for k in ks],
+        positions=xs,
+        widths=0.7,
+        patch_artist=True,
+        medianprops=dict(color="black", lw=1.5),
+        flierprops=dict(marker="o", ms=2.5, alpha=0.4, mec="none", mfc="0.3"),
+    )
     for patch, k in zip(bp["boxes"], ks):
         patch.set_facecolor(COLORS[cat_of[k]])
         patch.set_alpha(0.9)
@@ -208,8 +250,14 @@ def main():
             fl.set_data(xd[keep], yd[keep])
         n_out = int((len_all > top).sum())
         axc.set_ylabel("Protein length (aa),\nmedian per pangene", fontsize=12)
-        axc.text(0.5, 0.80, f"{n_out} pangenes above {top:,.0f} aa not shown", transform=axc.transAxes,
-                 ha="center", fontsize=8)
+        axc.text(
+            0.5,
+            0.80,
+            f"{n_out} pangenes above {top:,.0f} aa not shown",
+            transform=axc.transAxes,
+            ha="center",
+            fontsize=8,
+        )
     significance_line(axc, core_vs_cloud(len_all))
 
     axc.set_xticks(xs)
@@ -218,8 +266,14 @@ def main():
     for ax in (axb, axc):
         ax.spines[["top", "right"]].set_visible(False)
     present = [c for c in ORDER if c in cat_of.values()]
-    axb.legend([plt.Rectangle((0, 0), 1, 1, color=COLORS[c]) for c in present], present,
-               loc="lower center", bbox_to_anchor=(0.5, 1.02), ncol=len(present), frameon=False)
+    axb.legend(
+        [plt.Rectangle((0, 0), 1, 1, color=COLORS[c]) for c in present],
+        present,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 1.02),
+        ncol=len(present),
+        frameon=False,
+    )
     if args.title:
         fig.suptitle(args.title, x=0.01, ha="left", fontsize=14)
     fig.tight_layout()

@@ -6,6 +6,7 @@ Requirements for Trinity compatibility:
   - Header line: '@<accession>.<read_id> length=<len>' (or simple ID)
   - 3rd line: Must be exactly '+' without the header repeat.
 """
+
 import gzip
 import os
 import sys
@@ -13,18 +14,17 @@ import sys
 # =============================================================================
 # CONFIGURATION — edit these paths for your run
 # =============================================================================
-LEFT_INPUT   = 'combined_left_trinity.fastq.gz'
-RIGHT_INPUT  = 'combined_right_trinity.fastq.gz'
+LEFT_INPUT = "combined_left_trinity.fastq.gz"
+RIGHT_INPUT = "combined_right_trinity.fastq.gz"
 
-LEFT_OUTPUT  = 'combined_left_trinity.fixed_headers.fastq.gz'
-RIGHT_OUTPUT = 'combined_right_trinity.fixed_headers.fastq.gz'
+LEFT_OUTPUT = "combined_left_trinity.fixed_headers.fastq.gz"
+RIGHT_OUTPUT = "combined_right_trinity.fixed_headers.fastq.gz"
 # =============================================================================
 
 
 def fix_header(header_line, suffix):
-    header_line = header_line.rstrip('\r\n')
-    if header_line.startswith('@'):
-        header_line = header_line[1:]
+    header_line = header_line.rstrip("\r\n")
+    header_line = header_line.removeprefix("@")
     parts = header_line.split()
     read_id = parts[0]
     return f"@{read_id}{suffix}"
@@ -33,7 +33,7 @@ def fix_header(header_line, suffix):
 def process_file(in_path, out_path, suffix):
     print(f"Processing: {in_path} -> {out_path}")
     count = 0
-    with gzip.open(in_path, 'rt') as fin, gzip.open(out_path, 'wt') as fout:
+    with gzip.open(in_path, "rt") as fin, gzip.open(out_path, "wt") as fout:
         while True:
             header = fin.readline()
             if not header:
@@ -43,9 +43,9 @@ def process_file(in_path, out_path, suffix):
             qual = fin.readline()
 
             fixed_header = fix_header(header, suffix)
-            fout.write(fixed_header + '\n')
+            fout.write(fixed_header + "\n")
             fout.write(seq)
-            fout.write('+\n')
+            fout.write("+\n")
             fout.write(qual)
 
             count += 1
@@ -72,5 +72,5 @@ def main():
     print("All headers fixed successfully.")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

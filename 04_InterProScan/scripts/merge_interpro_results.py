@@ -40,17 +40,22 @@ from collections import defaultdict
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--results-dir", required=True, help="Directory with this genome's chunk_*_interproscan.tsv files")
+    parser.add_argument(
+        "--results-dir", required=True, help="Directory with this genome's chunk_*_interproscan.tsv files"
+    )
     parser.add_argument("--out", required=True, help="Output TSV: protein_id, interpro_ids, pfam_ids, n_domain_hits")
-    parser.add_argument("--fasta", default=None,
-                         help="Optional: this genome's own .faa - if given, reports every protein in it "
-                              "that never shows up in the combined TSV results. InterProScan's '-f tsv' "
-                              "format only ever writes a row when an analysis finds a hit, so a protein "
-                              "absent from every chunk's TSV most likely just has zero domain hits across "
-                              "all analyses run - completely normal, not a failure. This flag can't tell "
-                              "that apart from a genuinely malformed/truncated sequence InterProScan choked "
-                              "on, so treat its output as a list worth a manual spot-check, not a list of "
-                              "confirmed errors.")
+    parser.add_argument(
+        "--fasta",
+        default=None,
+        help="Optional: this genome's own .faa - if given, reports every protein in it "
+        "that never shows up in the combined TSV results. InterProScan's '-f tsv' "
+        "format only ever writes a row when an analysis finds a hit, so a protein "
+        "absent from every chunk's TSV most likely just has zero domain hits across "
+        "all analyses run - completely normal, not a failure. This flag can't tell "
+        "that apart from a genuinely malformed/truncated sequence InterProScan choked "
+        "on, so treat its output as a list worth a manual spot-check, not a list of "
+        "confirmed errors.",
+    )
     args = parser.parse_args()
 
     tsv_files = sorted(glob.glob(os.path.join(args.results_dir, "chunk_*_interproscan.tsv")))
@@ -73,9 +78,12 @@ def main():
         expected = set(range(1, max(chunk_nums_seen) + 1))
         missing = expected - chunk_nums_seen
         if missing:
-            print(f"  WARNING: chunk(s) {sorted(missing)} have no TSV in {args.results_dir} "
-                  f"- InterProScan may have failed on them. Lookup table will be incomplete "
-                  f"for those proteins.", file=sys.stderr)
+            print(
+                f"  WARNING: chunk(s) {sorted(missing)} have no TSV in {args.results_dir} "
+                f"- InterProScan may have failed on them. Lookup table will be incomplete "
+                f"for those proteins.",
+                file=sys.stderr,
+            )
 
     interpro_ids = defaultdict(set)
     pfam_ids = defaultdict(set)
@@ -114,10 +122,15 @@ def main():
 
     n_with_ipr = sum(1 for p in all_proteins if interpro_ids[p])
     n_with_pfam = sum(1 for p in all_proteins if pfam_ids[p])
-    print(f"[{args.results_dir}] {len(all_proteins)} proteins scanned "
-          f"({len(tsv_files)} chunk files) -> {args.out}", file=sys.stderr)
-    print(f"  {n_with_ipr} with >=1 InterPro ID ({100*n_with_ipr/len(all_proteins):.1f}%), "
-          f"{n_with_pfam} with >=1 Pfam ID ({100*n_with_pfam/len(all_proteins):.1f}%)", file=sys.stderr)
+    print(
+        f"[{args.results_dir}] {len(all_proteins)} proteins scanned ({len(tsv_files)} chunk files) -> {args.out}",
+        file=sys.stderr,
+    )
+    print(
+        f"  {n_with_ipr} with >=1 InterPro ID ({100 * n_with_ipr / len(all_proteins):.1f}%), "
+        f"{n_with_pfam} with >=1 Pfam ID ({100 * n_with_pfam / len(all_proteins):.1f}%)",
+        file=sys.stderr,
+    )
 
     if args.fasta:
         fasta_proteins = set()
@@ -128,19 +141,28 @@ def main():
         missing = fasta_proteins - all_proteins
         extra = all_proteins - fasta_proteins
         if not missing and not extra:
-            print(f"  Completeness check: OK - all {len(fasta_proteins)} proteins in "
-                  f"{args.fasta} are present in the combined results.", file=sys.stderr)
+            print(
+                f"  Completeness check: OK - all {len(fasta_proteins)} proteins in "
+                f"{args.fasta} are present in the combined results.",
+                file=sys.stderr,
+            )
         else:
             if missing:
-                print(f"  NOTE: {len(missing)} / {len(fasta_proteins)} proteins in {args.fasta} "
-                      f"never show up in any chunk TSV - almost certainly just proteins with zero "
-                      f"domain hits across every analysis run (InterProScan's TSV format only writes "
-                      f"a row per hit, none if there's no hit at all), not a processing failure. Not "
-                      f"the same as a missing chunk *file*, which the check above already covers. "
-                      f"First few, if you want to spot-check one: {sorted(missing)[:10]}", file=sys.stderr)
+                print(
+                    f"  NOTE: {len(missing)} / {len(fasta_proteins)} proteins in {args.fasta} "
+                    f"never show up in any chunk TSV - almost certainly just proteins with zero "
+                    f"domain hits across every analysis run (InterProScan's TSV format only writes "
+                    f"a row per hit, none if there's no hit at all), not a processing failure. Not "
+                    f"the same as a missing chunk *file*, which the check above already covers. "
+                    f"First few, if you want to spot-check one: {sorted(missing)[:10]}",
+                    file=sys.stderr,
+                )
             if extra:
-                print(f"  NOTE: {len(extra)} protein IDs in the TSV results aren't in {args.fasta} - "
-                      f"worth double-checking this is the right FASTA for this genome.", file=sys.stderr)
+                print(
+                    f"  NOTE: {len(extra)} protein IDs in the TSV results aren't in {args.fasta} - "
+                    f"worth double-checking this is the right FASTA for this genome.",
+                    file=sys.stderr,
+                )
 
 
 if __name__ == "__main__":

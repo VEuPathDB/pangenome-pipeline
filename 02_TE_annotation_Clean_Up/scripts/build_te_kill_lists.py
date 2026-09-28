@@ -57,6 +57,7 @@ needed.
 header) used by reclassify_te_genes.py/extract_flagged_genes.py, for genes
 confirmed manually from the 20-80% inspect band that should be killed too.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -80,17 +81,21 @@ def load_extra_genes(path) -> set:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--gene-table", required=True,
-                     help="gene_te_overlap.tsv produced by te_gene_overlap.py")
-    ap.add_argument("--outdir", required=True,
-                     help="Directory to write te_derived_genes.kill_list.txt to")
-    ap.add_argument("--min-pct", type=float, default=80.0,
-                     help="Minimum TE_overlap_pct to include a protein_coding gene (default: 80)")
-    ap.add_argument("--extra-genes", default=None,
-                     help="Optional 2-column TSV (genome_label<TAB>gene_id, no header) of "
-                          "additional genes to include on top of --min-pct")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gene-table", required=True, help="gene_te_overlap.tsv produced by te_gene_overlap.py")
+    ap.add_argument("--outdir", required=True, help="Directory to write te_derived_genes.kill_list.txt to")
+    ap.add_argument(
+        "--min-pct",
+        type=float,
+        default=80.0,
+        help="Minimum TE_overlap_pct to include a protein_coding gene (default: 80)",
+    )
+    ap.add_argument(
+        "--extra-genes",
+        default=None,
+        help="Optional 2-column TSV (genome_label<TAB>gene_id, no header) of "
+        "additional genes to include on top of --min-pct",
+    )
     args = ap.parse_args()
 
     outdir = Path(args.outdir)
@@ -115,8 +120,9 @@ def main():
         print(f"Added {n_added} gene(s) from {args.extra_genes}")
 
     if not pairs:
-        raise SystemExit(f"No genes selected (TE_overlap_pct >= {args.min_pct}, "
-                          f"plus none/no valid entries in --extra-genes)")
+        raise SystemExit(
+            f"No genes selected (TE_overlap_pct >= {args.min_pct}, plus none/no valid entries in --extra-genes)"
+        )
 
     # Same raw ID showing up under two different genomes would be ambiguous
     # if a lifted file ever mixed genes from multiple sources - flag it so
@@ -127,9 +133,11 @@ def main():
         genomes_by_gene_id[gene_id].add(genome_label)
     dupes = {gid: genomes for gid, genomes in genomes_by_gene_id.items() if len(genomes) > 1}
     if dupes:
-        print(f"NOTE: {len(dupes)} gene ID(s) are shared by more than one genome_label "
-              f"(e.g. {next(iter(dupes.items()))}) - fine as long as no lifted GFF mixes "
-              f"genes lifted from multiple source annotations into one file.")
+        print(
+            f"NOTE: {len(dupes)} gene ID(s) are shared by more than one genome_label "
+            f"(e.g. {next(iter(dupes.items()))}) - fine as long as no lifted GFF mixes "
+            f"genes lifted from multiple source annotations into one file."
+        )
 
     gene_ids = sorted({gene_id for _, gene_id in pairs})
     dest = outdir / "te_derived_genes.kill_list.txt"
@@ -142,8 +150,10 @@ def main():
             for candidate in (gene_id, f"gene-{gene_id}", f"gene:{gene_id}"):
                 fh.write(candidate + "\n")
 
-    print(f"\n{len(gene_ids)} unique gene ID(s) from {len(pairs)} (genome, gene) pair(s) "
-          f"written to {dest} (3 ID-convention variants per gene)")
+    print(
+        f"\n{len(gene_ids)} unique gene ID(s) from {len(pairs)} (genome, gene) pair(s) "
+        f"written to {dest} (3 ID-convention variants per gene)"
+    )
 
 
 if __name__ == "__main__":
