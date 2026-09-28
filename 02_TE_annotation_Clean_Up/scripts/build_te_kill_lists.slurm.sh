@@ -33,18 +33,8 @@ GFF_OUTDIR="gff_cleaned"          # filtered copies land here
 
 set -euo pipefail
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there — fall back to the standard layout relative
-# to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/build_te_kill_lists.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py" \
-    "02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find build_te_kill_lists.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py
 
 [[ -f "$GENE_TABLE" ]] || { echo "ERROR: gene table not found: $GENE_TABLE" >&2; exit 1; }
 [[ -d "$GFF_INDIR" ]]  || { echo "ERROR: GFF folder not found: $GFF_INDIR" >&2; exit 1; }

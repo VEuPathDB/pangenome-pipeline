@@ -35,18 +35,8 @@ MIN_LEN=10000                           # contigs shorter than this (bp) count a
 
 set -euo pipefail
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there — fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/contig_size_profile.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/01_Genome_Selection_QC/scripts/contig_size_profile.py" \
-    "01_Genome_Selection_QC/scripts/contig_size_profile.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find contig_size_profile.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 01_Genome_Selection_QC/scripts/contig_size_profile.py
 
 [[ -d "$GENOMES" ]] || { echo "ERROR: genomes folder not found: $GENOMES (run from the project folder)" >&2; exit 1; }
 

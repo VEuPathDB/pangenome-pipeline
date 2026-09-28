@@ -45,18 +45,9 @@ EXTRA_GENES=""                        # optional: genome_label<TAB>gene_id TSV, 
 
 set -euo pipefail
 
-# Locate the scripts dir. Under `sbatch` the wrapper is copied to a spool
-# dir, so ${BASH_SOURCE[0]} is useless there — fall back to the standard
-# layout relative to the directory you submitted from.
-SCRIPTS=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/02_TE_annotation_Clean_Up/scripts" \
-    "02_TE_annotation_Clean_Up/scripts"
-do
-    [[ -f "$cand/te_gene_overlap.py" ]] && { SCRIPTS="$cand"; break; }
-done
-[[ -n "$SCRIPTS" ]] || { echo "ERROR: cannot find te_gene_overlap.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 02_TE_annotation_Clean_Up/scripts/te_gene_overlap.py
+SCRIPTS="$(dirname "$PY")"
 
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH
 #              (the 'synteny' env from step 01 once pandas is added, or

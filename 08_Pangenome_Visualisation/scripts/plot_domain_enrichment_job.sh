@@ -41,18 +41,8 @@ for mod in numpy scipy matplotlib; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy and matplotlib)" >&2; exit 1; }
 done
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/plot_domain_enrichment.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py" \
-    "08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find plot_domain_enrichment.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py
 mkdir -p "$OUT_DIR"
 
 # get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.

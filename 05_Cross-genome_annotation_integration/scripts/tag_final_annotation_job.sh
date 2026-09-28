@@ -30,18 +30,8 @@ module load python/3.11.9
 ### END ADAPT ###
 set -u
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/tag_final_annotation.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/05_Cross-genome_annotation_integration/scripts/tag_final_annotation.py" \
-    "05_Cross-genome_annotation_integration/scripts/tag_final_annotation.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find tag_final_annotation.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 05_Cross-genome_annotation_integration/scripts/tag_final_annotation.py
 mkdir -p "$OUT_DIR"
 
 python3 "$PY" \

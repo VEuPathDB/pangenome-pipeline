@@ -12,6 +12,7 @@ SCRIPTS = REPO_ROOT / "06_GET_PANGENES" / "scripts"
 @pytest.fixture
 def project(tmp_path):
     """A minimal project folder with two genomes' step-05 outputs and assemblies."""
+    (tmp_path / "lib").symlink_to(REPO_ROOT / "lib")  # the pipeline is cloned into the project root
     (tmp_path / "genome_order.txt").write_text("# reference first\nME49\n\nGT1\n")
     for sub, suffix in (
         ("filtered_annotation", "_final_annotation_filtered.gff"),

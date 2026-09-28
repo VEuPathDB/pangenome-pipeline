@@ -2,6 +2,9 @@ site/
 .venv/
 .nox/
 .coverage
+
+# Per-cluster settings (copy pipeline_config.example.sh)
+pipeline_config.sh
 __pycache__/
 .DS_Store
 node_modules/

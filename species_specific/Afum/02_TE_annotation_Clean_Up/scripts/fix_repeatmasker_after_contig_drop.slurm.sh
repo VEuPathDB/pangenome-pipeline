@@ -28,18 +28,8 @@ GENOMES=""                                              # e.g. "genomes"
 
 set -euo pipefail
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there — fall back to the standard layout relative
-# to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/fix_repeatmasker_after_contig_drop.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py" \
-    "species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find fix_repeatmasker_after_contig_drop.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py
 
 ### ADAPT ### — put a python3 (>= 3.6, stdlib only) on the PATH. Any env works;
 #              the step-01 / synteny env is fine, or the system python3:

@@ -111,18 +111,9 @@ for mod in numpy scipy matplotlib pandas seaborn; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy, matplotlib, pandas and seaborn)" >&2; exit 1; }
 done
 
-# Locate the scripts folder. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-SCRIPTS=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/08_Pangenome_Visualisation/scripts" \
-    "08_Pangenome_Visualisation/scripts"
-do
-    [[ -f "$cand/plot_all.sh" ]] && { SCRIPTS="$(cd "$cand" && pwd)"; break; }
-done
-[[ -n "$SCRIPTS" ]] || { echo "ERROR: cannot find the 08 scripts folder (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PLOT_ALL 08_Pangenome_Visualisation/scripts/plot_all.sh
+SCRIPTS="$(cd "$(dirname "$PLOT_ALL")" && pwd)"
 mkdir -p "$OUT_DIR"
 
 # ── find the matrices ──────────────────────────────────────────────────────────────────────────

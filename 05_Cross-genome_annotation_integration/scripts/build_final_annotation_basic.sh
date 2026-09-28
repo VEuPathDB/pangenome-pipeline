@@ -42,18 +42,8 @@ micromamba activate bioinfo
 ### END ADAPT ###
 set -u
 
-# Locate the script. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-BUILD_SCRIPT=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/build_final_annotation.sh" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/05_Cross-genome_annotation_integration/scripts/build_final_annotation.sh" \
-    "05_Cross-genome_annotation_integration/scripts/build_final_annotation.sh"
-do
-    [[ -f "$cand" ]] && { BUILD_SCRIPT="$cand"; break; }
-done
-[[ -n "$BUILD_SCRIPT" ]] || { echo "ERROR: cannot find build_final_annotation.sh (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script BUILD_SCRIPT 05_Cross-genome_annotation_integration/scripts/build_final_annotation.sh
 
 # As a SLURM array, task N builds only the Nth genome of ORDER.
 TARGET_ARGS=()

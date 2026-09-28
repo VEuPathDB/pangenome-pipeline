@@ -33,18 +33,8 @@ micromamba activate bioinfo
 ### END ADAPT ###
 set -u
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/remove_genes_from_gff.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff.py" \
-    "05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find remove_genes_from_gff.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff.py
 
 [[ -f "$KILL_LIST" ]] || { echo "ERROR: kill list not found: $KILL_LIST" >&2; exit 1; }
 

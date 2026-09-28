@@ -106,3 +106,32 @@ def test_fixture_inputs_untouched():
     """The scripts must never write into their --final-dir."""
     names = sorted(p.name for p in Path(DATA / "expanded_annotation").iterdir())
     assert names == ["REF_final_annotation.gff", "S2_final_annotation.gff", "S3_final_annotation.gff"]
+
+
+def test_filter_job_wrapper_end_to_end(tmp_path):
+    """The SLURM wrapper, run from a project folder as a user would (sbatch's `module` stubbed out),
+    finds its .py through lib/slurm_common.sh and produces the same reports as the snapshot."""
+    project = tmp_path / "project"
+    project.mkdir()
+    for name in ("lib", "05_Cross-genome_annotation_integration"):
+        (project / name).symlink_to(REPO_ROOT / name)
+    shutil.copytree(DATA / "expanded_annotation", project / "expanded_annotation")
+    shutil.copy(DATA / "genome_order.txt", project / "genome_order.txt")
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    (stubs / "module").write_text("#!/bin/sh\nexit 0\n")
+    (stubs / "module").chmod(0o755)
+    (stubs / "python3").symlink_to(sys.executable)
+
+    result = subprocess.run(
+        ["bash", str(SCRIPTS / "filter_final_annotation_job.sh")],
+        cwd=project,
+        env={**os.environ, "PATH": f"{stubs}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert result.returncode == 0, result.stderr
+    out = project / "filtered_annotation"
+    for name in ("filter_summary.tsv", "REF_filter_report.tsv", "S2_filter_report.tsv", "S3_filter_report.tsv"):
+        assert (out / name).read_text() == (DATA / "expected_filter" / name).read_text(), name

@@ -14,8 +14,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# Third-party tools the docs mention by filename - not part of this repo.
-EXTERNAL = {"MCHelper.py", "famdb.py", "interproscan.sh"}
+# Third-party tools the docs mention by filename - not part of this repo - and pipeline_config.sh,
+# which each user creates from pipeline_config.example.sh and is never committed.
+EXTERNAL = {"MCHelper.py", "famdb.py", "interproscan.sh", "pipeline_config.sh"}
 
 # Referenced but deliberately absent. Each needs a reason, and test_known_missing_are_still_missing
 # makes sure an entry is removed once the file shows up.
@@ -92,7 +93,7 @@ def extract_references(text):
 
 
 def resolves(ref, referencing_file):
-    if ref in EXTERNAL:
+    if Path(ref).name in EXTERNAL:
         return True
     if "/" not in ref:
         return ref in TRACKED_NAMES

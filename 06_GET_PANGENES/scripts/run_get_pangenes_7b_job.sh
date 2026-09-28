@@ -20,16 +20,8 @@ N_CPUS=32                           # match --cpus-per-task above
 TAXA_THRESHOLD=0                    # get_pangenes' -t: minimum number of genomes a cluster must appear in to
                                      # be reported at all - 0 reports everything, including genome-private ones
 
-# Find the shared body. Under sbatch the job script is copied to a spool dir, so
-# ${BASH_SOURCE[0]} isn't next to it - fall back to the layout under the submit dir.
-COMMON=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/get_pangenes_common.sh" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/06_GET_PANGENES/scripts/get_pangenes_common.sh"
-do
-  [[ -f "$cand" ]] && { COMMON="$cand"; break; }
-done
-[[ -n "$COMMON" ]] || { echo "ERROR: cannot find get_pangenes_common.sh (submit from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script COMMON 06_GET_PANGENES/scripts/get_pangenes_common.sh
 # shellcheck source=get_pangenes_common.sh
 source "$COMMON"
 
