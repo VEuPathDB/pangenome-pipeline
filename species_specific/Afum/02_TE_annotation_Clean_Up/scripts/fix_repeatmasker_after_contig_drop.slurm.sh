@@ -14,7 +14,7 @@
 # folder (originals untouched). Pure Python, stdlib only — a few seconds.
 #
 # Submit from your project folder (the one holding the RM_<genome_id>/ dirs):
-#     sbatch 02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh
+#     sbatch species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh
 #
 # ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
 RM_INDIR="."                                           # holds the RM_<genome_id>/ dirs
@@ -34,8 +34,8 @@ set -euo pipefail
 PY=""
 for cand in \
     "$(dirname "${BASH_SOURCE[0]}")/fix_repeatmasker_after_contig_drop.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py" \
-    "02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py"
+    "${SLURM_SUBMIT_DIR:-$PWD}/species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py" \
+    "species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py"
 do
     [[ -f "$cand" ]] && { PY="$cand"; break; }
 done
