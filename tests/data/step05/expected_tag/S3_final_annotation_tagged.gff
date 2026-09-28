@@ -1,0 +1,23 @@
+##gff-version 3
+chr1	main	gene	1000	3000	.	+	.	ID=Tst3g00001;description=heat%20shock%20protein;valid_ORFs=1;original_ID=geneA;intersect=with_other_no_domain
+chr1	main	mRNA	1000	3000	.	+	.	ID=geneA-T1;Parent=Tst3g00001
+chr1	main	CDS	1000	1500	.	+	.	ID=geneA-T1-CDS1;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	CDS	2500	3000	.	+	.	ID=geneA-T1-CDS2;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	gene	5000	6000	.	+	.	ID=Tst3g00003;description=hypothetical protein;valid_ORFs=1;original_ID=geneB;intersect=NA
+chr1	main	mRNA	5000	6000	.	+	.	ID=geneB-T1;Parent=Tst3g00003
+chr1	main	CDS	5000	6000	.	+	.	ID=geneB-T1-CDS1;Parent=geneB-T1
+chr1	S3	gene	2970	3200	.	+	.	ID=Tst3g00002;description=kinase;original_ID=geneG;intersect=with_main
+chr1	S3	mRNA	2970	3200	.	+	.	ID=geneG-T1;Parent=Tst3g00002
+chr1	S3	CDS	2970	3200	.	+	.	ID=geneG-T1-CDS1;Parent=geneG-T1
+chr1	rescued_S2	gene	10000	10500	.	+	.	ID=Tst3g00004;coverage=0.30;valid_ORF=True;original_ID=geneR;intersect=NA
+chr1	rescued_S2	mRNA	10000	10500	.	+	.	ID=geneR-T1;Parent=Tst3g00004
+chr1	rescued_S2	CDS	10000	10500	.	+	.	ID=geneR-T1-CDS1;Parent=geneR-T1
+chr1	good_S2	gene	11000	11600	.	+	.	ID=Tst3g00005;description=hypothetical protein;valid_ORF=True;original_ID=geneH;intersect=with_other_no_domain
+chr1	good_S2	mRNA	11000	11600	.	+	.	ID=geneH-T1;Parent=Tst3g00005
+chr1	good_S2	CDS	11000	11600	.	+	.	ID=geneH-T1-CDS1;Parent=geneH-T1
+chr1	S3	gene	11100	11500	.	+	.	ID=Tst3g00006;original_ID=geneI;intersect=with_other_no_domain
+chr1	S3	mRNA	11100	11500	.	+	.	ID=geneI-T1;Parent=Tst3g00006
+chr1	S3	CDS	11100	11500	.	+	.	ID=geneI-T1-CDS1;Parent=geneI-T1
+chr1	S3	gene	12000	12300	.	+	.	ID=Tst3g00007;description=transporter;original_ID=geneF;intersect=NA
+chr1	S3	transcript	12000	12300	.	+	.	ID=geneF-T1;Parent=Tst3g00007
+chr1	S3	CDS	12000	12300	.	+	.	ID=geneF-T1-CDS1;Parent=geneF-T1
