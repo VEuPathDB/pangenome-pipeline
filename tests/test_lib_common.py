@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from pangenome_common.gff import find_gff, gff_seqids
+import pytest
+
+from pangenome_common.gff import biotype_category, find_gff, gff_seqids, infer_biotype
 from pangenome_common.intervals import merged_len, segments_overlap_bp
 from pangenome_common.io import read_id_list, read_paf, read_strains
 
@@ -84,3 +86,33 @@ def test_read_paf_filters_short_alignments(tmp_path):
             "alen": 900,
         }
     ]
+
+
+def test_infer_biotype_attribute_wins_over_feature_type():
+    assert infer_biotype("gene", {"gene_biotype": "tRNA"}) == "tRNA"
+    assert infer_biotype("gene", {}) == "protein_coding"
+    assert infer_biotype("ncRNA_gene", {}) == "ncRNA"
+    assert infer_biotype("mystery", {}) == "NA"
+
+
+@pytest.mark.parametrize(
+    ("value", "expected"),
+    [
+        ("protein_coding", "protein_coding"),
+        ("mRNA", "protein_coding"),
+        ('"pseudogene"', "pseudogene"),
+        ("processed_pseudogene", "pseudogene"),
+        ("rRNA_pseudogene", "pseudogene"),  # pseudogene checked before rRNA
+        ("Mt_tRNA", "tRNA"),
+        ("lncRNA", "ncRNA"),
+        ("scaRNA", "ncRNA"),
+        ("IG_C_gene", None),
+    ],
+)
+def test_biotype_category(value, expected):
+    assert biotype_category(value) == expected
+
+
+def test_biotype_category_other_rna_label():
+    assert biotype_category("snoRNA", other_rna_label="ncRNA_other") == "ncRNA_other"
+    assert biotype_category("tRNA", other_rna_label="ncRNA_other") == "tRNA"

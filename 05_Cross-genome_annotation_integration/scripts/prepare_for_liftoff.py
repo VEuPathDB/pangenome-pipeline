@@ -48,7 +48,7 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import find_gff
+from pangenome_common.gff import biotype_category, find_gff
 from pangenome_common.io import read_id_list
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
@@ -62,31 +62,6 @@ TYPE_TO_CATEGORY = {
     "trna_gene": "tRNA", "rrna_gene": "rRNA", "ncrna_gene": "ncRNA", "lncrna_gene": "ncRNA",
     "snrna_gene": "ncRNA", "snorna_gene": "ncRNA", "mirna_gene": "ncRNA", "scrna_gene": "ncRNA",
 }
-BIOTYPE_TO_CATEGORY = {
-    "protein_coding": "protein_coding", "mrna": "protein_coding", "pseudogene": "pseudogene",
-    "trna": "tRNA", "rrna": "rRNA", "ncrna": "ncRNA", "lncrna": "ncRNA", "lnc_rna": "ncRNA",
-    "snrna": "ncRNA", "snorna": "ncRNA", "mirna": "ncRNA", "misc_rna": "ncRNA",
-}
-
-
-def biotype_category(value):
-    """Category for a gene_biotype=/biotype= value. Exact matches first, then the same idea for
-    the many variants other sources use (processed_pseudogene, Mt_tRNA, rRNA_pseudogene, sRNA,
-    scaRNA, lncRNA...). Anything else (e.g. IG_C_gene) is left unclassified, and reported."""
-    v = value.strip().strip('"').lower()
-    if v in BIOTYPE_TO_CATEGORY:
-        return BIOTYPE_TO_CATEGORY[v]
-    if "pseudogene" in v:
-        return "pseudogene"
-    if "trna" in v:
-        return "tRNA"
-    if "rrna" in v:
-        return "rRNA"
-    if "rna" in v:
-        return "ncRNA"
-    return None
-
-
 NCRNA_CHILD_TYPES = {"ncrna", "lnc_rna", "lncrna", "snrna", "snorna", "mirna", "misc_rna"}
 NONCODING_GENE_TYPE = {"tRNA": "tRNA_gene", "rRNA": "rRNA_gene", "ncRNA": "ncRNA_gene"}
 

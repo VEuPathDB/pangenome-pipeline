@@ -38,6 +38,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 from pangenome_common.gff import find_gff as _find_gff
+from pangenome_common.gff import infer_biotype
 
 # <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
 find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)
@@ -54,30 +55,7 @@ GENE_FEATURE_TYPES = {
     "tRNA_gene", "rRNA_gene", "snoRNA_gene", "snRNA_gene", "miRNA_gene",
 }
 
-# Same fallback logic as te_gene_overlap.py's infer_biotype(): an explicit
-# gene_biotype/biotype/gene_type attribute wins when present (NCBI-style,
-# "gene" in column 3 for everything); otherwise the feature type itself
-# says the biotype (VEuPathDB/FungiDB-style, no biotype attribute at all).
-GENE_FTYPE_TO_BIOTYPE = {
-    "gene": "protein_coding",
-    "protein_coding_gene": "protein_coding",
-    "pseudogene": "pseudogene",
-    "tRNA_gene": "tRNA",
-    "rRNA_gene": "rRNA",
-    "ncRNA_gene": "ncRNA",
-    "snoRNA_gene": "snoRNA",
-    "snRNA_gene": "snRNA",
-    "miRNA_gene": "miRNA",
-}
-BIOTYPE_ATTR_KEYS = ("gene_biotype", "biotype", "gene_type")
 PC_PSEUDO_BIOTYPES = {"protein_coding", "pseudogene"}  # what GET_PANGENES actually uses
-
-
-def infer_biotype(ftype: str, attrs: dict) -> str:
-    for key in BIOTYPE_ATTR_KEYS:
-        if key in attrs:
-            return attrs[key]
-    return GENE_FTYPE_TO_BIOTYPE.get(ftype, "NA")
 
 
 def parse_attributes(attr_str: str) -> dict:

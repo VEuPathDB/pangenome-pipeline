@@ -76,7 +76,11 @@ from summarize_te_content import (
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import gff_seqids
+from pangenome_common.gff import (  # GENE_FTYPE_TO_BIOTYPE is re-exported to sibling scripts
+    GENE_FTYPE_TO_BIOTYPE,
+    gff_seqids,
+    infer_biotype,
+)
 
 THRESHOLDS = [1, 5, 10, 20, 50, 80, 90, 100]
 
@@ -337,43 +341,6 @@ def gene_description(attrs: dict) -> str:
         if v:
             return unquote(v)
     return ""
-
-
-# Gene-level feature types (GFF3 column 3) mapped to the biotype they imply
-# when the record carries no gene_biotype/biotype/gene_type attribute at all.
-# NCBI's annotwriter always sets gene_biotype=... explicitly on a plain
-# "gene" feature, so that attribute wins when present (see infer_biotype).
-# Sources that instead encode biotype in the feature type itself - VEuPathDB
-# (FungiDB, PlasmoDB, ...) and Ensembl-style GFF3 both do this - are the ones
-# this table is for: a bare "gene" with no biotype attribute is, by GFF3
-# convention, protein-coding; RNA genes get their own explicit type.
-GENE_FTYPE_TO_BIOTYPE = {
-    "gene": "protein_coding",
-    "protein_coding_gene": "protein_coding",
-    "pseudogene": "pseudogene",
-    "tRNA_gene": "tRNA",
-    "rRNA_gene": "rRNA",
-    "ncRNA_gene": "ncRNA",
-    "snoRNA_gene": "snoRNA",
-    "snRNA_gene": "snRNA",
-    "miRNA_gene": "miRNA",
-}
-BIOTYPE_ATTR_KEYS = ("gene_biotype", "biotype", "gene_type")
-
-
-def infer_biotype(ftype: str, attrs: dict) -> str:
-    """gene_biotype if the record has one under any of the common attribute
-    names (gene_biotype: NCBI/RefSeq; biotype: Ensembl-style;
-    gene_type: GENCODE) - whichever source's GFF this is, that explicit
-    label is authoritative. Otherwise fall back to what the feature type
-    itself implies (GENE_FTYPE_TO_BIOTYPE) - needed for GFF3 without any
-    biotype attribute, like VEuPathDB's (see the module docstring note on
-    genome_id "AF293"/"A1160"/"A1163": their GFFs are FungiDB exports with a
-    bare "gene" type and no gene_biotype attribute at all)."""
-    for key in BIOTYPE_ATTR_KEYS:
-        if key in attrs:
-            return attrs[key]
-    return GENE_FTYPE_TO_BIOTYPE.get(ftype, "NA")
 
 
 def parse_gff(gff_path: Path):

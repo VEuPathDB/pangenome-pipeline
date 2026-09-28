@@ -82,12 +82,17 @@ import os
 import re
 import sys
 from collections import defaultdict
+from functools import partial
 from pathlib import Path
 from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import biotype_category as _biotype_category
 from pangenome_common.gff import find_gff
 from pangenome_common.intervals import segments_overlap_bp
+
+# This script reports other RNA genes as "ncRNA_other".
+biotype_category = partial(_biotype_category, other_rna_label="ncRNA_other")
 
 try:
     import matplotlib
@@ -121,45 +126,11 @@ FEATURE_TYPE_TO_CATEGORY = {
     "scrna_gene": "ncRNA_other",
 }
 
-# gene_biotype=/biotype= attribute values (NCBI/GenBank and Ensembl-style conventions).
-BIOTYPE_VALUE_TO_CATEGORY = {
-    "protein_coding": "protein_coding",
-    "mrna": "protein_coding",
-    "pseudogene": "pseudogene",
-    "trna": "tRNA",
-    "rrna": "rRNA",
-    "ncrna": "ncRNA_other",
-    "lncrna": "ncRNA_other",
-    "lnc_rna": "ncRNA_other",
-    "snrna": "ncRNA_other",
-    "snorna": "ncRNA_other",
-    "mirna": "ncRNA_other",
-    "misc_rna": "ncRNA_other",
-}
-
 # When neither the feature type nor a biotype attribute gives an answer, this is the order
 # children types are checked in - CDS first, since a CDS child is definitive regardless of
 # whatever else is nested under the same gene.
 NCRNA_DESCENDANT_TYPES = {"ncrna", "lnc_rna", "lncrna", "snrna", "snorna", "mirna", "misc_rna"}
 
-
-
-def biotype_category(value):
-    """Category for a gene_biotype=/biotype= value: exact matches first, then the same idea for the
-    many variants other sources use (processed_pseudogene, Mt_tRNA, rRNA_pseudogene, sRNA, ...).
-    Anything else (e.g. IG_C_gene) is left unrecognized."""
-    v = value.strip().strip('"').lower()
-    if v in BIOTYPE_VALUE_TO_CATEGORY:
-        return BIOTYPE_VALUE_TO_CATEGORY[v]
-    if "pseudogene" in v:
-        return "pseudogene"
-    if "trna" in v:
-        return "tRNA"
-    if "rrna" in v:
-        return "rRNA"
-    if "rna" in v:
-        return "ncRNA_other"
-    return None
 
 
 CATEGORIES = ["protein_coding", "pseudogene", "tRNA", "rRNA", "ncRNA_other", "unclassified"]

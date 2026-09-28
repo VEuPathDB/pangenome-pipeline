@@ -32,3 +32,72 @@ def gff_seqids(path):
                 continue
             ids.add(line.split("\t", 1)[0])
     return ids
+
+
+# Gene-level feature types (GFF3 column 3) mapped to the biotype they imply when the record
+# carries no gene_biotype/biotype/gene_type attribute at all. NCBI's annotwriter always sets
+# gene_biotype=... explicitly on a plain "gene" feature, so that attribute wins when present
+# (see infer_biotype). Sources that instead encode biotype in the feature type itself -
+# VEuPathDB (FungiDB, PlasmoDB, ...) and Ensembl-style GFF3 both do this - are the ones this
+# table is for: a bare "gene" with no biotype attribute is, by GFF3 convention, protein-coding;
+# RNA genes get their own explicit type.
+GENE_FTYPE_TO_BIOTYPE = {
+    "gene": "protein_coding",
+    "protein_coding_gene": "protein_coding",
+    "pseudogene": "pseudogene",
+    "tRNA_gene": "tRNA",
+    "rRNA_gene": "rRNA",
+    "ncRNA_gene": "ncRNA",
+    "snoRNA_gene": "snoRNA",
+    "snRNA_gene": "snRNA",
+    "miRNA_gene": "miRNA",
+}
+BIOTYPE_ATTR_KEYS = ("gene_biotype", "biotype", "gene_type")
+
+
+def infer_biotype(ftype, attrs):
+    """The record's own gene_biotype/biotype/gene_type attribute if it has one (NCBI/RefSeq,
+    Ensembl-style, GENCODE - that explicit label is authoritative), otherwise what the feature
+    type implies (GENE_FTYPE_TO_BIOTYPE), otherwise "NA"."""
+    for key in BIOTYPE_ATTR_KEYS:
+        if key in attrs:
+            return attrs[key]
+    return GENE_FTYPE_TO_BIOTYPE.get(ftype, "NA")
+
+
+# gene_biotype=/biotype= attribute values (NCBI/GenBank and Ensembl-style conventions),
+# lower-cased, to the broad category the pipeline reports and filters on.
+BIOTYPE_TO_CATEGORY = {
+    "protein_coding": "protein_coding",
+    "mrna": "protein_coding",
+    "pseudogene": "pseudogene",
+    "trna": "tRNA",
+    "rrna": "rRNA",
+    "ncrna": "ncRNA",
+    "lncrna": "ncRNA",
+    "lnc_rna": "ncRNA",
+    "snrna": "ncRNA",
+    "snorna": "ncRNA",
+    "mirna": "ncRNA",
+    "misc_rna": "ncRNA",
+}
+
+
+def biotype_category(value, other_rna_label="ncRNA"):
+    """Category for a gene_biotype=/biotype= value: exact matches first, then the same idea for
+    the many variants other sources use (processed_pseudogene, Mt_tRNA, rRNA_pseudogene, sRNA,
+    scaRNA, lncRNA...). Anything else (e.g. IG_C_gene) is None - left for the caller to report.
+
+    RNA genes other than tRNA/rRNA come back as other_rna_label ("ncRNA" by default)."""
+    v = value.strip().strip('"').lower()
+    category = BIOTYPE_TO_CATEGORY.get(v)
+    if category is None:
+        if "pseudogene" in v:
+            category = "pseudogene"
+        elif "trna" in v:
+            category = "tRNA"
+        elif "rrna" in v:
+            category = "rRNA"
+        elif "rna" in v:
+            category = "ncRNA"
+    return other_rna_label if category == "ncRNA" else category
