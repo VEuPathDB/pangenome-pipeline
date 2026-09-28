@@ -48,108 +48,24 @@ Usage:
 
 import argparse
 import os
-import re
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.intervals import segments_overlap_bp
 from pangenome_common.io import read_strains
 
-ID_RE = re.compile(r"ID=([^;]+)")
-PARENT_RE = re.compile(r"Parent=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from annotation_common import (
+    CHILD_FEATURE_TYPES,
+    ID_RE,
+    add_original_id_attr,
+    assign_new_ids,
+    find_cds_overlaps,
+    parse_gff,
+)
 
 TAG_PRIORITY = {"with_main": 3, "with_other_with_domain": 2, "with_other_no_domain": 1}
-
-# Same set filter_final_annotation.py uses to recognize "a new gene-level block just started".
-CHILD_FEATURE_TYPES = {
-    "mRNA", "pseudogenic_transcript", "CDS", "exon", "five_prime_UTR", "three_prime_UTR",
-    "ncRNA", "tRNA", "rRNA", "snRNA", "snoRNA",
-}
-
-
-def parse_gff(path):
-    genes = {}
-    mrna_to_gene = {}
-    cds_by_mrna = defaultdict(list)
-    mrna_has_domain = defaultdict(bool)
-
-    with open(path) as fh:
-        raw_lines = fh.readlines()
-
-    for line in raw_lines:
-        if line.startswith("#") or not line.strip():
-            continue
-        fields = line.rstrip("\n").split("\t")
-        if len(fields) < 9:
-            continue
-        seqname, source, feature, start, end, score, strand = fields[:7]
-        attrs = fields[8]
-        m = ID_RE.search(attrs)
-        feat_id = m.group(1) if m else None
-
-        if feature == "protein_coding_gene" and feat_id:
-            genes[feat_id] = {
-                "id": feat_id, "seqname": seqname, "source": source,
-                "start": int(start), "end": int(end),
-            }
-        elif feature == "mRNA" and feat_id:
-            parent = PARENT_RE.search(attrs)
-            if parent:
-                mrna_to_gene[feat_id] = parent.group(1)
-
-    for line in raw_lines:
-        if line.startswith("#") or not line.strip():
-            continue
-        fields = line.rstrip("\n").split("\t")
-        if len(fields) < 9:
-            continue
-        feature, start, end, attrs = fields[2], fields[3], fields[4], fields[8]
-        if feature != "CDS":
-            continue
-        parent = PARENT_RE.search(attrs)
-        if not parent:
-            continue
-        mrna_id = parent.group(1)
-        if mrna_to_gene.get(mrna_id) not in genes:
-            continue
-        cds_by_mrna[mrna_id].append((int(start), int(end)))
-        if "InterPro:" in attrs or "PFAM:" in attrs or "Pfam:" in attrs:
-            mrna_has_domain[mrna_id] = True
-
-    for gene_id, gene in genes.items():
-        gene_mrnas = [m for m, g in mrna_to_gene.items() if g == gene_id]
-        best_mrna, best_bp = None, -1
-        for mrna_id in gene_mrnas:
-            segs = cds_by_mrna.get(mrna_id, [])
-            bp = sum(e - s + 1 for s, e in segs)
-            if bp > best_bp:
-                best_bp, best_mrna = bp, mrna_id
-        gene["cds_segments"] = cds_by_mrna.get(best_mrna, [])
-        gene["has_domain"] = any(mrna_has_domain.get(m, False) for m in gene_mrnas)
-
-    return genes
-
-
-def find_cds_overlaps(genes, min_overlap_bp):
-    by_seq = defaultdict(list)
-    for gene in genes.values():
-        by_seq[gene["seqname"]].append(gene)
-
-    pairs = []
-    for seqname, seq_genes in by_seq.items():
-        seq_genes.sort(key=lambda g: g["start"])
-        active = []
-        for gene in seq_genes:
-            active = [a for a in active if a["end"] >= gene["start"]]
-            for other in active:
-                ov_bp = segments_overlap_bp(other["cds_segments"], gene["cds_segments"])
-                if ov_bp >= min_overlap_bp:
-                    pairs.append((other["id"], gene["id"], ov_bp))
-            active.append(gene)
-    return pairs
-
 
 def compute_tags(genes, overlap_pairs, ref_tag):
     """gene_id -> (tag, [(partner_id, overlap_bp), ...]) for every gene involved in >=1 pair."""
@@ -174,16 +90,6 @@ def compute_tags(genes, overlap_pairs, ref_tag):
             update(gid, tag, partner["id"], ov_bp)
 
     return best_tag, partners
-
-
-def assign_new_ids(genes, strain_index, id_prefix):
-    ordered = sorted(genes, key=lambda gid: (genes[gid]["seqname"], genes[gid]["start"]))
-    width = max(5, len(str(len(ordered))))
-    return {gid: f"{id_prefix}{strain_index}g{i:0{width}d}" for i, gid in enumerate(ordered, start=1)}
-
-
-def add_original_id_attr(attrs, old_id):
-    return attrs.rstrip(";") + f";original_ID={old_id}"
 
 
 def write_tagged_gff(gff_path, out_path, best_tag, id_mapping):
@@ -255,7 +161,7 @@ def main():
         genes = parse_gff(gff_path)
         overlap_pairs = find_cds_overlaps(genes, args.min_overlap_bp)
         best_tag, partners = compute_tags(genes, overlap_pairs, args.reference_source_tag)
-        id_mapping = assign_new_ids(genes, i, args.id_prefix)
+        id_mapping = assign_new_ids(genes, genes, i, args.id_prefix)
         write_tagged_gff(gff_path, out_path, best_tag, id_mapping)
 
         with open(pairs_report_path, "w") as fh:

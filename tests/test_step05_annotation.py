@@ -16,6 +16,11 @@ def ffa(load_script):
     return load_script(SCRIPTS + "filter_final_annotation.py")
 
 
+@pytest.fixture(scope="module")
+def common(load_script):
+    return load_script(SCRIPTS + "annotation_common.py")
+
+
 def _gene(gid, start, end, segs, seqname="chr1", source="good_X", **kw):
     gene = {
         "id": gid,
@@ -74,37 +79,46 @@ def test_extract_good_transfer_ids_only_counts_gene_features(good, write_file):
 
 
 #
-# filter_final_annotation.py
+# annotation_common.py (shared by filter, tag and the QC plots)
 #
 
 
-def test_segments_overlap_bp(ffa):
-    assert ffa.segments_overlap_bp([(1, 10), (20, 30)], [(5, 25)]) == 6 + 6
-    assert ffa.segments_overlap_bp([(1, 10)], [(11, 20)]) == 0
+def test_valid_orf_tristate(common):
+    assert common.valid_orf("valid_ORF=True") is True
+    assert common.valid_orf("valid_ORFs=0") is False
+    assert common.valid_orf("ID=g1") is None
 
 
-def test_valid_orf_tristate(ffa):
-    assert ffa._valid_orf("valid_ORF=True") is True
-    assert ffa._valid_orf("valid_ORFs=0") is False
-    assert ffa._valid_orf("ID=g1") is None
-
-
-def test_find_cds_overlaps_uses_cds_not_gene_span(ffa):
+def test_find_cds_overlaps_uses_cds_not_gene_span(common):
     genes = {
         "a": _gene("a", 1, 500, [(1, 100), (400, 500)]),
         "b": _gene("b", 150, 350, [(150, 350)]),  # inside a's intron: gene spans overlap, CDS don't
         "c": _gene("c", 450, 700, [(450, 700)]),
         "d": _gene("d", 450, 700, [(450, 700)], seqname="chr2"),
     }
-    assert ffa.find_cds_overlaps(genes, min_overlap_bp=20) == [("a", "c", 51)]
-    assert ffa.find_cds_overlaps(genes, min_overlap_bp=60) == []
+    assert common.find_cds_overlaps(genes, min_overlap_bp=20) == [("a", "c", 51)]
+    assert common.find_cds_overlaps(genes, min_overlap_bp=60) == []
 
 
-def test_classify_minor_position(ffa):
+def test_find_cds_overlaps_strand_flag_and_default_threshold(common):
+    genes = {
+        "a": _gene("a", 1, 100, [(1, 100)], strand="+"),
+        "b": _gene("b", 100, 200, [(100, 200)], strand="-"),  # 1 bp overlap
+    }
+    assert common.find_cds_overlaps(genes) == [("a", "b", 1)]
+    assert common.find_cds_overlaps(genes, with_strand=True) == [("a", "b", 1, False)]
+
+
+def test_classify_minor_position(common):
     bigger = _gene("big", 1, 1000, [(1, 100), (400, 500), (900, 1000)])
-    assert ffa.classify_minor_position(bigger, [(950, 1100)]) == "flank"
-    assert ffa.classify_minor_position(bigger, [(450, 460)]) == "inside"
-    assert ffa.classify_minor_position(_gene("one", 1, 100, [(1, 100)]), [(90, 120)]) == "single_exon"
+    assert common.classify_minor_position(bigger, [(950, 1100)]) == "flank"
+    assert common.classify_minor_position(bigger, [(450, 460)]) == "inside"
+    assert common.classify_minor_position(_gene("one", 1, 100, [(1, 100)]), [(90, 120)]) == "single_exon"
+
+
+#
+# filter_final_annotation.py
+#
 
 
 def test_is_qualifying_overlap_minor_flank_is_not_a_conflict(ffa):
@@ -125,16 +139,16 @@ def test_panel_check(ffa):
     assert ffa.panel_check("common", "x", 0.5, present, {"common": {"A", "B"}}, 2, "") is not None
 
 
-def test_assign_new_ids_orders_by_position(ffa):
+def test_assign_new_ids_orders_by_position(common):
     genes = {"g2": _gene("g2", 500, 600, []), "g1": _gene("g1", 100, 200, []), "g3": _gene("g3", 1, 50, [], "chr2")}
-    assert ffa.assign_new_ids(genes, {"g1", "g2", "g3"}, 3, "Tg") == {
+    assert common.assign_new_ids(genes, {"g1", "g2", "g3"}, 3, "Tg") == {
         "g1": "Tg3g00001",
         "g2": "Tg3g00002",
         "g3": "Tg3g00003",
     }
 
 
-def test_parse_gff_picks_longest_mrna_and_reads_evidence(ffa, write_file):
+def test_parse_gff_picks_longest_mrna_and_reads_evidence(common, ffa, write_file):
     text = (
         gff_line("chr1", "protein_coding_gene", 1, 500, "+", "ID=g1;description=heat+shock%20protein;coverage=0.8")
         + gff_line("chr1", "mRNA", 1, 500, "+", "ID=m1;Parent=g1")
@@ -144,7 +158,7 @@ def test_parse_gff_picks_longest_mrna_and_reads_evidence(ffa, write_file):
         + gff_line("chr1", "CDS", 300, 500, "+", "ID=c3;Parent=m2;Dbxref=InterPro:IPR1")
         + gff_line("chr1", "protein_coding_gene", 600, 700, "+", "ID=g2;description=hypothetical protein")
     )
-    genes = ffa.parse_gff(write_file("final.gff", text))
+    genes = common.parse_gff(write_file("final.gff", text))
     g1 = genes["g1"]
     assert g1["cds_segments"] == [(1, 100), (300, 500)]
     assert g1["cds_bp"] == 301

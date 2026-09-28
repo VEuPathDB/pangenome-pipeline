@@ -637,7 +637,8 @@ Moreover, due to the liftoff process that can predict slightly different gene mo
 Scripts: [`scripts/filter_final_annotation_job.sh`](scripts/filter_final_annotation_job.sh) ·
 [`scripts/filter_final_annotation.py`](scripts/filter_final_annotation.py) ·
 [`scripts/plot_filter_qc_job.sh`](scripts/plot_filter_qc_job.sh) ·
-[`scripts/plot_filter_qc.py`](scripts/plot_filter_qc.py)
+[`scripts/plot_filter_qc.py`](scripts/plot_filter_qc.py) · shared with 7b and the QC plots:
+[`scripts/annotation_common.py`](scripts/annotation_common.py) (GFF parsing, CDS-overlap scan, ID renumbering)
 
 
 A gene is never partially removed: it's dropped from **every** genome's output or from none -
@@ -803,7 +804,7 @@ on to [step 06 - GET_PANGENES](../06_GET_PANGENES/README.md) to prepare and run
 ### 7b. No filtering (tag, decide after get_pangenes)
 
 Scripts: [`scripts/tag_final_annotation_job.sh`](scripts/tag_final_annotation_job.sh) ·
-[`scripts/tag_final_annotation.py`](scripts/tag_final_annotation.py)
+[`scripts/tag_final_annotation.py`](scripts/tag_final_annotation.py) · [`scripts/annotation_common.py`](scripts/annotation_common.py)
 
 **Why this exists.** 7a's overlap-resolution rule can still be wrong in a specific way: if a
 gene overlaps something in only one genome of the panel because that one genome's `main`/other

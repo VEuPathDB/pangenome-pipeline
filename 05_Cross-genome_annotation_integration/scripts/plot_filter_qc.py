@@ -47,7 +47,7 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from filter_final_annotation import ID_RE, PARENT_RE, _float_attr, _int_attr, _valid_orf, find_cds_overlaps
+from annotation_common import ID_RE, PARENT_RE, find_cds_overlaps, float_attr, int_attr, source_counts, valid_orf
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 from pangenome_common.io import read_strains
@@ -95,9 +95,9 @@ def parse_gff_for_qc(path, gene_feature_type):
             genes[feat_id] = {
                 "id": feat_id, "seqname": seqname, "source": source,
                 "start": int(start), "end": int(end), "strand": strand,
-                "extra_copy_number": _int_attr(attrs, "extra_copy_number"),
-                "valid_ORF": _valid_orf(attrs),
-                "coverage": _float_attr(attrs, "coverage"),
+                "extra_copy_number": int_attr(attrs, "extra_copy_number"),
+                "valid_ORF": valid_orf(attrs),
+                "coverage": float_attr(attrs, "coverage"),
             }
         elif feature == "mRNA" and feat_id:
             parent = PARENT_RE.search(attrs)
@@ -155,26 +155,6 @@ def severity_counts(genes, min_overlap_bp):
             counts["substantial"] += 1
         else:
             counts["minor"] += 1
-    return counts
-
-
-def source_counts(genes, reference_strain):
-    """reference_strain is the actual genome name (e.g. "ME49"), not the "main" tag -
-    needed to split "rescued_<reference>" out from every other strain's "rescued_<x>"."""
-    ref_rescued_tag = f"rescued_{reference_strain}"
-    counts = {"main": 0, "original": 0, "reference_rescued": 0, "good_others": 0, "rescued_others": 0}
-    for g in genes.values():
-        src = g["source"]
-        if src == "main":
-            counts["main"] += 1
-        elif src == ref_rescued_tag:
-            counts["reference_rescued"] += 1
-        elif src.startswith("good_"):
-            counts["good_others"] += 1
-        elif src.startswith("rescued_"):
-            counts["rescued_others"] += 1
-        else:
-            counts["original"] += 1
     return counts
 
 

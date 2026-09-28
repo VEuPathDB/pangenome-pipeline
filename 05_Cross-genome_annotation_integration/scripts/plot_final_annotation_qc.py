@@ -58,8 +58,20 @@ from pathlib import Path
 from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.intervals import segments_overlap_bp
 from pangenome_common.io import read_strains
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from annotation_common import (
+    DESCRIPTION_RE,
+    ID_RE,
+    PARENT_RE,
+    PRODUCT_RE,
+    classify_minor_position,
+    find_cds_overlaps,
+    int_attr,
+    source_counts,
+    valid_orf,
+)
 
 try:
     import matplotlib
@@ -69,29 +81,9 @@ except ImportError:
     sys.exit("ERROR: this script needs matplotlib - install it with 'pip install matplotlib'")
 
 GENE_BIOTYPE_RE = re.compile(r"(?:^|;)gene_biotype=([^;]+)")
-ID_RE = re.compile(r"ID=([^;]+)")
-PARENT_RE = re.compile(r"Parent=([^;]+)")
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
 COPY_NUM_ID_RE = re.compile(r"(?:^|;)copy_num_ID=([^;]+)")
 COVERAGE_RE = re.compile(r"(?:^|;)coverage=([^;]+)")
 SEQUENCE_ID_RE = re.compile(r"(?:^|;)sequence_ID=([^;]+)")
-
-
-def _int_attr(attrs, key):
-    m = re.search(rf"{key}=(\d+)", attrs)
-    return int(m.group(1)) if m else None
-
-
-def _valid_orf(attrs):
-    if "valid_ORF=True" in attrs:
-        return True
-    if "valid_ORF=False" in attrs:
-        return False
-    m = re.search(r"valid_ORFs=(\d+)", attrs)
-    if m:
-        return int(m.group(1)) >= 1
-    return None
 
 
 def parse_gff(path):
@@ -123,8 +115,8 @@ def parse_gff(path):
             genes[feat_id] = {
                 "id": feat_id, "seqname": seqname, "source": source,
                 "start": int(start), "end": int(end), "strand": strand,
-                "extra_copy_number": _int_attr(attrs, "extra_copy_number"),
-                "valid_ORF": _valid_orf(attrs),
+                "extra_copy_number": int_attr(attrs, "extra_copy_number"),
+                "valid_ORF": valid_orf(attrs),
                 "description": unquote(desc_m.group(1)) if desc_m else "",
                 "coverage": cov_m.group(1) if cov_m else "",
                 "sequence_ID": seqid_m.group(1) if seqid_m else "",
@@ -188,51 +180,6 @@ def classify_pair_case(g1, g2):
     return "5_other_x_other_both_domain" if d1 else "6_other_x_other_no_domain"
 
 
-def classify_minor_position(bigger_gene, ov_bp, smaller_cds_segments):
-    """Only meaningful for a "minor"-severity pair: does the overlap sit at one of the BIGGER
-    gene's own two outermost CDS segments ("flank" - the overlap is near where the bigger gene's
-    own model could legitimately be a bit off, or where a genuinely separate adjacent gene could
-    sit just outside its real boundary - most likely just gene-model boundary imprecision, both
-    genes real), or on one of its INTERNAL segments ("inside" - the smaller gene's CDS reaches an
-    exon buried in the middle of the bigger gene, meaning most of the smaller gene's own body
-    sits inside one of the bigger gene's introns - much harder to explain as boundary noise, more
-    likely a spurious gene call for the smaller one). "single_exon" when the bigger gene has only
-    one CDS segment - the flank/inside distinction needs at least one intron to mean anything."""
-    segs = bigger_gene["cds_segments"]
-    if len(segs) <= 1:
-        return "single_exon"
-    outer = {segs[0], segs[-1]}
-    overlapped = {s for s in segs for ss, se in smaller_cds_segments
-                  if max(s[0], ss) <= min(s[1], se)}
-    if not overlapped:
-        return None  # shouldn't happen if ov_bp > 0, but don't crash on it
-    return "flank" if overlapped <= outer else "inside"
-
-
-def find_cds_overlaps(genes):
-    """Sweep-line scan for CDS-to-CDS overlapping gene pairs, returning the overlap length
-    in bp and whether the pair is same-strand for each pair - same approach as
-    filter_final_annotation.py and analyze_input_gffs.py's pre-Liftoff version of this same
-    check (identical segments_overlap_bp, identical "smaller gene's CDS" denominator, identical
-    20%/80% thresholds - the two are meant to be directly comparable, see severity_counts)."""
-    by_seq = defaultdict(list)
-    for gene in genes.values():
-        by_seq[gene["seqname"]].append(gene)
-
-    pairs = []
-    for seqname, seq_genes in by_seq.items():
-        seq_genes.sort(key=lambda g: g["start"])
-        active = []
-        for gene in seq_genes:
-            active = [a for a in active if a["end"] >= gene["start"]]
-            for other in active:
-                ov_bp = segments_overlap_bp(other["cds_segments"], gene["cds_segments"])
-                if ov_bp > 0:
-                    pairs.append((other["id"], gene["id"], ov_bp, other["strand"] == gene["strand"]))
-            active.append(gene)
-    return pairs
-
-
 def count_original_protein_coding(path):
     """Works for either naming convention: FungiDB-style 'protein_coding_gene' as its own
     feature type, or NCBI-style plain 'gene' with a gene_biotype=protein_coding attribute."""
@@ -279,7 +226,7 @@ def severity_counts(genes):
     with a SAME-strand CDS already placed - an opposite-strand collision, or two genes added in
     the same round that collide with each other, are never blocked at that stage. That is exactly
     what step 7's filter resolves, so a high pair count here, before filtering, is expected."""
-    pairs = find_cds_overlaps(genes)
+    pairs = find_cds_overlaps(genes, with_strand=True)
     counts = {"minor": 0, "substantial": 0, "contained": 0}
     strand = {"same_strand": 0, "opposite_strand": 0}
     for gene1_id, gene2_id, ov_bp, same_strand in pairs:
@@ -290,26 +237,6 @@ def severity_counts(genes):
         strand["same_strand" if same_strand else "opposite_strand"] += 1
         counts[severity] += 1
     counts.update(strand)
-    return counts
-
-
-def source_counts(genes, reference_strain):
-    """reference_strain is the actual genome name (e.g. "AF293"), not the "main" tag - needed
-    to split "rescued_<reference>" out from every other strain's "rescued_<x>"."""
-    ref_rescued_tag = f"rescued_{reference_strain}"
-    counts = {"main": 0, "original": 0, "reference_rescued": 0, "good_others": 0, "rescued_others": 0}
-    for g in genes.values():
-        src = g["source"]
-        if src == "main":
-            counts["main"] += 1
-        elif src == ref_rescued_tag:
-            counts["reference_rescued"] += 1
-        elif src.startswith("good_"):
-            counts["good_others"] += 1
-        elif src.startswith("rescued_"):
-            counts["rescued_others"] += 1
-        else:
-            counts["original"] += 1
     return counts
 
 
@@ -352,7 +279,7 @@ def main():
 
         # Pair-level detail (mirrors this project's pre-Liftoff cds_overlapping_pairs.tsv) plus
         # per-strain domain-evidence and distinct-gene summaries for those same pairs.
-        overlap_pairs = find_cds_overlaps(genes)
+        overlap_pairs = find_cds_overlaps(genes, with_strand=True)
         domain_counts = {"both": 0, "one": 0, "none": 0}
         minor_position_counts = {"flank": 0, "inside": 0, "single_exon": 0}
         genes_in_overlap = set()
@@ -370,7 +297,7 @@ def main():
             # overlap sits at the edge or in the middle of the LARGER gene's own exon structure.
             if severity == "minor":
                 bigger, smaller = (g1, g2) if g1["cds_bp"] >= g2["cds_bp"] else (g2, g1)
-                minor_position = classify_minor_position(bigger, ov_bp, smaller["cds_segments"])
+                minor_position = classify_minor_position(bigger, smaller["cds_segments"])
                 if minor_position:
                     minor_position_counts[minor_position] += 1
             else:
