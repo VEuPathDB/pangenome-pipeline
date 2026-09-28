@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from urllib.parse import unquote_plus
 
 
 def find_gff(gff_dir, name, exts=(".gff3", ".gff"), case_insensitive=False):
@@ -101,3 +102,29 @@ def biotype_category(value, other_rna_label="ncRNA"):
         elif "rna" in v:
             category = "ncRNA"
     return other_rna_label if category == "ncRNA" else category
+
+
+def parse_attributes(attr_str):
+    """GFF3 column 9 as a dict; values are left URL-encoded."""
+    attrs = {}
+    for kv in attr_str.strip().split(";"):
+        if "=" in kv:
+            k, v = kv.split("=", 1)
+            attrs[k] = v
+    return attrs
+
+
+# Free-text description, checked in this order - NCBI puts "product" on the mRNA/CDS rather
+# than the gene; VEuPathDB (FungiDB, ...) puts "description" directly on the gene; "Note" and
+# "Name" are the common fallbacks when neither of those is set.
+DESCRIPTION_ATTR_KEYS = ("description", "product", "Note", "note", "Name")
+
+
+def gene_description(attrs):
+    """The first non-empty description-like attribute, decoded: %XX escapes and '+' as a space
+    (VEuPathDB writes "hypothetical+protein"). "" if there is none."""
+    for key in DESCRIPTION_ATTR_KEYS:
+        v = attrs.get(key)
+        if v:
+            return unquote_plus(v)
+    return ""

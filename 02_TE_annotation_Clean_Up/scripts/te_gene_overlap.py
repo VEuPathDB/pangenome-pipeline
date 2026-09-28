@@ -55,7 +55,6 @@ import bisect
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from urllib.parse import unquote
 
 import matplotlib
 
@@ -76,10 +75,12 @@ from summarize_te_content import (
 )
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import (  # GENE_FTYPE_TO_BIOTYPE is re-exported to sibling scripts
+from pangenome_common.gff import (  # GENE_FTYPE_TO_BIOTYPE, parse_attributes: re-exported to sibling scripts
     GENE_FTYPE_TO_BIOTYPE,
+    gene_description,
     gff_seqids,
     infer_biotype,
+    parse_attributes,
 )
 
 THRESHOLDS = [1, 5, 10, 20, 50, 80, 90, 100]
@@ -317,30 +318,6 @@ def overlapping_elements(element_list, query_intervals):
             if ov > 0:
                 results.append((el_s, el_e, cls, name, ov, div))
     return results
-
-
-def parse_attributes(attr_str: str) -> dict:
-    attrs = {}
-    for kv in attr_str.split(";"):
-        if "=" in kv:
-            k, v = kv.split("=", 1)
-            attrs[k] = v
-    return attrs
-
-
-# Free-text description, checked in this order - NCBI puts "product" on the
-# mRNA/CDS rather than the gene; VEuPathDB (FungiDB, ...) puts "description"
-# directly on the gene; "Note" and "Name" are the common fallbacks when
-# neither of those is set.
-DESCRIPTION_ATTR_KEYS = ("description", "product", "Note", "note", "Name")
-
-
-def gene_description(attrs: dict) -> str:
-    for key in DESCRIPTION_ATTR_KEYS:
-        v = attrs.get(key)
-        if v:
-            return unquote(v)
-    return ""
 
 
 def parse_gff(gff_path: Path):

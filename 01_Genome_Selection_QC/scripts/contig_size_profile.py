@@ -38,7 +38,7 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 from pangenome_common.gff import find_gff as _find_gff
-from pangenome_common.gff import infer_biotype
+from pangenome_common.gff import gene_description, infer_biotype, parse_attributes
 
 # <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
 find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)
@@ -56,30 +56,6 @@ GENE_FEATURE_TYPES = {
 }
 
 PC_PSEUDO_BIOTYPES = {"protein_coding", "pseudogene"}  # what GET_PANGENES actually uses
-
-
-def parse_attributes(attr_str: str) -> dict:
-    attrs = {}
-    for kv in attr_str.strip().split(";"):
-        if "=" in kv:
-            k, v = kv.split("=", 1)
-            attrs[k] = v
-    return attrs
-
-
-# Same order/keys as te_gene_overlap.py's gene_description(): NCBI puts
-# "product" on the mRNA/CDS rather than the gene itself, so this alone
-# won't catch every case - good enough for a quick "what is this gene"
-# label without re-implementing the full mRNA-fallback logic here.
-DESCRIPTION_ATTR_KEYS = ("description", "product", "Note", "note", "Name")
-
-
-def gene_description(attrs: dict) -> str:
-    from urllib.parse import unquote
-    for key in DESCRIPTION_ATTR_KEYS:
-        if key in attrs:
-            return unquote(attrs[key]).replace("+", " ")
-    return ""
 
 
 def find_genomes(genomes_dir: Path) -> dict:

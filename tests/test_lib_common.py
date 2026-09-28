@@ -4,7 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from pangenome_common.gff import biotype_category, find_gff, gff_seqids, infer_biotype
+from pangenome_common.gff import (
+    biotype_category,
+    find_gff,
+    gene_description,
+    gff_seqids,
+    infer_biotype,
+    parse_attributes,
+)
 from pangenome_common.intervals import merged_len, segments_overlap_bp
 from pangenome_common.io import read_id_list, read_paf, read_strains
 
@@ -116,3 +123,15 @@ def test_biotype_category(value, expected):
 def test_biotype_category_other_rna_label():
     assert biotype_category("snoRNA", other_rna_label="ncRNA_other") == "ncRNA_other"
     assert biotype_category("tRNA", other_rna_label="ncRNA_other") == "tRNA"
+
+
+def test_parse_attributes():
+    assert parse_attributes("ID=g1;Note=a=b;flag;Name=x \r") == {"ID": "g1", "Note": "a=b", "Name": "x"}
+
+
+def test_gene_description_first_non_empty_and_decoded():
+    assert gene_description({"description": "hypothetical+protein"}) == "hypothetical protein"
+    assert gene_description({"description": "heat%20shock%2Bcofactor"}) == "heat shock+cofactor"
+    assert gene_description({"description": "", "product": "kinase"}) == "kinase"
+    assert gene_description({"Name": "abc"}) == "abc"
+    assert gene_description({}) == ""
