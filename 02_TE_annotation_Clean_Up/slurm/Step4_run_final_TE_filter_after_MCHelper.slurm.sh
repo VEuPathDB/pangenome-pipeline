@@ -12,7 +12,7 @@ set -euo pipefail
 step_start="$(date +%s)"
 
 # Submit this script from the pipeline run directory:
-#   sbatch slurm/Step4_run_final_TE_filter_after_MCHelper.slurm
+#   sbatch slurm/Step4_run_final_TE_filter_after_MCHelper.slurm.sh
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd -P)}}"
 
 cd "${PROJECT_DIR}"

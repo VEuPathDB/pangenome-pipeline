@@ -217,7 +217,7 @@ def classify_minor_position(bigger_gene, ov_bp, smaller_cds_segments):
 def find_cds_overlaps(genes):
     """Sweep-line scan for CDS-to-CDS overlapping gene pairs, returning the overlap length
     in bp and whether the pair is same-strand for each pair - same approach as
-    check_overlapping_genes.py and analyze_input_gffs.py's pre-Liftoff version of this same
+    filter_final_annotation.py and analyze_input_gffs.py's pre-Liftoff version of this same
     check (identical segments_overlap_bp, identical "smaller gene's CDS" denominator, identical
     20%/80% thresholds - the two are meant to be directly comparable, see severity_counts)."""
     by_seq = defaultdict(list)
@@ -286,7 +286,7 @@ def severity_counts(genes):
     minor/substantial/contained counts (both strands combined, same as this project's pre-Liftoff
     baseline in analyze_input_gffs.py) plus a same-strand/opposite-strand split of the raw pair
     count - same-strand CDS collisions are the ones that "shouldn't normally happen" (see
-    check_overlapping_genes.py); most of what the all-against-all Liftoff introduces is
+    analyze_input_gffs.py); most of what the all-against-all Liftoff introduces is
     opposite-strand, because AGAT's own complement step only ever rejects a gene for colliding
     with a SAME-strand CDS already placed - an opposite-strand collision, or two genes added in
     the same round that collide with each other, are never blocked at that stage. That is exactly

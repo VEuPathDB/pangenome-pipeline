@@ -23,7 +23,7 @@ InterProScan TSV columns (no header row in the file itself):
 One protein can have many rows (one per domain hit, across analyses) - this collapses to
 one row per protein, listing every distinct InterPro accession and every distinct Pfam
 accession found for it (semicolon-separated), for
-inject_interpro_into_gff.py to consume.
+update_interpro_in_gff.py to consume.
 
 Usage:
     python3 merge_interpro_results.py \\

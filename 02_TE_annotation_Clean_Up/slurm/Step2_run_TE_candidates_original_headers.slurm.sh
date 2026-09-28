@@ -12,7 +12,7 @@ set -euo pipefail
 step_start="$(date +%s)"
 
 # Submit this script from the pipeline run directory:
-#   sbatch slurm/Step2_run_TE_candidates_original_headers.slurm
+#   sbatch slurm/Step2_run_TE_candidates_original_headers.slurm.sh
 PROJECT_DIR="${PROJECT_DIR:-${SLURM_SUBMIT_DIR:-$(pwd -P)}}"
 
 cd "${PROJECT_DIR}"

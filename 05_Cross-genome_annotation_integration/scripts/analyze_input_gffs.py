@@ -361,7 +361,7 @@ def overlap_severity(overlap_bp, gene_a, gene_b):
 
 
 def find_overlaps(genes, start_key, end_key):
-    """Sweep-line scan (same approach as check_overlapping_genes.py) restricted to
+    """Sweep-line scan (same approach as filter_final_annotation.py's find_cds_overlaps) restricted to
     protein-coding and pseudogene genes - overlap between two non-coding RNA genes, or between
     a non-coding gene and a coding one, isn't the same-locus-consistency problem this pipeline
     cares about here. `start_key`/`end_key` pick which span to sweep on:
