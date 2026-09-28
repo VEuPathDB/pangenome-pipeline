@@ -29,7 +29,6 @@ module load python/3.11.9
 set -u
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script PY 07_Post_GET_PANGENES_adjusting/scripts/explore_multigene_pangenes.py
 mkdir -p "$OUT_DIR"
 
 # get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.
@@ -41,7 +40,7 @@ if [[ ${#MATRICES[@]} -ne 1 ]]; then
     exit 1
 fi
 
-python3 "$PY" \
+python3 -m pangenome_pipeline.step07_post_get_pangenes_adjusting.explore_multigene_pangenes \
   --genes-matrix "${MATRICES[0]}" \
   --tagged-dir "$TAGGED_DIR" \
   -o "$OUT_DIR/${LABEL}_multigene"

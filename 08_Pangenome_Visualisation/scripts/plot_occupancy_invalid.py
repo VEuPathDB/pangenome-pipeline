@@ -2,7 +2,7 @@
 """Pangenes with mostly invalid genes, by pangene occupancy.
 
 A gene is "invalid" when it is pseudogene-like, by either mark (same definition as
-07_Post_GET_PANGENES_adjusting/scripts/explore_pseudogenes.py):
+src/pangenome_pipeline/step07_post_get_pangenes_adjusting/explore_pseudogenes.py):
   biotype     ebi_biotype=pseudogene or gene_biotype=pseudogene
   broken ORF  valid_ORFs=0 (or valid_ORF=False), a Liftoff transfer with no valid open reading frame
 A gene can only be judged if it has one of the two marks or an ORF result. Genes taken straight from a
