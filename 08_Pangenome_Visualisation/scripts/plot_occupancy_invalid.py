@@ -48,6 +48,21 @@ from plot_occupancy import COLORS, ORDER, categorize
 
 ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 
+PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
+INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
+DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
+PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
+# Same list as filter_final_annotation.py: a description this generic counts as no evidence.
+GENERIC_DESCRIPTIONS = {
+    "hypothetical protein",
+    "hypothetical protein, conserved",
+    "conserved hypothetical protein",
+    "unspecified product",
+    "unknown function",
+    "unnamed protein product",
+    "",
+}
+
 
 def gene_status(path):
     """gene ID -> True (invalid), False (valid) or None (not judged)."""
@@ -74,22 +89,6 @@ def gene_status(path):
                 known = True
             out[i.group(1)] = True if (biotype or broken) else (False if known else None)
     return out
-
-
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
-# Same list as filter_final_annotation.py: a description this generic counts as no evidence.
-GENERIC_DESCRIPTIONS = {
-    "hypothetical protein",
-    "hypothetical protein, conserved",
-    "conserved hypothetical protein",
-    "unspecified product",
-    "unknown function",
-    "unnamed protein product",
-    "",
-}
 
 
 def gene_status_overlap(path):

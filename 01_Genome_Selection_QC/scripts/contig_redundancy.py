@@ -32,6 +32,26 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 from pangenome_common.intervals import merged_len
 
+# Gene-level feature types (GFF3 column 3) counted as "a gene" here. NCBI
+# GFFs use plain "gene" for everything (biotype is a separate attribute);
+# VEuPathDB/FungiDB GFFs (e.g. AF293, A1160, A1163 in this project) commonly
+# use "protein_coding_gene" instead, with "pseudogene"/"tRNA_gene"/etc for
+# the rest - a bare f[2] == "gene" check recognises none of those and
+# silently returns 0 genes for every contig in such a genome. That 0 would
+# then read as "safe to drop, gene-free" in the redundancy report, so this
+# undercount is not cosmetic - it can make a gene-carrying contig look empty.
+GENE_FEATURE_TYPES = {
+    "gene",
+    "protein_coding_gene",
+    "pseudogene",
+    "ncRNA_gene",
+    "tRNA_gene",
+    "rRNA_gene",
+    "snoRNA_gene",
+    "snRNA_gene",
+    "miRNA_gene",
+}
+
 
 # ---------------------------------------------------------------- helpers -----
 def chrom_label(name):
@@ -84,27 +104,6 @@ def paf_rows(path, min_aln, min_id):
                 }
             )
     return out
-
-
-# Gene-level feature types (GFF3 column 3) counted as "a gene" here. NCBI
-# GFFs use plain "gene" for everything (biotype is a separate attribute);
-# VEuPathDB/FungiDB GFFs (e.g. AF293, A1160, A1163 in this project) commonly
-# use "protein_coding_gene" instead, with "pseudogene"/"tRNA_gene"/etc for
-# the rest - a bare f[2] == "gene" check recognises none of those and
-# silently returns 0 genes for every contig in such a genome. That 0 would
-# then read as "safe to drop, gene-free" in the redundancy report, so this
-# undercount is not cosmetic - it can make a gene-carrying contig look empty.
-GENE_FEATURE_TYPES = {
-    "gene",
-    "protein_coding_gene",
-    "pseudogene",
-    "ncRNA_gene",
-    "tRNA_gene",
-    "rRNA_gene",
-    "snoRNA_gene",
-    "snRNA_gene",
-    "miRNA_gene",
-}
 
 
 def gene_counts(gff):

@@ -4,15 +4,14 @@ import pytest
 
 SCRIPT = "Alternative_Get_PanLoci_pipeline/scripts/panloci_common.py"
 
+SAMPLES = (
+    "strain_id\tgenome_fasta\tannotation_gff\tanalysis_order\nB \tb.fa\tNA\t2\nA\ta.fa\tgffs/\t1\nC\tc.fa\tNA\t10\n"
+)
+
 
 @pytest.fixture(scope="module")
 def pc(load_script):
     return load_script(SCRIPT)
-
-
-SAMPLES = (
-    "strain_id\tgenome_fasta\tannotation_gff\tanalysis_order\nB \tb.fa\tNA\t2\nA\ta.fa\tgffs/\t1\nC\tc.fa\tNA\t10\n"
-)
 
 
 def test_parse_samples_sorted_or_file_order(pc, write_file):

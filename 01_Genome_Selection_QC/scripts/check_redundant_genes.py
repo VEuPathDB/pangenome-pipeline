@@ -37,27 +37,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
 from pangenome_common.intervals import merged_len
 
-
-def sh(cmd):
-    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
-
-
-def find_file(*paths):
-    for p in paths:
-        if os.path.exists(p):
-            return p
-    return None
-
-
-def _desc(attrs):
-    """Best human-readable label from GFF attributes."""
-    for k in ("product", "description", "Note", "Name", "gene"):
-        v = attrs.get(k)
-        if v:
-            return urllib.parse.unquote(v)
-    return ""
-
-
 # Gene-level feature types (GFF3 column 3). NCBI GFFs use plain "gene" for
 # everything; VEuPathDB/FungiDB GFFs (e.g. AF293, A1160, A1163 in this
 # project) commonly use "protein_coding_gene" instead, with
@@ -77,6 +56,26 @@ GENE_FEATURE_TYPES = {
     "snRNA_gene",
     "miRNA_gene",
 }
+
+
+def sh(cmd):
+    return subprocess.run(cmd, check=True, capture_output=True, text=True).stdout
+
+
+def find_file(*paths):
+    for p in paths:
+        if os.path.exists(p):
+            return p
+    return None
+
+
+def _desc(attrs):
+    """Best human-readable label from GFF attributes."""
+    for k in ("product", "description", "Note", "Name", "gene"):
+        v = attrs.get(k)
+        if v:
+            return urllib.parse.unquote(v)
+    return ""
 
 
 def read_gff_genes(gff):

@@ -65,6 +65,10 @@ GENE_FEATURE_TYPES = {
 
 PC_PSEUDO_BIOTYPES = {"protein_coding", "pseudogene"}  # what GET_PANGENES actually uses
 
+SIZE_BINS_KB = [(0, 1), (1, 10), (10, 100), (100, 1000), (1000, float("inf"))]
+SIZE_BIN_LABELS = ["<1 kb", "1-10 kb", "10-100 kb", "100 kb-1 Mb", ">=1 Mb"]
+SIZE_BIN_COLORS = ["#C44E52", "#DD8452", "#CCB974", "#55A868", "#4C72B0"]
+
 
 def find_genomes(genomes_dir: Path) -> dict:
     """<genome_label>.fna/.fasta/.fa -> path, one per genome."""
@@ -146,11 +150,6 @@ def style_axes(ax):
     ax.spines["right"].set_visible(False)
     ax.grid(axis="y", color="#e6e6e0", zorder=0)
     ax.set_axisbelow(True)
-
-
-SIZE_BINS_KB = [(0, 1), (1, 10), (10, 100), (100, 1000), (1000, float("inf"))]
-SIZE_BIN_LABELS = ["<1 kb", "1-10 kb", "10-100 kb", "100 kb-1 Mb", ">=1 Mb"]
-SIZE_BIN_COLORS = ["#C44E52", "#DD8452", "#CCB974", "#55A868", "#4C72B0"]
 
 
 def size_bin_label(length_bp):

@@ -86,6 +86,36 @@ from pangenome_common.gff import (  # GENE_FTYPE_TO_BIOTYPE, parse_attributes: r
 
 THRESHOLDS = [1, 5, 10, 20, 50, 80, 90, 100]
 
+ACC_RE = re.compile(r"GC[AF]_\d+\.\d+")
+
+MIN_OVERLAP_BP = 50  # a raw TE overlap below this many bp is treated as no overlap at all
+EDGE_FRAC = 0.15  # first/last 15% of the spliced transcript counts as an "edge" zone
+MIN_LEN_FOR_POSITION = 150  # bp; below this, 5'/3'/internal isn't a meaningful distinction
+EDGE_DOMINANCE_FRAC = 0.7  # >=70% of a gene's overlap bp sitting in one zone -> that zone "dominates"
+
+OVERLAP_POSITION_LABELS = {
+    "5_prime": "5_prime (edge, near start)",
+    "3_prime": "3_prime (edge, near end)",
+    "internal": "internal (away from both ends)",
+    "mixed": "mixed (no single zone ≥ 70% of the overlap)",
+    "short_transcript": f"short_transcript (<{MIN_LEN_FOR_POSITION} bp, not classified)",
+}
+OVERLAP_POSITION_COLORS = {
+    "5_prime": CATEGORICAL[1],
+    "3_prime": CATEGORICAL[7],
+    "internal": CATEGORICAL[0],
+    "mixed": CATEGORICAL[3],
+    "short_transcript": "#c3c2b7",
+}
+
+OVERLAP_PCT_BINS = [(0, 5), (5, 10), (10, 15), (15, 20), (20, 30), (30, 40), (40, 50), (50, 65), (65, 80)]
+
+FRAGMENT_SIZE_BINS = [(0, 80), (80, 300), (300, 1000), (1000, 3000), (3000, float("inf"))]
+FRAGMENT_SIZE_LABELS = ["<80 bp", "80-300 bp", "300-1,000 bp", "1,000-3,000 bp", ">=3,000 bp"]
+FRAGMENT_SIZE_COLORS = [CATEGORICAL[7], CATEGORICAL[1], CATEGORICAL[3], CATEGORICAL[0], CATEGORICAL[2]]
+
+FRAGMENT_PCT_BINS = [(0, 20), (20, 80), (80, 100.0001)]
+
 
 def index_gff_dir(gff_indir: Path) -> dict:
     """filename stem (no extension) -> path, for every .gff/.gff3 file."""
@@ -105,9 +135,6 @@ def load_genome_map(path) -> dict:
             genome_id, gff_path = line.split("\t")
             mapping[genome_id] = Path(gff_path)
     return mapping
-
-
-ACC_RE = re.compile(r"GC[AF]_\d+\.\d+")
 
 
 def find_gff_for_genome(
@@ -388,12 +415,6 @@ def aggregate_by_gene(rna_to_gene: dict, feature_by_rna: dict) -> dict:
 
 def strip_prefix(feature_id: str, prefix: str) -> str:
     return feature_id.removeprefix(prefix)
-
-
-MIN_OVERLAP_BP = 50  # a raw TE overlap below this many bp is treated as no overlap at all
-EDGE_FRAC = 0.15  # first/last 15% of the spliced transcript counts as an "edge" zone
-MIN_LEN_FOR_POSITION = 150  # bp; below this, 5'/3'/internal isn't a meaningful distinction
-EDGE_DOMINANCE_FRAC = 0.7  # >=70% of a gene's overlap bp sitting in one zone -> that zone "dominates"
 
 
 def classify_overlap_position(merged: list, strand: str, track, overlap_bp: int, transcript_bp: int):
@@ -811,22 +832,6 @@ def plot_band_bar(thresh_df: pd.DataFrame, column: str, xlabel: str, title: str,
     plt.close(fig)
 
 
-OVERLAP_POSITION_LABELS = {
-    "5_prime": "5_prime (edge, near start)",
-    "3_prime": "3_prime (edge, near end)",
-    "internal": "internal (away from both ends)",
-    "mixed": "mixed (no single zone ≥ 70% of the overlap)",
-    "short_transcript": f"short_transcript (<{MIN_LEN_FOR_POSITION} bp, not classified)",
-}
-OVERLAP_POSITION_COLORS = {
-    "5_prime": CATEGORICAL[1],
-    "3_prime": CATEGORICAL[7],
-    "internal": CATEGORICAL[0],
-    "mixed": CATEGORICAL[3],
-    "short_transcript": "#c3c2b7",
-}
-
-
 def plot_overlap_position_bar(pc_df: pd.DataFrame, title: str, dest: Path):
     """Bar chart of TE_overlap_position categories for protein-coding genes
     in the 20-80% "inspect" band specifically (same scope as the rest of
@@ -875,9 +880,6 @@ def plot_overlap_position_bar(pc_df: pd.DataFrame, title: str, dest: Path):
     fig.tight_layout()
     fig.savefig(dest, dpi=150)
     plt.close(fig)
-
-
-OVERLAP_PCT_BINS = [(0, 5), (5, 10), (10, 15), (15, 20), (20, 30), (30, 40), (40, 50), (50, 65), (65, 80)]
 
 
 def plot_overlap_position_by_pct(pc_df: pd.DataFrame, title: str, dest: Path):
@@ -941,14 +943,6 @@ def plot_overlap_position_by_pct(pc_df: pd.DataFrame, title: str, dest: Path):
     fig.tight_layout()
     fig.savefig(dest, dpi=150)
     plt.close(fig)
-
-
-FRAGMENT_SIZE_BINS = [(0, 80), (80, 300), (300, 1000), (1000, 3000), (3000, float("inf"))]
-FRAGMENT_SIZE_LABELS = ["<80 bp", "80-300 bp", "300-1,000 bp", "1,000-3,000 bp", ">=3,000 bp"]
-FRAGMENT_SIZE_COLORS = [CATEGORICAL[7], CATEGORICAL[1], CATEGORICAL[3], CATEGORICAL[0], CATEGORICAL[2]]
-
-
-FRAGMENT_PCT_BINS = [(0, 20), (20, 80), (80, 100.0001)]
 
 
 def plot_fragment_size_by_pct(pc_df: pd.DataFrame, title: str, dest: Path):

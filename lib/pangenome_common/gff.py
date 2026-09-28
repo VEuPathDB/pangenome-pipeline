@@ -4,6 +4,48 @@ import os
 from pathlib import Path
 from urllib.parse import unquote_plus
 
+# Gene-level feature types (GFF3 column 3) mapped to the biotype they imply when the record
+# carries no gene_biotype/biotype/gene_type attribute at all. NCBI's annotwriter always sets
+# gene_biotype=... explicitly on a plain "gene" feature, so that attribute wins when present
+# (see infer_biotype). Sources that instead encode biotype in the feature type itself -
+# VEuPathDB (FungiDB, PlasmoDB, ...) and Ensembl-style GFF3 both do this - are the ones this
+# table is for: a bare "gene" with no biotype attribute is, by GFF3 convention, protein-coding;
+# RNA genes get their own explicit type.
+GENE_FTYPE_TO_BIOTYPE = {
+    "gene": "protein_coding",
+    "protein_coding_gene": "protein_coding",
+    "pseudogene": "pseudogene",
+    "tRNA_gene": "tRNA",
+    "rRNA_gene": "rRNA",
+    "ncRNA_gene": "ncRNA",
+    "snoRNA_gene": "snoRNA",
+    "snRNA_gene": "snRNA",
+    "miRNA_gene": "miRNA",
+}
+BIOTYPE_ATTR_KEYS = ("gene_biotype", "biotype", "gene_type")
+
+# gene_biotype=/biotype= attribute values (NCBI/GenBank and Ensembl-style conventions),
+# lower-cased, to the broad category the pipeline reports and filters on.
+BIOTYPE_TO_CATEGORY = {
+    "protein_coding": "protein_coding",
+    "mrna": "protein_coding",
+    "pseudogene": "pseudogene",
+    "trna": "tRNA",
+    "rrna": "rRNA",
+    "ncrna": "ncRNA",
+    "lncrna": "ncRNA",
+    "lnc_rna": "ncRNA",
+    "snrna": "ncRNA",
+    "snorna": "ncRNA",
+    "mirna": "ncRNA",
+    "misc_rna": "ncRNA",
+}
+
+# Free-text description, checked in this order - NCBI puts "product" on the mRNA/CDS rather
+# than the gene; VEuPathDB (FungiDB, ...) puts "description" directly on the gene; "Note" and
+# "Name" are the common fallbacks when neither of those is set.
+DESCRIPTION_ATTR_KEYS = ("description", "product", "Note", "note", "Name")
+
 
 def find_gff(gff_dir, name, exts=(".gff3", ".gff"), case_insensitive=False):
     """Path of <gff_dir>/<name><ext> for the first ext that exists, or None.
@@ -35,27 +77,6 @@ def gff_seqids(path):
     return ids
 
 
-# Gene-level feature types (GFF3 column 3) mapped to the biotype they imply when the record
-# carries no gene_biotype/biotype/gene_type attribute at all. NCBI's annotwriter always sets
-# gene_biotype=... explicitly on a plain "gene" feature, so that attribute wins when present
-# (see infer_biotype). Sources that instead encode biotype in the feature type itself -
-# VEuPathDB (FungiDB, PlasmoDB, ...) and Ensembl-style GFF3 both do this - are the ones this
-# table is for: a bare "gene" with no biotype attribute is, by GFF3 convention, protein-coding;
-# RNA genes get their own explicit type.
-GENE_FTYPE_TO_BIOTYPE = {
-    "gene": "protein_coding",
-    "protein_coding_gene": "protein_coding",
-    "pseudogene": "pseudogene",
-    "tRNA_gene": "tRNA",
-    "rRNA_gene": "rRNA",
-    "ncRNA_gene": "ncRNA",
-    "snoRNA_gene": "snoRNA",
-    "snRNA_gene": "snRNA",
-    "miRNA_gene": "miRNA",
-}
-BIOTYPE_ATTR_KEYS = ("gene_biotype", "biotype", "gene_type")
-
-
 def infer_biotype(ftype, attrs):
     """The record's own gene_biotype/biotype/gene_type attribute if it has one (NCBI/RefSeq,
     Ensembl-style, GENCODE - that explicit label is authoritative), otherwise what the feature
@@ -64,24 +85,6 @@ def infer_biotype(ftype, attrs):
         if key in attrs:
             return attrs[key]
     return GENE_FTYPE_TO_BIOTYPE.get(ftype, "NA")
-
-
-# gene_biotype=/biotype= attribute values (NCBI/GenBank and Ensembl-style conventions),
-# lower-cased, to the broad category the pipeline reports and filters on.
-BIOTYPE_TO_CATEGORY = {
-    "protein_coding": "protein_coding",
-    "mrna": "protein_coding",
-    "pseudogene": "pseudogene",
-    "trna": "tRNA",
-    "rrna": "rRNA",
-    "ncrna": "ncRNA",
-    "lncrna": "ncRNA",
-    "lnc_rna": "ncRNA",
-    "snrna": "ncRNA",
-    "snorna": "ncRNA",
-    "mirna": "ncRNA",
-    "misc_rna": "ncRNA",
-}
 
 
 def biotype_category(value, other_rna_label="ncRNA"):
@@ -112,12 +115,6 @@ def parse_attributes(attr_str):
             k, v = kv.split("=", 1)
             attrs[k] = v
     return attrs
-
-
-# Free-text description, checked in this order - NCBI puts "product" on the mRNA/CDS rather
-# than the gene; VEuPathDB (FungiDB, ...) puts "description" directly on the gene; "Note" and
-# "Name" are the common fallbacks when neither of those is set.
-DESCRIPTION_ATTR_KEYS = ("description", "product", "Note", "note", "Name")
 
 
 def gene_description(attrs):

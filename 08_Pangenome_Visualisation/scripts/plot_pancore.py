@@ -24,6 +24,8 @@ from scipy.optimize import curve_fit
 
 TAU_START, TAU_STEP = 2.8, 0.2
 
+PAN_COLOR, CORE_COLOR = "#E69F00", "#0072B2"
+
 
 def read_presence(path):
     with open(path, newline="") as fh:
@@ -75,9 +77,6 @@ def fit(func, x, y, p0_fn):
         except (RuntimeError, ValueError):
             tau -= TAU_STEP
     return None, None
-
-
-PAN_COLOR, CORE_COLOR = "#E69F00", "#0072B2"
 
 
 def summarize(x, y, n_genomes):

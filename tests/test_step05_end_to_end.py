@@ -28,6 +28,8 @@ from conftest import REPO_ROOT
 DATA = REPO_ROOT / "tests" / "data" / "step05"
 SCRIPTS = REPO_ROOT / "05_Cross-genome_annotation_integration" / "scripts"
 
+PANEL = ["--strains", "genome_order.txt", "--final-dir", "expanded_annotation"]
+
 
 def _run_and_compare(script, args, expected_dir, tmp_path, pattern="*"):
     """Run a step 05 script from tests/data/step05 and compare its outputs (matching pattern) to
@@ -54,9 +56,6 @@ def _run_and_compare(script, args, expected_dir, tmp_path, pattern="*"):
     assert produced == sorted(p.name for p in expected_dir.iterdir())
     for name in produced:
         assert (out_dir / name).read_text() == (expected_dir / name).read_text(), f"{name} differs from snapshot"
-
-
-PANEL = ["--strains", "genome_order.txt", "--final-dir", "expanded_annotation"]
 
 
 def test_filter_final_annotation_snapshot(tmp_path):
