@@ -1,0 +1,4 @@
+genome	seqname	same_strand	severity	overlap_bp	minor_position	gene1_id	gene1_description	gene1_start	gene1_end	gene1_cds_bp	gene1_has_domain	gene1_valid_ORF	gene1_source	gene2_id	gene2_description	gene2_start	gene2_end	gene2_cds_bp	gene2_has_domain	gene2_valid_ORF	gene2_source
+REF	chr1	True	contained	401		geneB	hypothetical protein	5000	6000	1001	False	True	main	geneX	hypothetical protein	5500	5900	401	False	True	good_S2
+S3	chr1	True	minor	31	flank	geneA	heat shock protein	1000	3000	1002	True	True	main	geneG	kinase	2970	3200	231	False	NA	S3
+S3	chr1	True	contained	401		geneH	hypothetical protein	11000	11600	601	False	True	good_S2	geneI		11100	11500	401	False	NA	S3

@@ -29,22 +29,14 @@ DATA = REPO_ROOT / "tests" / "data" / "step05"
 SCRIPTS = REPO_ROOT / "05_Cross-genome_annotation_integration" / "scripts"
 
 
-def _run_and_compare(script, expected_dir, tmp_path):
+def _run_and_compare(script, args, expected_dir, tmp_path, pattern="*"):
+    """Run a step 05 script from tests/data/step05 and compare its outputs (matching pattern) to
+    the snapshot in expected_dir."""
     out_dir = tmp_path / "out"
     result = subprocess.run(
-        [
-            sys.executable,
-            str(SCRIPTS / script),
-            "--strains",
-            "genome_order.txt",
-            "--final-dir",
-            "expanded_annotation",
-            "--out-dir",
-            str(out_dir),
-            "--id-prefix",
-            "Tst",
-        ],
+        [sys.executable, str(SCRIPTS / script), *args, "--out-dir", str(out_dir)],
         cwd=DATA,
+        env={**os.environ, "MPLBACKEND": "Agg"},
         capture_output=True,
         text=True,
         check=False,
@@ -53,21 +45,44 @@ def _run_and_compare(script, expected_dir, tmp_path):
 
     if os.environ.get("UPDATE_SNAPSHOTS"):
         shutil.rmtree(expected_dir, ignore_errors=True)
-        shutil.copytree(out_dir, expected_dir)
+        expected_dir.mkdir(parents=True)
+        for f in out_dir.glob(pattern):
+            shutil.copy(f, expected_dir / f.name)
         pytest.skip(f"snapshots rewritten in {expected_dir}")
 
-    produced = sorted(p.name for p in out_dir.iterdir())
+    produced = sorted(p.name for p in out_dir.glob(pattern))
     assert produced == sorted(p.name for p in expected_dir.iterdir())
     for name in produced:
         assert (out_dir / name).read_text() == (expected_dir / name).read_text(), f"{name} differs from snapshot"
 
 
+PANEL = ["--strains", "genome_order.txt", "--final-dir", "expanded_annotation"]
+
+
 def test_filter_final_annotation_snapshot(tmp_path):
-    _run_and_compare("filter_final_annotation.py", DATA / "expected_filter", tmp_path)
+    _run_and_compare("filter_final_annotation.py", [*PANEL, "--id-prefix", "Tst"], DATA / "expected_filter", tmp_path)
 
 
 def test_tag_final_annotation_snapshot(tmp_path):
-    _run_and_compare("tag_final_annotation.py", DATA / "expected_tag", tmp_path)
+    _run_and_compare("tag_final_annotation.py", [*PANEL, "--id-prefix", "Tst"], DATA / "expected_tag", tmp_path)
+
+
+def test_plot_final_annotation_qc_tables_snapshot(tmp_path):
+    # The panel's own final GFFs stand in for "each strain's original GFF" - only the tables are compared.
+    args = [*PANEL, "--genome-dir", "expanded_annotation", "--genome-suffix", "_final_annotation.gff"]
+    _run_and_compare("plot_final_annotation_qc.py", args, DATA / "expected_final_qc", tmp_path, pattern="*.tsv")
+
+
+def test_plot_filter_qc_tables_snapshot(tmp_path):
+    args = [
+        "--strains",
+        "genome_order.txt",
+        "--original-dir",
+        "expanded_annotation",
+        "--filtered-dir",
+        "expected_filter",
+    ]
+    _run_and_compare("plot_filter_qc.py", args, DATA / "expected_filter_qc", tmp_path, pattern="*.tsv")
 
 
 def test_snapshot_exercises_every_filter_rule():

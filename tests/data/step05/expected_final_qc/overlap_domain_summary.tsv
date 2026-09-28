@@ -1,0 +1,4 @@
+strain	n_pairs	n_genes_in_overlap	n_both_domain	pct_both_domain	n_one_domain	pct_one_domain	n_no_domain	pct_no_domain
+REF	1	2	0	0.0	0	0.0	1	100.0
+S2	0	0	0	0	0	0	0	0
+S3	2	4	0	0.0	1	50.0	1	50.0
