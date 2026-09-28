@@ -15,8 +15,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
-# results/ only holds snapshot copies of pipeline scripts; scripts_no_slurm/ duplicates scripts/.
-EXCLUDED_PREFIXES = ("results/", "Alternative_Get_PanLoci_pipeline/scripts_no_slurm/")
+# results/ only holds snapshot copies of pipeline scripts.
+EXCLUDED_PREFIXES = ("results/",)
 
 KNOWN_COMPILE_WARNINGS = {
     "Alternative_Get_PanLoci_pipeline/scripts/step1_prepare_seed_transfers.py": 'invalid "\\>" escape sequences',

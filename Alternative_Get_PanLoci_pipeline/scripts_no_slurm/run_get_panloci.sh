@@ -59,6 +59,7 @@ fi
 for script in step1_prepare_seed_transfers.py step2_validate_transfers.py step3_build_panlocus_catalogue.py; do
     if [[ ! -f "${script}" ]]; then
         echo "[ERROR] Required pipeline script not found in ${RUN_DIR}: ${script}" >&2
+        echo "[ERROR] Copy it from Alternative_Get_PanLoci_pipeline/scripts/ into ${RUN_DIR}." >&2
         exit 1
     fi
 done

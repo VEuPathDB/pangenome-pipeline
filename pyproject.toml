@@ -41,7 +41,6 @@ skip = [
   ".venv",
   ".nox",
   "results",
-  "Alternative_Get_PanLoci_pipeline/scripts_no_slurm",
 ]
 
 # Relaxed to start with: none of the scripts carry type hints yet, so strict settings
@@ -58,7 +57,6 @@ exclude = [
   "noxfile\\.py",
   "tests/",
   "results/",
-  "Alternative_Get_PanLoci_pipeline/scripts_no_slurm/",
 ]
 
 [tool.pytest.ini_options]
@@ -71,7 +69,6 @@ exclude = [
   ".nox",
   "README.md",
   "results",
-  "Alternative_Get_PanLoci_pipeline/scripts_no_slurm",
 ]
 
 [tool.uv]

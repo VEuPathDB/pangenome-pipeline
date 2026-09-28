@@ -66,6 +66,8 @@ This step just symlinks both into place (no file is copied), one job, instant.
 so nothing stops you running `get_pangenes` on both and comparing the two pangene calls:
 [`scripts/link_for_get_pangenes_7a.slurm.sh`](scripts/link_for_get_pangenes_7a.slurm.sh) ·
 [`scripts/link_for_get_pangenes_7b.slurm.sh`](scripts/link_for_get_pangenes_7b.slurm.sh).
+Each wrapper only holds its own `#SBATCH` header and settings; the linking itself is shared, in
+[`scripts/get_pangenes_common.sh`](scripts/get_pangenes_common.sh) (sourced, not submitted).
 
 #### What you need before starting
 
@@ -108,6 +110,8 @@ Input: each genome's `<genome>_for_get_pangenes.gff` + matching `.fna`, from ste
 Same split as step 1 - each variant reads its own `INPUT_DIR` and never touches the other's:
 [`scripts/run_get_pangenes_7a_job.sh`](scripts/run_get_pangenes_7a_job.sh) ·
 [`scripts/run_get_pangenes_7b_job.sh`](scripts/run_get_pangenes_7b_job.sh).
+As in step 1, the get_pangenes call itself lives in
+[`scripts/get_pangenes_common.sh`](scripts/get_pangenes_common.sh).
 
 #### Dependencies
 

@@ -19,25 +19,19 @@ INPUT_DIR="./for_get_pangenes_7a"   # link_for_get_pangenes_7a.slurm.sh's OUT_DI
 N_CPUS=32                           # match --cpus-per-task above
 TAXA_THRESHOLD=0                    # get_pangenes' -t: minimum number of genomes a cluster must appear in to
                                      # be reported at all - 0 reports everything, including genome-private ones
-# Remove any previously loaded cluster modules.
-module purge
 
-# Avoid mixing Perl libraries from other environments.
-unset PERL5LIB
-unset PERL_LOCAL_LIB_ROOT
-unset PERL_MB_OPT
-unset PERL_MM_OPT
+# Find the shared body. Under sbatch the job script is copied to a spool dir, so
+# ${BASH_SOURCE[0]} isn't next to it - fall back to the layout under the submit dir.
+COMMON=""
+for cand in \
+    "$(dirname "${BASH_SOURCE[0]}")/get_pangenes_common.sh" \
+    "${SLURM_SUBMIT_DIR:-$PWD}/06_GET_PANGENES/scripts/get_pangenes_common.sh"
+do
+  [[ -f "$cand" ]] && { COMMON="$cand"; break; }
+done
+[[ -n "$COMMON" ]] || { echo "ERROR: cannot find get_pangenes_common.sh (submit from the project folder)" >&2; exit 1; }
+# shellcheck source=get_pangenes_common.sh
+source "$COMMON"
 
-# Add the micromamba environment's own programs (get_pangenes.pl, its bundled Python, bedtools) to PATH.
-export PATH="$GET_PANGENES_ENV:$PATH"
-
-GETP="$GET_PANGENES_ENV/get_pangenes.pl"
-BEDTOOLS="$GET_PANGENES_ENV/bedtools"
-
-if [[ -n "${TAXON_REGEX:-}" ]]; then
-  "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -s "$TAXON_REGEX" -n "$N_CPUS" -B "$BEDTOOLS"
-else
-  "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -n "$N_CPUS" -B "$BEDTOOLS"
-fi
-
-echo "get_pangenes (7a) completed. Outputs (pangene_matrix*.tab, etc.) are in $INPUT_DIR"
+VARIANT="7a"
+run_get_pangenes

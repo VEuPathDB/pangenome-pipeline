@@ -31,6 +31,9 @@ KNOWN_MISSING = {
         "Tgondii-only step 09 wrapper, not committed (refactor plan A4)"
     ),
     "plot_nonredundant_job.sh": "same as above, mentioned by name in the Tgondii report",
+    "01_Genome_Selection_QC/scripts/summarize_dropped_genes.py": (
+        "Tgondii-only helper called by species_specific/Tgondii/.../drop_short_contigs.slurm.sh, not committed"
+    ),
 }
 
 SCANNED_PATTERNS = ("*.md", "*.sh", "*.slurm", "*.py")
@@ -71,7 +74,9 @@ def extract_references(text):
     for match in TOKEN_RE.finditer(text):
         token = match.group(0)
         before = text[match.start() - 1] if match.start() else ""
-        if before in PLACEHOLDER_PREFIXES:
+        if before == "$" and "/" in token:
+            token = token.split("/", 1)[1]  # $PROJECT_DIR/05_.../x.py -> check the part after the variable
+        elif before in PLACEHOLDER_PREFIXES:
             continue
         if token.startswith("/"):
             if before not in VARIABLE_PREFIXES:
@@ -103,6 +108,8 @@ def resolves(ref, referencing_file):
 def find_missing():
     missing = []
     for path in _git_ls_files(*SCANNED_PATTERNS):
+        if path.startswith("tests/"):
+            continue  # the tests name made-up scripts on purpose
         text = (REPO_ROOT / path).read_text(errors="replace")
         for lineno, line in enumerate(text.splitlines(), start=1):
             for ref in extract_references(line):
@@ -128,12 +135,13 @@ def test_known_missing_are_still_missing():
 
 def test_extract_references_normalises_tokens():
     line = (
-        "sbatch ./05_x/scripts/run.slurm.sh; see ${SLURM_SUBMIT_DIR}/01_y/scripts/a.py, "
+        "sbatch ./05_x/scripts/run.slurm.sh; see ${SLURM_SUBMIT_DIR}/01_y/scripts/a.py, $PROJECT_DIR/02_z/e.py, "
         "then .../b.sh and c.py/d.py; not $NAME.sh, <genome>.py, *.slurm.sh, /opt/tool.py or .slurm.sh"
     )
     assert extract_references(line) == [
         "05_x/scripts/run.slurm.sh",
         "01_y/scripts/a.py",
+        "02_z/e.py",
         "b.sh",
         "c.py",
         "d.py",

@@ -29,7 +29,7 @@
 # the time this job finishes. No second command, no separate --apply step.
 #
 # Submit from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh
+#     sbatch species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh
 #
 # ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
 GENOMES="genomes"                 # step-01 assemblies folder
