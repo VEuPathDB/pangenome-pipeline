@@ -7,7 +7,7 @@ import subprocess
 import sys
 import tempfile
 
-from panloci_common import extract_sequence, load_fasta, parse_samples
+from pangenome_pipeline.alternative_get_panloci.panloci_common import extract_sequence, load_fasta, parse_samples
 
 
 def run_batch_minimap2(queries, targets, output_prefix, minimap_bin="minimap2", cactus_img=None):

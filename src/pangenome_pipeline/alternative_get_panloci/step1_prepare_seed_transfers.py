@@ -5,7 +5,7 @@ import subprocess
 import sys
 from collections import defaultdict
 
-from panloci_common import (
+from pangenome_pipeline.alternative_get_panloci.panloci_common import (
     find_gff_file,
     is_pseudogene_feature,
     merge_hal_liftover,

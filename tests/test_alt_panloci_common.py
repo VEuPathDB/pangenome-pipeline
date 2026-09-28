@@ -1,8 +1,12 @@
-"""Alternative_Get_PanLoci_pipeline/scripts/panloci_common.py - helpers shared by step1-3."""
+"""alternative_get_panloci/panloci_common.py - helpers shared by step1-3."""
+
+import os
+import subprocess
 
 import pytest
+from conftest import REPO_ROOT
 
-SCRIPT = "Alternative_Get_PanLoci_pipeline/scripts/panloci_common.py"
+SCRIPT = "src/pangenome_pipeline/alternative_get_panloci/panloci_common.py"
 
 SAMPLES = (
     "strain_id\tgenome_fasta\tannotation_gff\tanalysis_order\nB \tb.fa\tNA\t2\nA\ta.fa\tgffs/\t1\nC\tc.fa\tNA\t10\n"
@@ -107,3 +111,23 @@ def test_merge_hal_liftover_primary_and_duplicates(pc, write_file, tmp_path):
     ]
     pc.merge_hal_liftover(raw, seed, str(out), str(qc), 5000)  # appends, no second header
     assert len(qc.read_text().splitlines()) == 3
+
+
+def test_runner_finds_the_package_without_copying(tmp_path):
+    """run_get_panloci.sh finds src/ from its own folder; it then stops at the placeholder RUN_DIR."""
+    runner = REPO_ROOT / "Alternative_Get_PanLoci_pipeline" / "scripts_no_slurm" / "run_get_panloci.sh"
+    env = {k: v for k, v in os.environ.items() if k != "PIPELINE_DIR"}
+    found = subprocess.run(["bash", str(runner)], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
+    assert "src/ not found" not in found.stderr
+    assert "/path/to/panlocus_run" in found.stderr  # got as far as `cd "${RUN_DIR}"`
+
+    wrong = subprocess.run(
+        ["bash", str(runner)],
+        cwd=tmp_path,
+        env={**env, "PIPELINE_DIR": str(tmp_path)},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert wrong.returncode == 1
+    assert "pangenome-pipeline src/ not found - set PIPELINE_DIR" in wrong.stderr

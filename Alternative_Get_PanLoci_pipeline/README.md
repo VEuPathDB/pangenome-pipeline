@@ -109,23 +109,28 @@ Required:
 
 ## Script Directories & Execution Modes
 
-The repository contains two script directories tailored for different environments:
+The Python code (steps 1-3 and their shared helpers) lives in the pipeline's package,
+[`src/pangenome_pipeline/alternative_get_panloci/`](../src/pangenome_pipeline/alternative_get_panloci/), and is run
+with `python3 -m pangenome_pipeline.alternative_get_panloci.<step>`. Nothing needs copying into `RUN_DIR`: both
+runners find the package by looking upwards from where they are started (the submit folder under SLURM, the
+script's own folder otherwise) and put it on `PYTHONPATH`; set `PIPELINE_DIR` to the repository folder if they
+can't. The job scripts come in two directories tailored for different environments:
 
 - **`scripts/` (SLURM / HPC Cluster)**:
   - [`scripts/step0_run_cactus_pangenome.slurm`](scripts/step0_run_cactus_pangenome.slurm): SLURM batch job script to construct the Cactus HAL alignment.
   - [`scripts/run_get_panloci.slurm`](scripts/run_get_panloci.slurm): SLURM batch orchestrator running Steps 1, 2, and 3 sequentially.
-  - [`scripts/step1_prepare_seed_transfers.py`](scripts/step1_prepare_seed_transfers.py): Step 1 Python script (seed coordinate extraction and `halLiftover`).
-  - [`scripts/step2_validate_transfers.py`](scripts/step2_validate_transfers.py): Step 2 Python script (`minimap2` DNA validation).
-  - [`scripts/step3_build_panlocus_catalogue.py`](scripts/step3_build_panlocus_catalogue.py): Step 3 Python script (sequential catalogue expansion and PAV matrix generation).
-  - [`scripts/panloci_common.py`](scripts/panloci_common.py): helpers the three step scripts share (samples.tsv, GFF/FASTA reading, halLiftover merging). Copy it into `RUN_DIR` with them.
+  - [`src/pangenome_pipeline/alternative_get_panloci/step1_prepare_seed_transfers.py`](../src/pangenome_pipeline/alternative_get_panloci/step1_prepare_seed_transfers.py): Step 1 Python script (seed coordinate extraction and `halLiftover`).
+  - [`src/pangenome_pipeline/alternative_get_panloci/step2_validate_transfers.py`](../src/pangenome_pipeline/alternative_get_panloci/step2_validate_transfers.py): Step 2 Python script (`minimap2` DNA validation).
+  - [`src/pangenome_pipeline/alternative_get_panloci/step3_build_panlocus_catalogue.py`](../src/pangenome_pipeline/alternative_get_panloci/step3_build_panlocus_catalogue.py): Step 3 Python script (sequential catalogue expansion and PAV matrix generation).
+  - [`src/pangenome_pipeline/alternative_get_panloci/panloci_common.py`](../src/pangenome_pipeline/alternative_get_panloci/panloci_common.py): helpers the three step scripts share (samples.tsv, GFF/FASTA reading, halLiftover merging).
 
 - **`scripts_no_slurm/` (Direct Bash / Non-SLURM Servers & Workstations)**:
   - [`scripts_no_slurm/step0_run_cactus_pangenome.sh`](scripts_no_slurm/step0_run_cactus_pangenome.sh): Direct Bash script to construct the Cactus HAL alignment.
   - [`scripts_no_slurm/run_get_panloci.sh`](scripts_no_slurm/run_get_panloci.sh): Direct Bash orchestrator running Steps 1, 2, and 3 sequentially.
-  - The Step 1–3 Python scripts are not duplicated here: use the ones in [`scripts/`](scripts/) (copy them and `panloci_common.py` into `RUN_DIR`, as for the SLURM version).
+  - The Step 1–3 Python code is the same package as for the SLURM version (see above).
   - [`scripts_no_slurm/README_get_panloci.md`](scripts_no_slurm/README_get_panloci.md): Dedicated guide for non-SLURM execution.
 
-Both versions run the exact same Python scripts (from `scripts/`), with the same command-line arguments and output structures.
+Both versions run the exact same Python code, with the same command-line arguments and output structures.
 
 ## Inputs
 
@@ -440,7 +445,7 @@ Recommended checks after Step 0:
 Script:
 
 ```text
-scripts/step1_prepare_seed_transfers.py
+src/pangenome_pipeline/alternative_get_panloci/step1_prepare_seed_transfers.py
 ```
 
 Purpose:
@@ -539,7 +544,7 @@ Recommended checks after Step 1:
 Script:
 
 ```text
-scripts/step2_validate_transfers.py
+src/pangenome_pipeline/alternative_get_panloci/step2_validate_transfers.py
 ```
 
 Purpose:
@@ -652,7 +657,7 @@ Recommended checks after Step 2:
 Script:
 
 ```text
-scripts/step3_build_panlocus_catalogue.py
+src/pangenome_pipeline/alternative_get_panloci/step3_build_panlocus_catalogue.py
 ```
 
 Purpose:
@@ -1157,12 +1162,12 @@ Potential redundancy:
 
 ## Minimal Command Examples
 
-You can run individual steps directly with Python using either `scripts/` or `scripts_no_slurm/`:
+You can run individual steps directly with Python, from the repository folder (or anywhere, with its `src/` on `PYTHONPATH`):
 
 Run Step 1 only:
 
 ```bash
-python3 scripts/step1_prepare_seed_transfers.py \
+PYTHONPATH=src python3 -m pangenome_pipeline.alternative_get_panloci.step1_prepare_seed_transfers \
   --samples samples.tsv \
   --hal /path/to/pangenome.full.hal \
   --cactus-img /path/to/cactus.sif \
@@ -1173,7 +1178,7 @@ python3 scripts/step1_prepare_seed_transfers.py \
 Run Step 2 only:
 
 ```bash
-python3 scripts/step2_validate_transfers.py \
+PYTHONPATH=src python3 -m pangenome_pipeline.alternative_get_panloci.step2_validate_transfers \
   --samples samples.tsv \
   --beddir candidate_transfers \
   --outdir validation \
@@ -1187,7 +1192,7 @@ python3 scripts/step2_validate_transfers.py \
 Run Step 3 only:
 
 ```bash
-python3 scripts/step3_build_panlocus_catalogue.py \
+PYTHONPATH=src python3 -m pangenome_pipeline.alternative_get_panloci.step3_build_panlocus_catalogue \
   --samples samples.tsv \
   --beddir candidate_transfers \
   --valdir validation \
