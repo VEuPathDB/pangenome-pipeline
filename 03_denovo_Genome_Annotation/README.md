@@ -205,7 +205,7 @@ sbatch scripts/fastqc.slurm.sh
 2. **Fix FASTQ headers for Trinity:**
    Trinity requires standard `/1` and `/2` read identifiers and strict `+` delimiters on the third line.
 
-   Scripts: [`scripts/fix_headers.py`](scripts/fix_headers.py) & [`scripts/fix_headers.slurm.sh`](scripts/fix_headers.slurm.sh)
+   Scripts: [`src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py`](../src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py) & [`scripts/fix_headers.slurm.sh`](scripts/fix_headers.slurm.sh)
    ```bash
    sbatch scripts/fix_headers.slurm.sh
    ```
@@ -220,7 +220,7 @@ To handle this, use one of the two strategies:
 
 1. **Option A — Normalize with `merge_paired_stats.py` (Standard for pooled/large datasets):**
    - If Trinity normalization fails on k-mer merging, navigate to the `tmp_normalized_reads/` directory.
-   - Run [`scripts/merge_paired_stats.py`](scripts/merge_paired_stats.py) to merge `left.fa.K25.stats.sort` and `right.fa.K25.stats.sort` into `pairs.K25.stats.custom`.
+   - Run [`src/pangenome_pipeline/step03_denovo_genome_annotation/merge_paired_stats.py`](../src/pangenome_pipeline/step03_denovo_genome_annotation/merge_paired_stats.py) to merge `left.fa.K25.stats.sort` and `right.fa.K25.stats.sort` into `pairs.K25.stats.custom`.
    - Finish extracting `left.norm.fq` and `right.norm.fq`.
    - Provide the normalized reads directly to `funannotate train` with `--left left.norm.fq --right right.norm.fq --no_normalize_reads`.
 
@@ -348,6 +348,6 @@ Based on practical testing and optimization notes (`Notes_AL.Rmd`):
    PASA and Trinity steps can require substantial Java memory. Set `export _JAVA_OPTIONS="-Xmx32g"` prior to executing `funannotate update` or `funannotate train`.
 
 5. **Trinity FASTQ Third Line:**
-   Trinity throws errors if the 3rd line of FASTQ entries contains redundant header text instead of just `+`. Always preprocess pooled FASTQ files using [`scripts/fix_headers.py`](scripts/fix_headers.py).
+   Trinity throws errors if the 3rd line of FASTQ entries contains redundant header text instead of just `+`. Always preprocess pooled FASTQ files using [`src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py`](../src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py).
 
 [↑ Back to top](#table-of-contents) &nbsp;|&nbsp; [Back to top level](../README.md)
