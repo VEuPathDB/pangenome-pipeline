@@ -1,5 +1,9 @@
 """05_Cross-genome_annotation_integration - Liftoff transfer filtering and overlap resolution."""
 
+import os
+import subprocess
+import sys
+
 import pytest
 from conftest import gff_line
 
@@ -146,6 +150,26 @@ def test_assign_new_ids_orders_by_position(common):
         "g2": "Tg3g00002",
         "g3": "Tg3g00003",
     }
+
+
+def test_assign_new_ids_ties_are_reproducible(common):
+    """Same contig and start: numbered by original ID, not by set/hash order."""
+    script = (
+        "import sys; sys.path.insert(0, sys.argv[1]); from annotation_common import assign_new_ids; "
+        "genes = {g: {'seqname': 'chr1', 'start': 100} for g in ('geneA_copy1', 'geneB', 'geneC_copy2')}; "
+        "print(sorted(assign_new_ids(genes, set(genes), 1, 'Afu').items()))"
+    )
+    outputs = {
+        subprocess.run(
+            [sys.executable, "-c", script, str(common.__file__).rsplit("/", 1)[0]],
+            env={**os.environ, "PYTHONHASHSEED": str(seed)},
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        for seed in range(6)
+    }
+    assert outputs == {"[('geneA_copy1', 'Afu1g00001'), ('geneB', 'Afu1g00002'), ('geneC_copy2', 'Afu1g00003')]\n"}
 
 
 def test_parse_gff_picks_longest_mrna_and_reads_evidence(common, ffa, write_file):

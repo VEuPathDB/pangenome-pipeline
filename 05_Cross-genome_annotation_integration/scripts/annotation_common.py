@@ -177,8 +177,11 @@ def classify_minor_position(bigger_gene, smaller_cds_segments):
 
 
 def assign_new_ids(genes, gene_ids, strain_index, id_prefix):
-    """gene_id -> "<id_prefix><strain_index>g<00001...>" for gene_ids, numbered by position."""
-    ordered = sorted(gene_ids, key=lambda gid: (genes[gid]["seqname"], genes[gid]["start"]))
+    """gene_id -> "<id_prefix><strain_index>g<00001...>" for gene_ids, numbered by position.
+
+    Genes starting at the same position (e.g. Liftoff extra copies) are ordered by their original
+    ID, so the numbering is the same on every run whatever order gene_ids comes in."""
+    ordered = sorted(gene_ids, key=lambda gid: (genes[gid]["seqname"], genes[gid]["start"], gid))
     width = max(5, len(str(len(ordered))))
     return {gid: f"{id_prefix}{strain_index}g{i:0{width}d}" for i, gid in enumerate(ordered, start=1)}
 
