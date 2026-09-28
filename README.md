@@ -107,6 +107,17 @@ git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 
 `genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01. 
 
+**Python code.** Every step's Python lives in the `pangenome_pipeline` package under
+[`src/`](src/pangenome_pipeline/), one subpackage per step (`step01_genome_selection_qc`, ...,
+`step08_pangenome_visualisation`, plus `common` and `alternative_get_panloci`). The job scripts run it
+with `python3 -m pangenome_pipeline.<step>.<module>`; `lib/slurm_common.sh` puts `src/` on `PYTHONPATH`, so
+nothing needs installing on the cluster. To run a module by hand from the project folder:
+
+```bash
+PYTHONPATH=src python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.filter_final_annotation --help
+# or once, in the environment you use:  pip install -e .
+```
+
 **Cluster settings - once per project.** Where micromamba, the tool installs and the databases live
 on your cluster is set in one file, `pipeline_config.sh` at the project root. It is not part of the
 repository; start from the template:

@@ -9,7 +9,8 @@
 # there is one (cluster paths and environment names - copy pipeline_config.example.sh to start),
 # then provides:
 #
-#   find_script VAR <path/from/project/script.py>   set VAR to the path of a pipeline script
+#   find_script VAR <path/from/project/file>   set VAR to the path of a pipeline file (a shared shell
+#                                             script, or a loose script outside src/)
 #   activate_env NAME                         activate a micromamba environment
 #   require_config VAR [VAR ...]              stop with a clear message if a setting is empty
 
