@@ -4,4 +4,4 @@ One-off scripts written for the *A. fumigatus* run. They are not general pipelin
 
 | Script | What it does |
 |---|---|
-| [`02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh`](02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh) · [`.py`](02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py) | Brings existing RepeatMasker output back in line after contigs were dropped in step 01, instead of re-running RepeatMasker. |
+| [`step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.slurm.sh`](step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.slurm.sh) · [`.py`](step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.py) | Brings existing RepeatMasker output back in line after contigs were dropped in step 01, instead of re-running RepeatMasker. |

@@ -16,7 +16,7 @@ match the final dataset:
 Two ways to say which contigs are gone:
 
   --drop-list FILE   the step-01 manifest, "<genome>  <contig>" per line
-                     (01_Genome_Selection_QC/drop_contigs.txt). Removes exactly
+                     (step 01's drop_contigs.txt, in $STEP01_OUT). Removes exactly
                      those contigs. total length is corrected by subtracting the
                      removed contigs' length inferred from the .out.
 
@@ -36,7 +36,7 @@ not part of the general pipeline.
 Usage:
     python3 fix_repeatmasker_after_contig_drop.py \
         --rm-indir . \
-        --drop-list 01_Genome_Selection_QC/drop_contigs.txt \
+        --drop-list output/step01_genome_selection_qc/drop_contigs.txt \
         --outdir repeatmasker_contig_filtered
 """
 

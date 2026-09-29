@@ -3,8 +3,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --time=00:30:00
-#SBATCH --output=drop_short_contigs_%j.out
-#SBATCH --error=drop_short_contigs_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Tgondii-only: removes every contig < MIN_LEN from genomes/ and gff_originals/,
 # for every genome in genome_order.txt - a blanket length cutoff, not a
@@ -29,34 +29,40 @@
 # the time this job finishes. No second command, no separate --apply step.
 #
 # Submit from the project folder:
-#     sbatch species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh
+#     sbatch $PIPELINE_DIR/species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.slurm.sh
 #
+set -eo pipefail
+
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 # ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
 GENOMES="genomes"                 # step-01 assemblies folder
 GFF_DIR="gff_originals"           # step-01 annotations folder
 ORDER="genome_order.txt"          # step-01 canonical genome list
 MIN_LEN=10000                     # contigs strictly shorter than this are dropped
-DROP_LIST="01_Genome_Selection_QC/drop_short_contigs.txt"   # auto-generated, overwritten each run
-GENE_TABLE="01_Genome_Selection_QC/contig_size_profile/small_contig_genes.tsv"  # from contig_size_profile.slurm.sh - must use the same MIN_LEN
-DROPPED_GENES_OUT="01_Genome_Selection_QC/dropped_genes_summary.tsv"
-BACKUP_DIR="01_Genome_Selection_QC/backup_before_short_contig_drop"   # untouched copy of every affected genome's FASTA+GFF
+DROP_LIST="$STEP01_OUT/drop_short_contigs.txt"   # auto-generated, overwritten each run
+GENE_TABLE="$STEP01_OUT/contig_size_profile/small_contig_genes.tsv"  # from contig_size_profile.slurm.sh - must use the same MIN_LEN
+DROPPED_GENES_OUT="$STEP01_OUT/dropped_genes_summary.tsv"
+BACKUP_DIR="$STEP01_OUT/backup_before_short_contig_drop"   # untouched copy of every affected genome's FASTA+GFF
 # ────────────────────────────────────────────────────────────────────────────
 
-set -eo pipefail
-
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put samtools and python3 on the PATH:
 activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 set -u
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 GENOME_DIR="$PROJECT_DIR/$GENOMES"
 GFF_DIR_PATH="$PROJECT_DIR/$GFF_DIR"
 ORDER_FILE="$PROJECT_DIR/$ORDER"
-LIST_PATH="$PROJECT_DIR/$DROP_LIST"
-BACKUP_PATH="$PROJECT_DIR/$BACKUP_DIR"
+LIST_PATH="$DROP_LIST"
+BACKUP_PATH="$BACKUP_DIR"
+# Tgondii-only helper for the gene-cost summary; not committed yet (see species_specific/Tgondii/README.md)
+SUMMARIZE_PY="${SUMMARIZE_PY:-$PIPELINE_DIR/species_specific/Tgondii/step01_genome_selection_qc/summarize_dropped_genes.py}"
 
 [[ -f "$ORDER_FILE" ]]  || { echo "ERROR: genome list not found: $ORDER_FILE" >&2; exit 1; }
 
@@ -73,7 +79,7 @@ gff_for () {  # basename -> path
     return 1
 }
 
-mkdir -p "$BACKUP_PATH/genomes" "$BACKUP_PATH/$(basename "$GFF_DIR")"
+mkdir -p "$(dirname "$LIST_PATH")" "$BACKUP_PATH/genomes" "$BACKUP_PATH/$(basename "$GFF_DIR")"
 
 # 1. build the drop list: every contig < MIN_LEN, for every genome. Also backs up
 #    every affected genome's own FASTA + GFF (untouched, cp -n so a backup already
@@ -104,13 +110,16 @@ echo
 echo "=== $n_total contig(s) across the panel will be dropped ==="
 
 # 2. gene cost of the drop list, before touching anything
-GENE_TABLE_PATH="$PROJECT_DIR/$GENE_TABLE"
-if [[ -f "$GENE_TABLE_PATH" ]]; then
+GENE_TABLE_PATH="$GENE_TABLE"
+if [[ ! -f "$SUMMARIZE_PY" ]]; then
+    echo
+    echo "WARNING: $SUMMARIZE_PY not found - skipping the gene-cost summary (set SUMMARIZE_PY)." >&2
+elif [[ -f "$GENE_TABLE_PATH" ]]; then
     echo
     echo "=== Genes on the dropped contigs ==="
-    python3 "$PROJECT_DIR/01_Genome_Selection_QC/scripts/summarize_dropped_genes.py" \
+    python3 "$SUMMARIZE_PY" \
         --drop-list "$LIST_PATH" --gene-table "$GENE_TABLE_PATH" \
-        --out "$PROJECT_DIR/$DROPPED_GENES_OUT"
+        --out "$DROPPED_GENES_OUT"
 else
     echo
     echo "WARNING: $GENE_TABLE_PATH not found - skipping the gene-cost summary." >&2

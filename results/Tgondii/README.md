@@ -335,7 +335,7 @@ contigs (including 289 known virulence-family genes), accepted as the cost of a 
 panel-wide rule.
 
 Script (Tgondii-only, not part of the general pipeline template):
-[`species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh`](../../species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh).
+[`species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.slurm.sh`](../../species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.slurm.sh).
 **Already run** (before step 04). One run does everything: builds the drop list, backs up every
 affected genome's FASTA + GFF (untouched copy in
 `01_Genome_Selection_QC/backup_before_short_contig_drop/`, the only way back if needed),
@@ -346,7 +346,7 @@ is present in the GFFs used from step 04 onward.
 
 Command that was run:
 ```bash
-sbatch species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh
+sbatch species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.slurm.sh
 ```
 
 [↑ Back to top](#analysis-steps)
@@ -1175,9 +1175,9 @@ sbatch 09_Redundant_Contig_Removal/scripts/remove_redundant_contig_genes.slurm.s
 mkdir -p pangenome_plots/logs && sbatch 09_Redundant_Contig_Removal/scripts/plot_nonredundant_job.sh
 ```
 
-1. [`make_removal_list.py`](../../species_specific/Tgondii/09_Redundant_Contig_Removal/scripts/make_removal_list.py) lists every small contig that
+1. [`make_removal_list.py`](../../species_specific/Tgondii/step09_redundant_contig_removal/make_removal_list.py) lists every small contig that
    carries genes and is flagged (`small-redundant`) or is 75-89 % duplicated.
-2. [`remove_redundant_contig_genes.py`](../../species_specific/Tgondii/09_Redundant_Contig_Removal/scripts/remove_redundant_contig_genes.py) drops those
+2. [`remove_redundant_contig_genes.py`](../../species_specific/Tgondii/step09_redundant_contig_removal/remove_redundant_contig_genes.py) drops those
    contigs from each GFF (the gene with its children) and the gene IDs from `pangene_matrix_genes.tr.tab`; a pangene left
    with no gene is removed, and `pangene_matrix.tr.tab` is rebuilt from it. The IDs are unique across genomes and each
    GFF holds its own genes, so only the GFFs of ME49 and RH88 change.
