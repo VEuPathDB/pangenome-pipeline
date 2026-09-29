@@ -14,4 +14,4 @@ __pycache__/
 node_modules/
 
 # A colleague's own scripts, kept locally for reference only (not ours to publish)
-04_InterProScan/scripts/reference_colleague_scripts/
+workflow/step04_interproscan/reference_colleague_scripts/

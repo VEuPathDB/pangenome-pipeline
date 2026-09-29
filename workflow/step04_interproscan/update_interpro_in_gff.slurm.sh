@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --time=01:00:00
-#SBATCH --output=update_interpro_gff_%j.out
-#SBATCH --error=update_interpro_gff_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Writes each genome's own step-04 InterProScan results into its own GFF (see
 # update_interpro_in_gff.py for exactly how) - replacing any InterPro/PFAM evidence the
@@ -15,29 +15,33 @@
 # later, after Liftoff.
 #
 # Submit from your project folder:
-#     sbatch 04_InterProScan/scripts/update_interpro_in_gff.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step04_interproscan/update_interpro_in_gff.slurm.sh
 #
-# ─── ADAPT: the paths below and the #SBATCH lines ───
-GFF_INDIR="gff_cleaned"                        # step 02's TE-kill-list output
-LOOKUP_DIR="interpro/interpro_lookup"          # from merge_interpro_job.slurm.sh
-ORDER="genome_order.txt"                       # step-01 canonical genome list
-GFF_OUTDIR="gff_with_interpro"                 # new GFFs land here - GFF_INDIR is untouched
-# ────────────────────────────────────────────────────────────────────────────
-
 set -eo pipefail
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
+# ─── ADAPT: the paths below and the #SBATCH lines ───
+GFF_INDIR="$STEP02_OUT/gff_cleaned"           # step 02's TE-kill-list output
+LOOKUP_DIR="$STEP04_OUT/interpro_lookup"      # from merge_interpro_job.slurm.sh
+ORDER="genome_order.txt"                       # step-01 canonical genome list
+GFF_OUTDIR="$STEP04_OUT/gff_with_interpro"    # new GFFs land here - GFF_INDIR is untouched
+# ────────────────────────────────────────────────────────────────────────────
+
 ### ADAPT ### — put python3 on the PATH:
 activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 set -u
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
-GFF_DIR="$PROJECT_DIR/$GFF_INDIR"
-LOOKUP_PATH="$PROJECT_DIR/$LOOKUP_DIR"
-ORDER_FILE="$PROJECT_DIR/$ORDER"
-OUT_DIR="$PROJECT_DIR/$GFF_OUTDIR"
+GFF_DIR="$GFF_INDIR"
+LOOKUP_PATH="$LOOKUP_DIR"
+ORDER_FILE="$ORDER"
+OUT_DIR="$GFF_OUTDIR"
 
 [[ -d "$GFF_DIR" ]]    || { echo "ERROR: GFF folder not found: $GFF_DIR" >&2; exit 1; }
 [[ -d "$LOOKUP_PATH" ]] || { echo "ERROR: lookup folder not found: $LOOKUP_PATH (run merge_interpro_job.slurm.sh first)" >&2; exit 1; }

@@ -76,7 +76,7 @@ own.
 
 Scripts: [`scripts/analyze_input_gffs_job.sh`](scripts/analyze_input_gffs_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/analyze_input_gffs.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/analyze_input_gffs.py). Read-only - it never edits any GFF.
-Run once, after [step 04 - InterProScan](../04_InterProScan/README.md) - the domain-evidence
+Run once, after [step 04 - InterProScan](../docs/step04_interproscan.md) - the domain-evidence
 columns and plots (`has_domain`) only mean anything once InterPro/PFAM hits are written into the
 GFFs.
 
@@ -724,7 +724,7 @@ unconditionally - not because those genes lack real domains, but because that an
 source never recorded them. This project's own reference (AF293/FungiDB) is exactly this
 case: 0 of its ~32,000 CDS lines carry an InterPro/PFAM hit - every gene sourced from it relies
 entirely on its description text (or, for `main`/being the reference, on not needing evidence
-at all) to survive an overlap dispute. That is why [step 04 - InterProScan](../04_InterProScan/README.md) runs
+at all) to survive an overlap dispute. That is why [step 04 - InterProScan](../docs/step04_interproscan.md) runs
 before everything else in this step: it writes real domain evidence into every genome's GFF, so
 the rule works from each genome's own InterProScan result rather than whatever the source
 annotation happened to record. **[Step 1's native annotation check](#step-1-native-annotation-check)**, run on

@@ -10,39 +10,42 @@
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
 #SBATCH --time=98:00:00
-#SBATCH --output=interpro/logs/interproscan_%A_%a.out
-#SBATCH --error=interpro/logs/interproscan_%A_%a.err
+#SBATCH --output=logs/%x_%A_%a.out
+#SBATCH --error=logs/%x_%A_%a.err
 #
 # Runs InterProScan on one (genome, chunk) pair per array task, as defined by
 # interpro_manifest.tsv (built by build_interpro_manifest.slurm.sh - run that first).
-# Output: interpro/interproscan_results/<genome>/chunk_<N>_interproscan.tsv
+# Output: $STEP04_OUT/interproscan_results/<genome>/chunk_<N>_interproscan.tsv
 #
 # The compute nodes on this cluster can't reach EBI, so -dp (disable precalculated
 # match lookup) is required below - every sequence is computed locally instead of
 # checked against EBI's online cache. This makes each chunk slower than a
 # lookup-enabled run, already accounted for in --time above.
 #
-# `interpro/logs/` must exist BEFORE you submit - SLURM writes --output/--error there
-# immediately on job start, before this script's body runs.
-#
 # Submit from your project folder - this reads the real chunk count straight out of the
 # manifest and passes it to `--array` on the command line, which overrides the smoke-test
 # default in the #SBATCH line above, so there is nothing to hand-edit:
-#     mkdir -p interpro/logs
-#     N=$(($(wc -l < interpro/interpro_manifest.tsv) - 1))   # -1 for the manifest's header row
-#     sbatch --array=1-${N}%20 04_InterProScan/scripts/interproscan_array_job.slurm.sh
+#     N=$(($(wc -l < output/step04_interproscan/interpro_manifest.tsv) - 1))   # -1 for the header row
+#     # (the manifest is in $STEP04_OUT - by default output/step04_interproscan/ in the project)
+#     sbatch --array=1-${N}%20 $PIPELINE_DIR/workflow/step04_interproscan/interproscan_array_job.slurm.sh
 #
 # (%20 caps concurrent tasks - adjust to your cluster's fair-use policy.) To smoke-test a
 # single task first, instead run:
-#     sbatch --array=1-1 04_InterProScan/scripts/interproscan_array_job.slurm.sh
+#     sbatch --array=1-1 $PIPELINE_DIR/workflow/step04_interproscan/interproscan_array_job.slurm.sh
 #
-# ─── ADAPT: the paths below ───
-PROTEIN_DIR="interpro/proteins"
-MANIFEST="interpro/interpro_manifest.tsv"
-OUT_DIR="interpro/interproscan_results"
-# ─────────────────────────────────────────────────────────────────────────────
-
 set -euo pipefail
+
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
+# ─── ADAPT: the paths below ───
+PROTEIN_DIR="$STEP04_OUT/proteins"
+MANIFEST="$STEP04_OUT/interpro_manifest.tsv"
+OUT_DIR="$STEP04_OUT/interproscan_results"
+# ─────────────────────────────────────────────────────────────────────────────
 
 [[ -f "$MANIFEST" ]] || { echo "ERROR: manifest not found: $MANIFEST (run build_interpro_manifest.slurm.sh first)" >&2; exit 1; }
 
