@@ -857,8 +857,8 @@ bash 08_Pangenome_Visualisation/scripts/plot_all.sh \
 The folders are given on the command line, and the matrices are found by name below the `get_pangenes` folder:
 ```bash
 mkdir -p pangenome_plots/logs
-sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7b --label Toxo7b
-sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7a --label Toxo7a
+sbatch workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7b --label Toxo7b
+sbatch workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7a --label Toxo7a
 ```
 `--set` stands for `--pangenes-dir for_get_pangenes_<set>_pangenes --gff-dir for_get_pangenes_<set>`, and turns the
 unsupported-overlap plot on for 7b only. Give the two folders by hand for any other layout (`--help` lists every option).
@@ -1027,7 +1027,7 @@ mitochondrial gene, so several copies per genome fit mitochondrial DNA inserted 
 genome (NUMTs) or poor transfers of them, but this was not tested: it would need the sequences
 aligned to the mitochondrial genome.
 ```bash
-sbatch 08_Pangenome_Visualisation/scripts/plot_domain_enrichment_job.sh
+sbatch workflow/step08_pangenome_visualisation/plot_domain_enrichment_job.sh
 ```
 
 ![InterPro term enrichment, no filtering](08_Pangenome_Visualisation/pangenome_plots/Toxo7b_domain_enrichment.png)

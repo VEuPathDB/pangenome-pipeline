@@ -29,7 +29,7 @@ Easiest fix: create an env with the same name and every package above installed:
 
     micromamba create -n synteny -c conda-forge python numpy scipy matplotlib pandas seaborn
 
-If `synteny` already exists from [step 01](../docs/step01_genome_selection_qc.md#dependencies), it has most of them; add what is
+If `synteny` already exists from [step 01](step01_genome_selection_qc.md#dependencies), it has most of them; add what is
 missing with `micromamba install -n synteny -c conda-forge scipy seaborn`.
 
 
@@ -57,7 +57,7 @@ The file comes from the current InterPro release, which changes over time, so no
   ```
 
 - On the command line of `plot_all_job.sh`: `--entry-list /path/to/interpro_entry.list`, or the
-  `ENTRY_LIST=` line of [`plot_domain_enrichment_job.sh`](scripts/plot_domain_enrichment_job.sh).
+  `ENTRY_LIST=` line of [`plot_domain_enrichment_job.sh`](../workflow/step08_pangenome_visualisation/plot_domain_enrichment_job.sh).
 
 With neither, the jobs warn and label terms by IPR id.
 
@@ -74,15 +74,15 @@ labels the entries by their IPR accession.
 | `pangene_matrix.tr.tab` (rows = pangenes, columns = genomes, cells = number of genes) | `get_pangenes` | pan/core, occupancy, singletons |
 | `pangene_matrix_genes.tr.tab` (same, cells = gene IDs) | `get_pangenes` | every plot that looks at genes |
 | `POCS.matrix.tab` | `get_pangenes`, same folder as the matrices | POCS heatmap |
-| the GFFs given to `get_pangenes` (`<genome>_for_get_pangenes.gff`) | [step 06](../docs/step06_get_pangenes.md), gene IDs must match the matrix | domains, protein length, `valid_ORFs`, gene source, `intersect=` |
-| `contig_sizes.tsv` (genome, contig, length) | [step 01](../docs/step01_genome_selection_qc.md), contig size profile | contig size plot |
+| the GFFs given to `get_pangenes` (`<genome>_for_get_pangenes.gff`) | [step 06](step06_get_pangenes.md), gene IDs must match the matrix | domains, protein length, `valid_ORFs`, gene source, `intersect=` |
+| `contig_sizes.tsv` (genome, contig, length) | [step 01](step01_genome_selection_qc.md), contig size profile | contig size plot |
 | InterPro `entry.list` (IPR id → name) | downloaded once from EBI | names in the enrichment plot |
 
 `get_pangenes` writes the matrices in a subfolder whose name depends on the genome and the options it was run
 with, so the job looks for them by file name. There are two sets of pangenes, and the same plots are made for each:
 
-- **7a**, with filtering: the GFFs were filtered before `get_pangenes` ([step 05](../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
-- **7b**, no filtering ([step 05](../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)): the GFFs were only tagged, nothing removed. It carries the `intersect=` tag, which one plot needs.
+- **7a**, with filtering: the GFFs were filtered before `get_pangenes` ([step 05](step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
+- **7b**, no filtering ([step 05](step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)): the GFFs were only tagged, nothing removed. It carries the `intersect=` tag, which one plot needs.
 
 **Occupancy categories.** Occupancy is the number of genomes (N) a pangene is present in. The categories are cut in
 numbers of genomes, not in percentages. Each pangene falls in exactly one, decided in this order (`categorize` in
@@ -139,47 +139,48 @@ Notes on how the pangenes are counted:
 ## Running it
 
 On the cluster, one job makes all the plots. Run it once for each set of pangenes (7a and 7b), from the project folder.
-The log folder must exist before submitting:
+The plots go to `$STEP08_OUT/pangenome_plots/` — by default `output/step08_pangenome_visualisation/pangenome_plots/` in
+the project folder (see [outputs](../README.md#outputs)) — and the job log to `logs/`:
 
 ```bash
-mkdir -p pangenome_plots/logs
-sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7b --label Afum7b
-sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7a --label Afum7a
+sbatch $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7b --label Afum7b
+sbatch $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7a --label Afum7a
 ```
 
 The two commands differ in two things:
 
-- **The folders they read.** `--set 7b` reads `for_get_pangenes_7b_pangenes` and `for_get_pangenes_7b`. `--set 7a` reads
-  `for_get_pangenes_7a_pangenes` and `for_get_pangenes_7a`.
+- **The folders they read.** `--set 7b` reads `for_get_pangenes_7b_pangenes` and `for_get_pangenes_7b` in step 06's
+  output folder (`$STEP06_OUT`). `--set 7a` reads `for_get_pangenes_7a_pangenes` and `for_get_pangenes_7a`.
 - **The plots they make.** `--set 7b` makes every plot, including the unsupported overlapping genes plots, which need the
   `intersect=` tag that only the 7b GFFs have. `--set 7a` makes all the others.
 
 `--label` only names the output files (`Afum7b_...` and `Afum7a_...`), so the two runs do not overwrite each other.
 
-**Folders with other names.** If your folders are not called `for_get_pangenes_<set>_pangenes` and
-`for_get_pangenes_<set>`, do not use `--set`. Give the folders yourself, and for the 7b set also add `--overlap yes`:
+**Folders with other names.** If your folders are not `$STEP06_OUT/for_get_pangenes_<set>_pangenes` and
+`$STEP06_OUT/for_get_pangenes_<set>`, do not use `--set`. Give the folders yourself (a relative path is taken from the
+project folder), and for the 7b set also add `--overlap yes`:
 
 ```bash
-sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --pangenes-dir <get_pangenes folder> --gff-dir <GFF folder> --label Afum7b --overlap yes
+sbatch $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_all_job.sh --pangenes-dir <get_pangenes folder> --gff-dir <GFF folder> --label Afum7b --overlap yes
 ```
 
 For a 7a set do the same without `--overlap`. `--overlap` is only needed in this case; with `--set` it is decided for you.
 
-[`plot_all_job.sh`](scripts/plot_all_job.sh) options (`--help` lists them all):
+[`plot_all_job.sh`](../workflow/step08_pangenome_visualisation/plot_all_job.sh) options (`--help` lists them all):
 
 | Option | Meaning |
 | :--- | :--- |
 | `--label` | Prefix of every output file. Required. |
-| `--set 7a` / `--set 7b` | Shortcut that chooses the folders (`--pangenes-dir for_get_pangenes_<set>_pangenes --gff-dir for_get_pangenes_<set>`). `7b` also makes the unsupported overlapping genes plots. |
+| `--set 7a` / `--set 7b` | Shortcut that chooses the folders (`--pangenes-dir $STEP06_OUT/for_get_pangenes_<set>_pangenes --gff-dir $STEP06_OUT/for_get_pangenes_<set>`). `7b` also makes the unsupported overlapping genes plots. |
 | `--pangenes-dir`, `--gff-dir` | The `get_pangenes` result folder and the GFFs given to it, when the names are different. |
 | `--matrix-subdir` | Only when the result folder holds more than one `pangene_matrix.tr.tab`: the subfolder to use. |
 | `--gff-suffix` | GFF name is `<genome><suffix>` (default `_for_get_pangenes.gff`). |
 | `--overlap yes` | Makes the unsupported overlapping genes plots. Only for the 7b set, when you give `--pangenes-dir` and `--gff-dir` yourself instead of `--set 7b`. Default: not made. |
-| `--contig-sizes` | Path of `contig_sizes.tsv` (default `01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv`). |
+| `--contig-sizes` | Path of `contig_sizes.tsv` (default `$STEP01_OUT/contig_size_profile/contig_sizes.tsv`). |
 | `--entry-list` | Path of the InterPro `entry.list`; downloaded there if missing. Download it once on the login node, because compute nodes may have no internet. |
 | `--core-missing`, `--softcore-missing`, `--cloud-max` | How the occupancy categories are cut, in numbers of genomes (default 0, 1, 2; see above). Applied to every plot with categories. |
 | `--categories`, `--alpha`, `--min-total`, `--min-count`, `--top` | Enrichment settings (default `Core,Cloud`, 0.05, 5, 3, 15): the categories tested, the adjusted p-value cut, the minimum size of an entry in the whole universe to be tested, the minimum pangenes of the category carrying an entry to draw it, and the entries drawn per category. |
-| `--out-dir` | Output folder (default `pangenome_plots`). |
+| `--out-dir` | Output folder (default `$STEP08_OUT/pangenome_plots`). |
 
 The job looks for `pangene_matrix.tr.tab` by name below `--pangenes-dir`. If it finds none, or more than one, it
 stops and says so. If one plot fails, the others still run; the job lists the failed ones at the end and exits with an
@@ -189,22 +190,22 @@ To make only the first four plots (pan/core, occupancy, singletons, POCS) on a l
 set with the environment variables `CORE_MISSING`, `SOFTCORE_MISSING` and `CLOUD_MAX`):
 
 ```bash
-bash 08_Pangenome_Visualisation/scripts/plot_all.sh -i <folder>/pangene_matrix.tr.tab -o <out_dir> -l <label>
+bash $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_all.sh -i <folder>/pangene_matrix.tr.tab -o <out_dir> -l <label>
 ```
 
 ## Adapting the scripts
 
 The Python scripts need no change. What is specific to one cluster and one user is in the jobs.
 
-In [`plot_all_job.sh`](scripts/plot_all_job.sh):
+In [`plot_all_job.sh`](../workflow/step08_pangenome_visualisation/plot_all_job.sh):
 
-- The `#SBATCH` lines at the top: partition, memory, time and the log folder (`pangenome_plots/logs`).
+- The `#SBATCH` lines at the top: partition, memory and time.
 - The block between `### ADAPT ###` and `### END ADAPT ###` activates the environment named by `ENV_SYNTENY`; the
-  micromamba paths come from the project's `pipeline_config.sh`. Set `SKIP_ENV=1` to skip it when already inside an
+  micromamba paths come from `pipeline_config.sh`. Set `SKIP_ENV=1` to skip it when already inside an
   environment.
 - The InterPro `entry.list`: `INTERPRO_ENTRY_LIST` in `pipeline_config.sh` (see
   [InterPro entry list](#interpro-entry-list)), or pass your own path with `--entry-list`.
-- The default of `--contig-sizes` (`01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv`), if the step 01 table
+- The default of `--contig-sizes` (`$STEP01_OUT/contig_size_profile/contig_sizes.tsv`), if the step 01 table
   is elsewhere.
 
 The jobs of the single plots (`plot_domain_enrichment_job.sh`, `plot_occupancy_properties_job.sh`) have the same
@@ -215,7 +216,7 @@ The jobs of the single plots (`plot_domain_enrichment_job.sh`, `plot_occupancy_p
 One `.png` and one `.svg` per figure, plus a `.tsv` with the values behind it (`.log` for the pan/core fits):
 
 ```
-pangenome_plots/
+$STEP08_OUT/pangenome_plots/
 ├── <label>_pancore.{png,svg,log}   <label>_pancore_separate.{png,svg,log}
 ├── <label>_occupancy.{png,svg,tsv}
 ├── <label>_singletons.{png,svg,tsv}
@@ -236,11 +237,11 @@ change how the pangenes are counted. The job does not make these; to get one, ru
 active. For example, the contig size plot as boxplots, for the 7b set:
 
 ```bash
-PYTHONPATH=src python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_contigs \
+PYTHONPATH=$PIPELINE_DIR/src python3 -m pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy_contigs \
   --genes-matrix <get_pangenes folder>/pangene_matrix_genes.tr.tab \
-  --gff-dir for_get_pangenes_7b --gff-suffix _for_get_pangenes.gff \
-  --contig-sizes 01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv \
-  --style boxplot -o pangenome_plots/Afum7b_occupancy_contigs
+  --gff-dir output/step06_get_pangenes/for_get_pangenes_7b --gff-suffix _for_get_pangenes.gff \
+  --contig-sizes output/step01_genome_selection_qc/contig_size_profile/contig_sizes.tsv \
+  --style boxplot -o output/step08_pangenome_visualisation/pangenome_plots/Afum7b_occupancy_contigs
 ```
 
 The other arguments are the same as in the job. What each option does:

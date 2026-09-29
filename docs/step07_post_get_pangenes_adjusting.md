@@ -4,7 +4,7 @@
 > and the scripts we have so far.
 
 ***Purpose***: Look at the pangenes that `get_pangenes` returned, and decide whether some need to be adjusted before
-the results are interpreted. The plots of [step 08](../08_Pangenome_Visualisation/README.md) show where the problems
+the results are interpreted. The plots of [step 08](step08_pangenome_visualisation.md) show where the problems
 seem to be; this step is where they are examined one by one.
 
 ## Table of contents
@@ -17,7 +17,11 @@ seem to be; this step is where they are examined one by one.
 **`explore_multigene_pangenes.py`** (wrapper: `explore_multigene_pangenes_job.sh`). Lists the pangenes that hold more than
 one gene of the same genome. For each pair of genes it reports whether their CDS overlap, the distance between them, whether
 they are on the same strand, the source layer of each gene, its `intersect=` tag and whether it has a protein domain. It
-needs the 7b GFFs (`intersect=`) and writes one row per gene pair.
+needs the 7b GFFs (`intersect=`) and writes one row per gene pair. Submit it from the project folder:
+`sbatch --export=ALL,LABEL=Toxo7b $PIPELINE_DIR/workflow/step07_post_get_pangenes_adjusting/explore_multigene_pangenes_job.sh`.
+It reads `$STEP06_OUT/for_get_pangenes_7b_pangenes/` and `$STEP05_OUT/tagged_annotation/`, and writes to
+`$STEP07_OUT/multigene_pangenes/` — by default `output/step07_post_get_pangenes_adjusting/multigene_pangenes/` in the
+project folder (see [outputs](../README.md#outputs)).
 
 **`explore_pseudogenes.py`** (no SLURM wrapper yet). Flags pseudogene-like genes by two marks kept separate: the pseudogene
 biotype of the source annotation, and a broken ORF (`valid_ORFs=0`) in a Liftoff transfer. It reports them per genome and
@@ -53,7 +57,7 @@ which are organelle sequence, which are insertions in the nuclear genome, and wh
 genes of the redundant contigs were removed after `get_pangenes` (step 09 of the species report). The same check is still
 to be done for *A. fumigatus*, and `get_pangenes` could be run again to make the neighbourhoods exact.
 
-**7. Transposable elements.** Genes that come from TEs and were not removed in [step 02](../docs/step02_te_annotation_clean_up.md)
+**7. Transposable elements.** Genes that come from TEs and were not removed in [step 02](step02_te_annotation_clean_up.md)
 should be handled here.
 
 **8. One table per pangene.** A table with the properties of every pangene (occupancy, genes per genome, domains, invalid

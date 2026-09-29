@@ -4,7 +4,8 @@
 #   plot_all.sh -i <pangene_matrix.tr.tab> -o <out_dir> -l <label>
 #
 # Example:
-#   plot_all.sh -i for_get_pangenes_7b_pangenes/pangene_matrix.tr.tab -o 08_Pangenome_Visualisation -l Toxo7b
+#   plot_all.sh -i output/step06_get_pangenes/for_get_pangenes_7b_pangenes/<subfolder>/pangene_matrix.tr.tab \
+#       -o output/step08_pangenome_visualisation -l Toxo7b
 #
 # The category cuts can be changed with the environment variables CORE_MISSING, SOFTCORE_MISSING and CLOUD_MAX
 # (default 0, 1 and 2 genomes); plot_all_job.sh sets them from its options.

@@ -20,7 +20,7 @@ Easiest fix: create one env with the same name and every program above installed
 
     micromamba create -n synteny -c bioconda -c conda-forge skani minimap2 samtools blast python pandas matplotlib scipy seaborn
 
-`scipy` and `seaborn` are only needed by the plots of [step 08](../08_Pangenome_Visualisation/README.md). If `synteny` already exists, add them with
+`scipy` and `seaborn` are only needed by the plots of [step 08](step08_pangenome_visualisation.md). If `synteny` already exists, add them with
 `micromamba install -n synteny -c conda-forge scipy seaborn`.
 
 

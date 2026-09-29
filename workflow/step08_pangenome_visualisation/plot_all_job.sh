@@ -1,24 +1,24 @@
 #!/bin/bash
 #SBATCH --job-name=plot_all
 #SBATCH --partition=low
-#SBATCH --output=pangenome_plots/logs/%x_%j.out
-#SBATCH --error=pangenome_plots/logs/%x_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=16G
 #SBATCH --time=03:00:00
 
 # Every pangenome plot of step 08 in one job, after get_pangenes has finished. Submit from your
-# project folder. The log folder must exist BEFORE submitting (SLURM does not create it):
+# project folder (logs/ must exist there - SLURM does not create it):
 #
-#     mkdir -p pangenome_plots/logs
-#     sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7b --label Afum7b
-#     sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7a --label Afum7a
+#     sbatch $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7b --label Afum7b
+#     sbatch $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7a --label Afum7a
 #
 # or with every folder given by hand:
 #
-#     sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh \
-#         --pangenes-dir for_get_pangenes_7b_pangenes --gff-dir for_get_pangenes_7b --label Afum7b --overlap yes
+#     sbatch $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_all_job.sh \
+#         --pangenes-dir output/step06_get_pangenes/for_get_pangenes_7b_pangenes \
+#         --gff-dir output/step06_get_pangenes/for_get_pangenes_7b --label Afum7b --overlap yes
 #
 # Options (--pangenes-dir, --gff-dir and --label are required unless --set gives the first two):
 #   --pangenes-dir DIR   get_pangenes output folder. The matrices are found by name, wherever they are below it
@@ -27,12 +27,12 @@
 #   --gff-dir DIR        the GFFs given to get_pangenes (link_for_get_pangenes_*.slurm.sh's OUT_DIR)
 #   --gff-suffix S       GFF name = <genome><S> inside --gff-dir           (default _for_get_pangenes.gff)
 #   --label LABEL        prefix of every output file                       (e.g. Afum7b)
-#   --set 7a|7b          shortcut: --pangenes-dir for_get_pangenes_<set>_pangenes, --gff-dir for_get_pangenes_<set>,
+#   --set 7a|7b          shortcut: --pangenes-dir $STEP06_OUT/for_get_pangenes_<set>_pangenes, --gff-dir $STEP06_OUT/for_get_pangenes_<set>,
 #                        and --overlap yes for 7b, no for 7a
 #   --overlap yes|no     also plot the unsupported overlapping genes; needs the tagged 7b GFFs (intersect=)  (default no)
-#   --contig-sizes FILE  step-01 table with genome_label, contig, length   (default 01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv)
+#   --contig-sizes FILE  step-01 table with genome_label, contig, length   (default $STEP01_OUT/contig_size_profile/contig_sizes.tsv)
 #   --entry-list FILE    InterPro IPR id -> name, downloaded there if missing (default INTERPRO_ENTRY_LIST from pipeline_config.sh)
-#   --out-dir DIR        output folder                                     (default pangenome_plots)
+#   --out-dir DIR        output folder                                     (default $STEP08_OUT/pangenome_plots)
 #   --core-missing A  --softcore-missing B  --cloud-max C   how the categories are cut, in numbers of genomes
 #                        (default 0 1 2: core = all genomes, soft-core = missing from at most 1 genome, cloud = in at
 #                        most 2 genomes, shell the rest)
@@ -48,11 +48,17 @@
 
 set -uo pipefail
 
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 PANGENES_DIR=""; MATRIX_SUBDIR=""; GFF_DIR=""; GFF_SUFFIX="_for_get_pangenes.gff"; LABEL=""; SET=""
 OVERLAP="no"
-CONTIG_SIZES="01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv"
+CONTIG_SIZES="$STEP01_OUT/contig_size_profile/contig_sizes.tsv"
 ENTRY_LIST=""
-OUT_DIR="pangenome_plots"
+OUT_DIR="$STEP08_OUT/pangenome_plots"
 CATEGORIES="Core,Cloud"; ALPHA="0.05"; MIN_TOTAL="5"; MIN_COUNT="3"; TOP="15"
 CORE_MISSING="0"; SOFTCORE_MISSING="1"; CLOUD_MAX="2"
 
@@ -83,8 +89,8 @@ while [[ $# -gt 0 ]]; do
 done
 if [[ -n "$SET" ]]; then
     [[ "$SET" == "7a" || "$SET" == "7b" ]] || { echo "ERROR: --set must be 7a or 7b" >&2; exit 1; }
-    [[ -n "$PANGENES_DIR" ]] || PANGENES_DIR="for_get_pangenes_${SET}_pangenes"
-    [[ -n "$GFF_DIR" ]]      || GFF_DIR="for_get_pangenes_${SET}"
+    [[ -n "$PANGENES_DIR" ]] || PANGENES_DIR="$STEP06_OUT/for_get_pangenes_${SET}_pangenes"
+    [[ -n "$GFF_DIR" ]]      || GFF_DIR="$STEP06_OUT/for_get_pangenes_${SET}"
     [[ "$SET" == "7b" && "$OVERLAP" == "no" ]] && OVERLAP="yes"
 fi
 [[ -n "$PANGENES_DIR" && -n "$GFF_DIR" && -n "$LABEL" ]] || { echo "ERROR: --label and either --set or --pangenes-dir and --gff-dir are required" >&2; usage; }
@@ -96,7 +102,6 @@ fi
 # SKIP_ENV=1 skips the micromamba block (already inside an environment, or running locally).
 set +u
 module purge 2>/dev/null || true
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib + pandas + seaborn):
 if [[ -z "${SKIP_ENV:-}" ]]; then
     activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
@@ -109,7 +114,7 @@ for mod in numpy scipy matplotlib pandas seaborn; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy, matplotlib, pandas and seaborn)" >&2; exit 1; }
 done
 
-find_script PLOT_ALL 08_Pangenome_Visualisation/scripts/plot_all.sh
+find_script PLOT_ALL workflow/step08_pangenome_visualisation/plot_all.sh
 SCRIPTS="$(cd "$(dirname "$PLOT_ALL")" && pwd)"
 mkdir -p "$OUT_DIR"
 

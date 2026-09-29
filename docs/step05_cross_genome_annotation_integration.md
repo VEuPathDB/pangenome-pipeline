@@ -837,7 +837,7 @@ type for its WGA-based clustering), so it isn't needed to survive into `get_pang
 output - `get_pangenes`' `pangene_matrix.tab` references genes by their original gene ID, so
 the tag can be joined back onto each pangene cluster afterward by ID. That join, and the
 pangene-level confidence call it produces, isn't built yet - planned as part of
-[step 07 - Post-GET_PANGENES adjusting](../07_Post_GET_PANGENES_adjusting/README.md).
+[step 07 - Post-GET_PANGENES adjusting](step07_post_get_pangenes_adjusting.md).
 
 #### Dependencies
 

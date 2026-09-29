@@ -57,7 +57,7 @@ def test_plot_all_runs_every_plot(tmp_path):
     result = subprocess.run(
         [
             "bash",
-            str(REPO_ROOT / "08_Pangenome_Visualisation" / "scripts" / "plot_all.sh"),
+            str(REPO_ROOT / "workflow" / "step08_pangenome_visualisation" / "plot_all.sh"),
             "-i",
             str(matrix),
             "-o",

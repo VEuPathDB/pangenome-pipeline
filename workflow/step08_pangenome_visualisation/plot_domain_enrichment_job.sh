@@ -1,24 +1,30 @@
 #!/bin/bash
 #SBATCH --job-name=plot_domain_enrichment
 #SBATCH --partition=low
-#SBATCH --output=pangenome_plots/logs/%x_%j.out
-#SBATCH --error=pangenome_plots/logs/%x_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=8G
 #SBATCH --time=01:00:00
 
+# Run this after get_pangenes has finished. Submit from your project folder (logs/ must exist
+# there - SLURM does not create it):
+#     sbatch $PIPELINE_DIR/workflow/step08_pangenome_visualisation/plot_domain_enrichment_job.sh
+
 set -euo pipefail
 
-# Run this after get_pangenes has finished. Submit from your project folder. The log folder must
-# exist BEFORE submitting (SLURM does not create it):
-#     mkdir -p pangenome_plots/logs && sbatch 08_Pangenome_Visualisation/scripts/plot_domain_enrichment_job.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 
 # Edit these for your run.
-PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"                             # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
-GFF_DIR="for_get_pangenes_7b"                                             # the GFFs given to get_pangenes (link_for_get_pangenes_7b.slurm.sh's OUT_DIR)
+PANGENES_OUT_DIR="$STEP06_OUT/for_get_pangenes_7b_pangenes"   # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
+GFF_DIR="$STEP06_OUT/for_get_pangenes_7b"   # the GFFs given to get_pangenes (link_for_get_pangenes_7b.slurm.sh's OUT_DIR)
 ENTRY_LIST=""                                                             # InterPro IPR id -> name; empty = INTERPRO_ENTRY_LIST from pipeline_config.sh
-OUT_DIR="pangenome_plots"
+OUT_DIR="$STEP08_OUT/pangenome_plots"
 LABEL="${LABEL:?set LABEL (prefix of every output file, e.g. Toxo7b) here or with sbatch --export=ALL,LABEL=...}"
 CATEGORIES="Core,Cloud"                                                   # comma-separated: Core, Soft-core, Shell, Cloud
 ALPHA="0.05"                                                              # adjusted p-value cutoff
@@ -28,7 +34,6 @@ TOP="15"                                                                  # max 
 
 set +u
 module purge
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib):
 activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###

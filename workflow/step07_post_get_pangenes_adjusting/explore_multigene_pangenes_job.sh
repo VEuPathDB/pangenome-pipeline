@@ -1,23 +1,29 @@
 #!/bin/bash
 #SBATCH --job-name=explore_multigene_pangenes
 #SBATCH --partition=low
-#SBATCH --output=multigene_pangenes/logs/%x_%j.out
-#SBATCH --error=multigene_pangenes/logs/%x_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=8G
 #SBATCH --time=01:00:00
 
+# Run this after get_pangenes has finished. Submit from your project folder (logs/ must exist
+# there - SLURM does not create it):
+#     sbatch $PIPELINE_DIR/workflow/step07_post_get_pangenes_adjusting/explore_multigene_pangenes_job.sh
+
 set -euo pipefail
 
-# Run this after get_pangenes has finished. Submit from your project folder. The log folder must
-# exist BEFORE submitting (SLURM does not create it):
-#     mkdir -p multigene_pangenes/logs && sbatch 07_Post_GET_PANGENES_adjusting/scripts/explore_multigene_pangenes_job.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 
 # Edit these for your run.
-PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"   # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
-TAGGED_DIR="tagged_annotation"                    # step 05's 7b OUT_DIR (tagged GFFs + <genome>_intersect_pairs.tsv)
-OUT_DIR="multigene_pangenes"
+PANGENES_OUT_DIR="$STEP06_OUT/for_get_pangenes_7b_pangenes"   # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
+TAGGED_DIR="$STEP05_OUT/tagged_annotation"   # step 05's 7b OUT_DIR (tagged GFFs + <genome>_intersect_pairs.tsv)
+OUT_DIR="$STEP07_OUT/multigene_pangenes"
 LABEL="${LABEL:?set LABEL (prefix of every output file, e.g. Toxo7b) here or with sbatch --export=ALL,LABEL=...}"
 
 set +u
@@ -28,7 +34,6 @@ module load python/3.11.9
 ### END ADAPT ###
 set -u
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 mkdir -p "$OUT_DIR"
 
 # get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.
