@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Run with bash from the project folder (it becomes PROJECT_DIR; outputs go under $STEP02_OUT).
 SLURM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "${SLURM_DIR}/../.." && pwd -P)"
-cd "${PROJECT_DIR}"
 source "${SLURM_DIR}/config.sh"
+cd "${PROJECT_DIR}"
 
-mkdir -p "${CONFIG_DIR}" "${LOG_DIR}/slurm" "${MCHELPER_OUTDIR}"
+mkdir -p "${CONFIG_DIR}" "${LOG_DIR}" "${MCHELPER_OUTDIR}"
 
 tmp_table="${MCHELPER_TABLE}.tmp"
 : > "${tmp_table}"

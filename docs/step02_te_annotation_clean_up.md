@@ -4,6 +4,14 @@
 
 Dependencies are documented within each step below, in its own "Dependencies" note.
 
+Job scripts: [`workflow/step02_te_annotation_clean_up/`](../workflow/step02_te_annotation_clean_up/), submitted from
+the project folder (`sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/<job>`). Every output goes
+to `$STEP02_OUT` = `$OUTPUT_DIR/step02_te_annotation_clean_up/` — by default
+`output/step02_te_annotation_clean_up/` in the project folder (see [outputs](../README.md#outputs)).
+The two library FASTAs you provide by hand also go there: the known-TE library the candidate
+pipeline filters against (`CURATED_TE_LIBRARY` in `te_library/config.sh`) and the final curated
+library RepeatMasker uses (`curated_TE_library.fa`).
+
 ## Table of Contents
 
 - [TE-related challenges in pangenome construction](#te-related-challenges-in-pangenome-construction)
@@ -82,7 +90,7 @@ Moreover, the pipeline adopts a conservative strategy. Candidate sequences lacki
 
 #### Dependencies
 
-What `slurm/config.sh` actually sets up, and the variable to edit for each if your cluster
+What `te_library/config.sh` actually sets up, and the variable to edit for each if your cluster
 differs:
 
 - **RepeatModeler** — run from a shared Apptainer/Singularity container, not installed
@@ -93,40 +101,40 @@ differs:
 - **MCHelper** — run inside a micromamba env (`ENV_MCHELPER`, `mchelper` by default), pointed to
   by `MCHELPER_PY`. Download it from its repository: <https://github.com/GonzalezLab/MCHelper>,
   then set `MCHELPER_PY` to your own install. The micromamba paths, `MCHELPER_PY`,
-  `REPBASE_NT_FASTA` and `TE_PEP_FASTA` are set in the project's `pipeline_config.sh` (see the
+  `REPBASE_NT_FASTA` and `TE_PEP_FASTA` are set in `pipeline_config.sh` (see the
   [main README](../README.md#getting-the-pipeline-into-a-project)).
 - **BUSCO lineage** — `BUSCO_LINEAGE` in `pipeline_config.sh`, a path to a downloaded lineage
   dataset; species-specific, must be set for your own species.
 
-Run `slurm/check_dependencies.sh` first — it checks every one of these against your edited
+Run `te_library/check_dependencies.sh` first (`bash $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/te_library/check_dependencies.sh`, from the project folder) — it checks every one of these against your edited
 `config.sh` before the pipeline itself runs anything.
 
 #### Running it on a SLURM cluster
 
-The SLURM version of the pipeline lives in [`slurm/`](slurm/) — cloning the separate
+The SLURM version of the pipeline lives in [`workflow/step02_te_annotation_clean_up/te_library/`](../workflow/step02_te_annotation_clean_up/te_library/) — cloning the separate
 [TE Candidate Discovery](https://github.com/adriludwig/TE-candidate-pipeline) repository is not
 required. To run it on your own project:
 
-1. Edit [`slurm/config.sh`](slurm/config.sh): the cluster module / micromamba / container
+1. Edit [`te_library/config.sh`](../workflow/step02_te_annotation_clean_up/te_library/config.sh): the cluster module / micromamba / container
    commands, the BUSCO lineage for your species, the curated TE library, the RepBase and
    TE-peptide paths, and the `#SBATCH` resources in each `Step*.slurm.sh` header.
-2. Launch the **full pipeline** — this works from any directory, because
-   `run_pipeline_slurm.sh` `cd`s into `02_TE_annotation_Clean_Up/` itself before submitting:
+2. Launch the **full pipeline** from the project folder (the one with `genomes/` and `logs/`):
    ```bash
-   bash 02_TE_annotation_Clean_Up/slurm/run_pipeline_slurm.sh
+   bash $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/te_library/run_pipeline_slurm.sh
    ```
 
 `run_pipeline_slurm.sh` runs the dependency check, builds the genome table from `genomes/*.fna`,
 then submits Steps 1–4 in order with `sbatch --wait`.
 
-**To re-run one step**, submit it **from inside `02_TE_annotation_Clean_Up/`** — the
-individual `StepN_*.slurm.sh` scripts resolve `slurm/config.sh` and their `logs/` folder
-from the directory you run `sbatch` in, not from the script's own location:
+Everything it writes goes under `$STEP02_OUT/te_library/` (`config/`, `repeatmodeler_more_genomes/`,
+`TE_candidate_screen_original_headers/`, `MCHelper_newTEs/`, `final_TE_candidates_after_MCHelper/`,
+the BLAST databases); the job logs go to `logs/` in the project folder.
+
+**To re-run one step**, submit it from the project folder like any other job:
 ```bash
-cd 02_TE_annotation_Clean_Up
-sbatch slurm/Step2_run_TE_candidates_original_headers.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/te_library/Step2_run_TE_candidates_original_headers.slurm.sh
 ```
-Delete that step's output folder first (see [`slurm/README.md`](slurm/README.md) → *Resume
+Delete that step's output folder first (see [the TE-library pipeline page](step02_te_library.md) → *Resume
 Behaviour*), otherwise the step sees the existing output and skips.
 
 ### 3 - Manual Validation of the candidate TEs
@@ -166,7 +174,7 @@ One main approach to visualize the candidate TEs is running
 (genome-coverage plot, self dot-plot, ORFs, hits to known TE proteins), used to decide
 whether a consensus is a *bona fide* TE and whether it is full-length.
 
-Script: [`scripts/run_te_aid.slurm.sh`](scripts/run_te_aid.slurm.sh). TE-Aid takes **one
+Script: [`run_te_aid.slurm.sh`](../workflow/step02_te_annotation_clean_up/run_te_aid.slurm.sh). TE-Aid takes **one
 consensus per run**, so the wrapper splits the candidate FASTA and, for each candidate, runs
 TE-Aid against the genome it was recovered from (candidate headers are
 `<genome_id>|<candidate_id>`, so the wrapper knows which assembly in `genomes/` to pass to
@@ -179,10 +187,9 @@ TE-Aid against the genome it was recovered from (candidate headers are
 Adapt at the top of the script:
 
 - `INPUT_FASTA` / `OUTDIR` — the candidate FASTA to inspect, set as `INPUT_FASTA` + `OUTDIR`
-  pairs at the top of the script. Paths are relative to the folder you submit from (the
-  project root), and the candidate-pipeline outputs live under `02_TE_annotation_Clean_Up/`,
-  so the defaults carry that prefix — adjust it if yours are elsewhere. **The default input
-  is `…/final_TE_candidates_after_MCHelper/final_potential_new_TEs.fa`** (the filtered set).
+  pairs at the top of the script. The candidates are the TE-library pipeline's outputs, under
+  `$STEP02_OUT/te_library/`, and each `OUTDIR` is a folder in `$STEP02_OUT`. **The default input
+  is `$STEP02_OUT/te_library/final_TE_candidates_after_MCHelper/final_potential_new_TEs.fa`** (the filtered set).
   To inspect the unfiltered non-redundant set instead
   (`all_MCHelper_curated_sequences_NR.cdhit80.fa` — shows the candidates the RepBase/peptide
   filter dropped, e.g. solo-LTR-only families), **comment the default pair and uncomment that
@@ -195,7 +202,7 @@ Adapt at the top of the script:
 **Run it from your project folder** (the one that holds `genomes/`):
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/run_te_aid.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/run_te_aid.slurm.sh
 ```
 
 **Output:** one `<OUTDIR>/<candidate>/` folder per candidate with its TE-Aid figure, plus
@@ -240,8 +247,8 @@ library.
 Once we obtain the curated TE library, we use it to annotate the TEs in every genome with
 RepeatMasker.
 
-Script: [`scripts/run_repeatmasker.slurm.sh`](scripts/run_repeatmasker.slurm.sh). It runs
-RepeatMasker on every `*.fna` assembly and writes one folder per genome, `RM_<genome_id>/`
+Script: [`run_repeatmasker.slurm.sh`](../workflow/step02_te_annotation_clean_up/run_repeatmasker.slurm.sh). It runs
+RepeatMasker on every `*.fna` assembly and writes one folder per genome, `$STEP02_OUT/repeatmasker/RM_<genome_id>/`
 (`<genome_id>` = the file name without `.fna`; trimmed to the `GCA_…`/`GCF_…` accession if
 the name is one). `-pa` is set to `cpus / 4` (rmblast uses 4 cores per unit).
 
@@ -252,15 +259,16 @@ Adapt at the top of the script:
 
 - `GENOMES="genomes"` — the assemblies folder. By default the `genomes/` folder built in
   **step 01**; change it (or give a full path) if your assemblies are elsewhere.
-- `LIB="curated_TE_library.fa"` — the curated TE library FASTA, expected in the project
-  folder; change it (or give a full path) if it is elsewhere.
+- `LIB="$STEP02_OUT/curated_TE_library.fa"` — the curated TE library FASTA; put it in the step-02
+  output folder, or give a full path if it is elsewhere.
+- `RM_OUTDIR="$STEP02_OUT/repeatmasker"` — where the `RM_<genome_id>/` folders go.
 - the `### ADAPT ###` block — put `RepeatMasker` on the PATH (micromamba / module).
 - the `#SBATCH` lines — cpus / mem / time / partition.
 
 **Run it from your project folder** (the one that holds `genomes/`):
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/run_repeatmasker.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/run_repeatmasker.slurm.sh
 ```
 
 #### Installing RepeatMasker
@@ -320,7 +328,7 @@ and redo step 4.
 After running RepeatMasker across all genomes, the results can be summarized to evaluate total TE abundance, superfamily distributions, and family-level composition per genome.
 
 Scripts: [`src/pangenome_pipeline/step02_te_annotation_clean_up/summarize_te_content.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/summarize_te_content.py) ·
-[`scripts/summarize_te_content.slurm.sh`](scripts/summarize_te_content.slurm.sh).
+[`summarize_te_content.slurm.sh`](../workflow/step02_te_annotation_clean_up/summarize_te_content.slurm.sh).
 
 **Dependencies:** python3 + pandas + matplotlib — micromamba env `synteny`, already installed
 if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencies).
@@ -338,13 +346,13 @@ if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencie
 
 #### Usage:
 
-Run it **from your project folder** — the one that holds the `RM_<genome_id>/` folders. It is
+Run it **from your project folder**; it reads the `RM_<genome_id>/` folders in `$STEP02_OUT/repeatmasker/`. It is
 a light job (a couple of cores, a few GB); the SLURM wrapper has an **`ADAPT`** block at the
 top (`#SBATCH` resources, the env line for a `python3` with `pandas` + `matplotlib` - the
 `synteny` env, and the `INDIR` / `OUTDIR` / top-N variables).
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/summarize_te_content.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/summarize_te_content.slurm.sh
 ```
 
 **Parameters:**
@@ -377,7 +385,7 @@ To resolve this, we can identify TEs that overlap with gene models using the scr
 
 ### Quantifying TE Overlap Across Gene Models
 
-Scripts: [`scripts/te_gene_overlap.slurm.sh`](scripts/te_gene_overlap.slurm.sh) (SLURM
+Scripts: [`te_gene_overlap.slurm.sh`](../workflow/step02_te_annotation_clean_up/te_gene_overlap.slurm.sh) (SLURM
 wrapper) · [`src/pangenome_pipeline/step02_te_annotation_clean_up/te_gene_overlap.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/te_gene_overlap.py) ·
 [`src/pangenome_pipeline/step02_te_annotation_clean_up/extract_flagged_genes.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/extract_flagged_genes.py) ·
 [`src/pangenome_pipeline/step02_te_annotation_clean_up/extract_cds_sequences.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/extract_cds_sequences.py) (what the wrapper
@@ -414,17 +422,17 @@ env, and these variables):
 
 | variable | meaning |
 |---|---|
-| `TE_INDIR` | folder with the `RM_<genome_id>/` RepeatMasker output dirs, one `.out` each (default `.`) |
+| `TE_INDIR` | folder with the `RM_<genome_id>/` RepeatMasker output dirs, one `.out` each (default `$STEP02_OUT/repeatmasker`) |
 | `GFF_INDIR` | folder with one GFF3 per genome (default `gff_originals`) |
 | `GENOMES` | folder with one assembly FASTA per genome — only needed for the CDS-extraction steps (default `genomes`) |
-| `OUTDIR` | where every output lands (default `te_annotation_integration`) |
+| `OUTDIR` | where every output lands (default `$STEP02_OUT/te_annotation_integration`) |
 | `GENOME_MAP` | optional 2-column TSV (`genome_id<TAB>gff_path`) to force a genome-to-GFF match when the automatic matching (below) gets one wrong |
 | `MIN_PCT` / `MAX_PCT` | the "review" band's coverage bounds: `TE_overlap_pct` (% of the gene's CDS a TE covers) between these two lands a gene in `flagged_genes.*`; `MAX_PCT` also marks where "eliminated" starts (overlap ≥ `MAX_PCT`). Default `20`/`80` |
 | `REVIEW_MIN_DIV` | minimum `TE_divergence_pct` for an eliminated gene to also land in `eliminated_genes_review.*`. Default `30` |
 | `EXTRA_GENES` | optional 2-column TSV (`genome_label<TAB>gene_id`), genes to add to the "review" band's CDS extraction on top of `MIN_PCT`/`MAX_PCT` |
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/te_gene_overlap.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/te_gene_overlap.slurm.sh
 ```
 
 Each `RM_<genome_id>/` is matched to its GFF by name (exact / prefix / accession,
@@ -450,7 +458,7 @@ means real protein-coding genes are being skipped by mistake — go check that g
 GFF has one, else the feature type in column 3 — see `infer_biotype()` in
 `te_gene_overlap.py` for the exact rules).
 
-**Key outputs, all in `OUTDIR` (`te_annotation_integration/` by default):**
+**Key outputs, all in `OUTDIR` (`$STEP02_OUT/te_annotation_integration/` by default):**
 - `gene_te_overlap.tsv`: One row per gene **with any TE overlap** (`TE_overlap_bp > 0`) — the
   ~99.7% of genes at 0% are left out of the file (they'd otherwise be nearly all of it) but
   still count toward `n_genes` and every threshold in `protein_coding_threshold_summary.tsv`
@@ -475,7 +483,7 @@ GFF has one, else the feature type in column 3 — see `infer_biotype()` in
 
 ### Removing TE-Derived Genes with a Kill List
 
-Scripts: [`scripts/build_te_kill_lists.slurm.sh`](scripts/build_te_kill_lists.slurm.sh) (SLURM
+Scripts: [`build_te_kill_lists.slurm.sh`](../workflow/step02_te_annotation_clean_up/build_te_kill_lists.slurm.sh) (SLURM
 wrapper) · [`src/pangenome_pipeline/step02_te_annotation_clean_up/build_te_kill_lists.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/build_te_kill_lists.py) (what it calls).
 
 **Dependencies:** python3 + pandas — micromamba env `synteny`, already installed if you set it
@@ -495,15 +503,15 @@ variables at the top:
 
 | variable | meaning |
 |---|---|
-| `GENE_TABLE` | path to `gene_te_overlap.tsv` (default `te_annotation_integration/gene_te_overlap.tsv`) |
-| `KILL_OUTDIR` | where the kill list is written (default `kill_lists`) |
+| `GENE_TABLE` | path to `gene_te_overlap.tsv` (default `$STEP02_OUT/te_annotation_integration/gene_te_overlap.tsv`) |
+| `KILL_OUTDIR` | where the kill list is written (default `$STEP02_OUT/kill_lists`) |
 | `MIN_PCT` | minimum `TE_overlap_pct` to kill a `protein_coding` gene (default `80`) |
 | `EXTRA_GENES` | optional 2-column TSV (`genome_label<TAB>gene_id`), extra genes to add to the kill list on top of `MIN_PCT` |
 | `GFF_INDIR` | which GFFs to filter — **edit this one:** `gff_originals` (default, the main case — clean before Liftoff) or `liftoff_polished` (if Liftoff already ran; same kill list works, Liftoff preserves the source gene IDs) |
-| `GFF_OUTDIR` | where the filtered GFFs are written (default `gff_cleaned`) |
+| `GFF_OUTDIR` | where the filtered GFFs are written (default `$STEP02_OUT/gff_cleaned`) |
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/build_te_kill_lists.slurm.sh
 ```
 
 ---

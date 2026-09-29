@@ -156,7 +156,7 @@ def test_resolves_relative_to_file_root_and_tail():
         "../workflow/step01_genome_selection_qc/drop_contigs_slurm.sh", "docs/step01_genome_selection_qc.md"
     )  # relative to the doc
     assert resolves("workflow/step01_genome_selection_qc/drop_contigs_slurm.sh", "README.md")  # relative to the root
-    assert resolves("slurm/config.sh", "somewhere/else.md")  # tail of a tracked path
+    assert resolves("te_library/config.sh", "somewhere/else.md")  # tail of a tracked path
     assert resolves("drop_contigs.py", "anything")  # bare name
     assert not resolves("scripts/no_such_script.py", "README.md")
     assert not resolves("no_such_script.py", "README.md")

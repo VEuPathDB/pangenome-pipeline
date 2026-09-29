@@ -1,17 +1,10 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Run with bash from the project folder.
 SLURM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "${SLURM_DIR}/.." && pwd)"
-
-cd "${PROJECT_DIR}"
-
-if [[ ! -f "${SLURM_DIR}/config.sh" ]]; then
-    echo "ERROR: slurm/config.sh not found." >&2
-    exit 1
-fi
-
 source "${SLURM_DIR}/config.sh"
+cd "${PROJECT_DIR}"
 
 check_program() {
     local program="$1"

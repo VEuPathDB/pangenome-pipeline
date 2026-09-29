@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Run with bash from the project folder (it becomes PROJECT_DIR; outputs go under $STEP02_OUT).
 SLURM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "${SLURM_DIR}/.." && pwd)"
-
-cd "${PROJECT_DIR}"
 source "${SLURM_DIR}/config.sh"
+cd "${PROJECT_DIR}"
 
-mkdir -p "${LOG_DIR}/slurm"
+mkdir -p "${LOG_DIR}"
 
 timestamp="$(date +%Y%m%d_%H%M%S)"
-runner_log="${LOG_DIR}/slurm/run_pipeline_slurm_${timestamp}.log"
+runner_log="${LOG_DIR}/run_pipeline_slurm_${timestamp}.log"
 exec > >(tee -a "${runner_log}") 2>&1
 
 elapsed_time() {
@@ -98,7 +97,7 @@ print_summary() {
         echo "Final candidate TE families: 0"
     fi
     echo "Runner log: ${runner_log}"
-    echo "SLURM logs: ${LOG_DIR}/slurm"
+    echo "SLURM logs: ${LOG_DIR}"
     echo "Finished: $(date)"
     echo "============================================================"
 }
@@ -112,6 +111,7 @@ echo "TE candidate discovery pipeline"
 echo "Execution mode: SLURM sequential runner"
 echo "Started: $(date)"
 echo "Project directory: ${PROJECT_DIR}"
+echo "Output directory: ${TE_LIBRARY_OUT}"
 echo "SLURM config: ${SLURM_DIR}/config.sh"
 echo "Runner log: ${runner_log}"
 echo "============================================================"

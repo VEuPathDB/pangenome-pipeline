@@ -592,7 +592,7 @@ Ran RepeatMasker on every assembly with the curated library
 per genome:
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/run_repeatmasker.slurm.sh
+sbatch workflow/step02_te_annotation_clean_up/run_repeatmasker.slurm.sh
 ```
 
 > ⚠️ This was run **before** the step-01 contig drop (see 02.2).
@@ -636,7 +636,7 @@ This is Afum-only: the general pipeline expects the contig drop (step 01) to hap
 
 ```bash
 # INDIR="repeatmasker_contig_filtered" in the script
-sbatch 02_TE_annotation_Clean_Up/scripts/summarize_te_content.slurm.sh
+sbatch workflow/step02_te_annotation_clean_up/summarize_te_content.slurm.sh
 ```
 
 Numbers: [`te_content_summary/te_content_summary.tsv`](02_TE_annotation_Clean_Up/te_content_summary/te_content_summary.tsv)
@@ -721,7 +721,7 @@ computes the non-redundant TE overlap over the CDS of every gene and (2) extract
 spliced CDS sequence (FASTA) of the genes in the `MIN_PCT`–`MAX_PCT` band (default 20–80%):
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/te_gene_overlap.slurm.sh
+sbatch workflow/step02_te_annotation_clean_up/te_gene_overlap.slurm.sh
 ```
 
 **Output,** all in `te_annotation_integration/`:
@@ -769,7 +769,7 @@ Eliminated-band genes (≥80% overlap) manually reviewed and confirmed as genuin
 models, safe to remove. The 20–80% "flagged"/inspect band is not yet reviewed.
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.slurm.sh
+sbatch workflow/step02_te_annotation_clean_up/build_te_kill_lists.slurm.sh
 ```
 
 339 confirmed TE-derived genes removed from every genome's GFF, output in `gff_cleaned/`.

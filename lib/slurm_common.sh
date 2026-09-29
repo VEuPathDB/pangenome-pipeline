@@ -22,7 +22,7 @@
 #   require_config VAR [VAR ...]              stop with a clear message if a setting is empty
 
 # Symlinks resolved, so a lib/ linked into a project still leads back to the real checkout.
-PIPELINE_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+export PIPELINE_DIR="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"   # exported: jobs a job submits find it too
 PIPELINE_CONFIG="${PIPELINE_CONFIG:-$PIPELINE_DIR/pipeline_config.sh}"
 
 # The species project: the folder the job was submitted from.

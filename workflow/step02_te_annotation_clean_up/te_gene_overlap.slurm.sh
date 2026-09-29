@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=04:00:00
-#SBATCH --output=te_gene_overlap_%j.out
-#SBATCH --error=te_gene_overlap_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Full TE/gene-overlap review in one job, all output in one folder (OUTDIR):
 #   1. te_gene_overlap.py       - per-gene TE overlap -> gene_te_overlap.tsv (gene_id,
@@ -27,13 +27,21 @@
 #                                before trusting the elimination)
 #
 # Submit from your project folder:
-#     sbatch 02_TE_annotation_Clean_Up/scripts/te_gene_overlap.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/te_gene_overlap.slurm.sh
 #
+set -euo pipefail
+
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 # ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
-TE_INDIR="."                          # folder with the RM_<genome_id>/ dirs (each with one .out)
+TE_INDIR="$STEP02_OUT/repeatmasker"   # folder with the RM_<genome_id>/ dirs (each with one .out)
 GFF_INDIR="gff_originals"             # one GFF3 per genome
 GENOMES="genomes"                     # step-01 assemblies folder (for the CDS extraction)
-OUTDIR="te_annotation_integration"    # everything (tsv/plots/flagged GFFs/CDS fasta) goes here
+OUTDIR="$STEP02_OUT/te_annotation_integration"   # everything (tsv/plots/flagged GFFs/CDS fasta) goes here
 GENOME_MAP=""                         # optional: genome_id<TAB>gff_path TSV (step 1 only)
 MIN_PCT=20                            # "review" band lower bound (the "inspect" band)
 MAX_PCT=80                            # "review" band upper bound == "eliminated" band lower bound
@@ -42,10 +50,6 @@ REVIEW_MIN_DIV=30                     # eliminated genes with TE_divergence_pct 
 EXTRA_GENES=""                        # optional: genome_label<TAB>gene_id TSV, no header
                                        # (added to the "review" band's CDS extraction only)
 # ────────────────────────────────────────────────────────────────────────────
-
-set -euo pipefail
-
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH
 #              (the 'synteny' env from step 01 once pandas is added, or

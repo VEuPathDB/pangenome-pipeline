@@ -53,7 +53,7 @@ which are organelle sequence, which are insertions in the nuclear genome, and wh
 genes of the redundant contigs were removed after `get_pangenes` (step 09 of the species report). The same check is still
 to be done for *A. fumigatus*, and `get_pangenes` could be run again to make the neighbourhoods exact.
 
-**7. Transposable elements.** Genes that come from TEs and were not removed in [step 02](../02_TE_annotation_Clean_Up/README.md)
+**7. Transposable elements.** Genes that come from TEs and were not removed in [step 02](../docs/step02_te_annotation_clean_up.md)
 should be handled here.
 
 **8. One table per pangene.** A table with the properties of every pangene (occupancy, genes per genome, domains, invalid

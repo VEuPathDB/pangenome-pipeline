@@ -5,36 +5,24 @@
 VERSION="1.1"
 
 ###############################################################################
-# Project directory
+# Project and output directories
 ###############################################################################
 
-# The pipeline uses one working directory for both input files and output files.
-# Run the pipeline from the directory that contains:
-#   - genome FASTA files
-#   - curated TE library
-#   - db/ folder with RepBase and TE peptide files
-#   - pipeline scripts
-#
-# Output folders will also be created in this same directory.
+# Jobs are submitted from the project folder (genomes/ etc.); this config lives in the pipeline
+# checkout at workflow/step02_te_annotation_clean_up/te_library/config.sh. lib/slurm_common.sh -
+# found from this file's own location - sets PROJECT_DIR (the submit folder) and STEP02_OUT, and
+# loads pipeline_config.sh for the cluster paths (MCHelper, RepBase, TE peptides, BUSCO lineage,
+# micromamba) and activate_env.
+source "$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/../../.." && pwd)/lib/slurm_common.sh"
 
-# This file lives at  <project>/02_TE_annotation_Clean_Up/slurm/config.sh .
-# Derive the directories from its own location, so every pipeline script gets the
-# same paths no matter which directory it is run from.
-_CONFIG_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"   # .../02_TE_annotation_Clean_Up/slurm
-TE_STEP_DIR="$(cd "${_CONFIG_DIR}/.." && pwd -P)"                # .../02_TE_annotation_Clean_Up
-PROJECT_DIR="$(cd "${TE_STEP_DIR}/.." && pwd -P)"               # the project root (holds genomes/)
-unset _CONFIG_DIR
-
-# Cluster paths (MCHelper, RepBase, TE peptides, BUSCO lineage, micromamba) come from the
-# project's pipeline_config.sh - see pipeline_config.example.sh. This also provides activate_env.
-source "${PROJECT_DIR}/lib/slurm_common.sh"
+# Every output of this pipeline goes here.
+TE_LIBRARY_OUT="${TE_LIBRARY_OUT:-${STEP02_OUT}/te_library}"
 
 ###############################################################################
 # Genome inputs
 ###############################################################################
 #
-# Default: genome FASTA files are expected in the same directory where you run
-# the pipeline.
+# Default: genomes/ in the project folder.
 #
 # If your genome FASTA files are stored in another directory, replace
 # "${PROJECT_DIR}" with the full path to that directory.
@@ -59,7 +47,8 @@ GENOME_SUFFIX=".fna"
 # This can be obtained from Repbase depending on the species. In this case, LTRs should be
 # joined to the internal region.
 # Edit the file name for your curated library.
-CURATED_TE_LIBRARY="${TE_STEP_DIR}/fake_lib.fasta"
+# Default: in the step-02 output folder, next to te_library/.
+CURATED_TE_LIBRARY="${CURATED_TE_LIBRARY:-${STEP02_OUT}/fake_lib.fasta}"
 
 # BUSCO lineage used by MCHelper.
 # Check the best BUSCO database to your species
@@ -91,19 +80,20 @@ TE_PEP_FASTA="${TE_PEP_FASTA:-}"
 # Output directories
 ###############################################################################
 
-CONFIG_DIR="${TE_STEP_DIR}/config"
-LOG_DIR="${TE_STEP_DIR}/logs"
+CONFIG_DIR="${TE_LIBRARY_OUT}/config"
+# The runner's own log; the SLURM jobs log to logs/ in the project folder, like every other job.
+LOG_DIR="${PROJECT_DIR}/logs"
 
 GENOME_TABLE="${CONFIG_DIR}/genomes.tsv"
 MCHELPER_TABLE="${CONFIG_DIR}/mchelper_inputs.tsv"
 
-REPEATMODELER_OUTDIR="${TE_STEP_DIR}/repeatmodeler_more_genomes"
-CANDIDATE_OUTDIR="${TE_STEP_DIR}/TE_candidate_screen_original_headers"
-MCHELPER_OUTDIR="${TE_STEP_DIR}/MCHelper_newTEs"
-FINAL_OUTDIR="${TE_STEP_DIR}/final_TE_candidates_after_MCHelper"
+REPEATMODELER_OUTDIR="${TE_LIBRARY_OUT}/repeatmodeler_more_genomes"
+CANDIDATE_OUTDIR="${TE_LIBRARY_OUT}/TE_candidate_screen_original_headers"
+MCHELPER_OUTDIR="${TE_LIBRARY_OUT}/MCHelper_newTEs"
+FINAL_OUTDIR="${TE_LIBRARY_OUT}/final_TE_candidates_after_MCHelper"
 
-REPBASE_NT_DB_PREFIX="${TE_STEP_DIR}/repbase_nt"
-TE_PEP_DB_PREFIX="${TE_STEP_DIR}/te_peptides"
+REPBASE_NT_DB_PREFIX="${TE_LIBRARY_OUT}/repbase_nt"
+TE_PEP_DB_PREFIX="${TE_LIBRARY_OUT}/te_peptides"
 
 ###############################################################################
 # Step 2: remove known TE consensus sequences
@@ -209,7 +199,7 @@ MCHELPER_EXTENSION="3000"
 ###############################################################################
 # SLURM settings
 ###############################################################################
-# These values are used only by slurm/run_pipeline_slurm.sh.
+# These values are used only by te_library/run_pipeline_slurm.sh.
 # Leave SLURM_PARTITION empty to use the cluster default partition.
 # Leave memory or time values empty to use the cluster defaults.
 #
@@ -294,7 +284,7 @@ load_repeatmodeler_environment() {
     # Create temporary wrapper commands for the current run.
     # The pipeline scripts call BuildDatabase and RepeatModeler normally;
     # these wrappers redirect those calls into the container.
-    TETOOLS_WRAPPER_DIR="${PROJECT_DIR}/.tetools_wrappers"
+    TETOOLS_WRAPPER_DIR="${TE_LIBRARY_OUT}/.tetools_wrappers"
     mkdir -p "${TETOOLS_WRAPPER_DIR}"
 
     cat > "${TETOOLS_WRAPPER_DIR}/BuildDatabase" <<EOF

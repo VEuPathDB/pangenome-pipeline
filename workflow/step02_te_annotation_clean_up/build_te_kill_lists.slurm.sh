@@ -5,8 +5,8 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --time=00:30:00
-#SBATCH --output=te_kill_list_%j.out
-#SBATCH --error=te_kill_list_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Removes TE-derived gene models from GFFs using a kill list, in one job:
 #   1. build_te_kill_lists.py - reads gene_te_overlap.tsv, writes a kill list of
@@ -20,20 +20,24 @@
 # kill list applies, since Liftoff preserves the source gene IDs.
 #
 # Submit from your project folder:
-#     sbatch 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/build_te_kill_lists.slurm.sh
 #
+set -euo pipefail
+
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 # ─── ADAPT: the paths below, the ### ADAPT ### blocks, and the #SBATCH lines ───
-GENE_TABLE="te_annotation_integration/gene_te_overlap.tsv"
-KILL_OUTDIR="kill_lists"
+GENE_TABLE="$STEP02_OUT/te_annotation_integration/gene_te_overlap.tsv"   # te_gene_overlap.slurm.sh's output
+KILL_OUTDIR="$STEP02_OUT/kill_lists"
 MIN_PCT=80                        # minimum TE_overlap_pct to kill a protein_coding gene
 EXTRA_GENES=""                    # optional: genome_label<TAB>gene_id TSV, no header
 GFF_INDIR="gff_originals"         # GFFs to filter - gff_originals (main) or liftoff_polished (alt)
-GFF_OUTDIR="gff_cleaned"          # filtered copies land here
+GFF_OUTDIR="$STEP02_OUT/gff_cleaned"   # filtered copies land here (step 04 reads them)
 # ────────────────────────────────────────────────────────────────────────────
-
-set -euo pipefail
-
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 
 [[ -f "$GENE_TABLE" ]] || { echo "ERROR: gene table not found: $GENE_TABLE" >&2; exit 1; }
 [[ -d "$GFF_INDIR" ]]  || { echo "ERROR: GFF folder not found: $GFF_INDIR" >&2; exit 1; }

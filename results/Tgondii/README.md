@@ -14,7 +14,7 @@ This document tracks the execution, parameters, and results of the pangenome ana
 * **No transposable elements.** A systematic apicomplexan-wide mobilome screen
   ([Rodriguez & Makalowski, 2022](https://doi.org/10.3390/genes13050887), using
   RepeatModeler, RepeatMasker, LTRpred, MGEScan and TEclass — largely the same toolkit this
-  pipeline's [TE candidate pipeline](../../02_TE_annotation_Clean_Up/README.md)
+  pipeline's [TE candidate pipeline](../../docs/step02_te_annotation_clean_up.md)
   uses) found **no bona fide TEs in *T. gondii*, nor in its closest relatives** *Hammondia*,
   *Neospora*, and *Sarcocystis* (the whole family came back negative; *Cryptosporidium* too).
   TEs are present elsewhere in Apicomplexa (*Eimeria*, some *Babesia*/*Theileria* species,
@@ -360,7 +360,7 @@ sbatch species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contig
 The TE candidate pipeline was run on the 15 *T. gondii* genomes:
 
 ```bash
-bash 02_TE_annotation_Clean_Up/slurm/run_pipeline_slurm.sh
+bash workflow/step02_te_annotation_clean_up/te_library/run_pipeline_slurm.sh
 ```
 
 **Output:** **106 non-redundant candidate TE consensus sequences** across the panel
@@ -376,7 +376,7 @@ that filter would have dropped (e.g. solo-LTR-only families) before curating int
 library:
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/run_te_aid.slurm.sh
+sbatch workflow/step02_te_annotation_clean_up/run_te_aid.slurm.sh
 ```
 
 (`INPUT_FASTA`/`OUTDIR` in the script set to the `all_MCHelper_curated_sequences_NR.cdhit80.fa`

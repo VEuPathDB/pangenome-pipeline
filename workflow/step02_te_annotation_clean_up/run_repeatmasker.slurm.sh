@@ -5,24 +5,30 @@
 #SBATCH --cpus-per-task=24
 #SBATCH --mem=32G
 #SBATCH --time=2-00:00:00
-#SBATCH --output=RepeatMasker_%j.out
-#SBATCH --error=RepeatMasker_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Annotate TEs in every assembly with RepeatMasker, using the curated TE library.
-# One output folder per genome: RM_<genome_id>/  (genome_id = the .fna file name
-# without the extension; an NCBI accession is trimmed to GCA_/GCF_).
+# One output folder per genome: $STEP02_OUT/repeatmasker/RM_<genome_id>/  (genome_id = the
+# .fna file name without the extension; an NCBI accession is trimmed to GCA_/GCF_).
 #
 # Submit from your project folder (the one that holds genomes/):
-#     sbatch 02_TE_annotation_Clean_Up/scripts/run_repeatmasker.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step02_te_annotation_clean_up/run_repeatmasker.slurm.sh
 #
-# ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
-GENOMES="genomes"                     # <genome_id>.fna assemblies (step-01 folder), or a full path
-LIB="curated_TE_library.fa"           # curated TE library FASTA (in this folder), or a full path
-# ────────────────────────────────────────────────────────────────────────────
-
 set -euo pipefail
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
+# ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
+GENOMES="genomes"                     # <genome_id>.fna assemblies (step-01 folder), or a full path
+LIB="$STEP02_OUT/curated_TE_library.fa"   # curated TE library FASTA (put it in the step-02 output folder), or a full path
+RM_OUTDIR="$STEP02_OUT/repeatmasker"  # one RM_<genome_id>/ per genome goes here
+# ────────────────────────────────────────────────────────────────────────────
+
 ### ADAPT ### — put RepeatMasker on the PATH (must be configured with a Dfam
 #              library; see the README if `famdb.py … FamDB data directory not found`):
 activate_env "$ENV_REPEATMASKER"  # env names / micromamba: pipeline_config.sh
@@ -42,7 +48,7 @@ for fna in "$GENOMES"/*.fna; do
     acc=$(echo "$name" | grep -oE 'GC[AF]_[0-9]+\.[0-9]+' || true)
     [[ -n "$acc" ]] && name="$acc"
 
-    outdir="RM_${name}"
+    outdir="$RM_OUTDIR/RM_${name}"
     mkdir -p "$outdir"
 
     echo "=========================================================="

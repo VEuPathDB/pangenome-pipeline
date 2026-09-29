@@ -147,7 +147,7 @@ sbatch scripts/clean_and_sort.slurm.sh
 Soft-mask repetitive elements using RepeatMasker prior to gene prediction. Soft-masking converts repetitive sequences to lowercase nucleotides (allowing aligners and gene predictors to utilize these regions when supported by strong transcript/protein evidence, while suppressing false-positive *ab initio* gene calls inside TEs).
 
 #### Choosing the Repeat Library:
-- **Curated TE Library from Step 02 (Recommended):** If **[02 – TE Annotation and Clean Up](../02_TE_annotation_Clean_Up/README.md)** has already been conducted for the target species/genus, use the final **curated TE library** (`curated_TE_library.fa`) produced in that step. Using a manually curated library avoids over-masking conserved host genes and minimizes annotation artifacts.
+- **Curated TE Library from Step 02 (Recommended):** If **[02 – TE Annotation and Clean Up](../docs/step02_te_annotation_clean_up.md)** has already been conducted for the target species/genus, use the final **curated TE library** (`curated_TE_library.fa`) produced in that step. Using a manually curated library avoids over-masking conserved host genes and minimizes annotation artifacts.
 - **RepeatModeler *de novo* Library (Alternative):** If Step 02 has not yet been performed or for standalone annotations, you can use the consensus output library generated *de novo* by RepeatModeler (e.g., `*-families.fa`) or a relevant clade library from Repbase/Dfam.
 
 Script: [`scripts/repeatmask.slurm.sh`](scripts/repeatmask.slurm.sh)

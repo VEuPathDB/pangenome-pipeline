@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Run with bash from the project folder (it becomes PROJECT_DIR; outputs go under $STEP02_OUT).
 SLURM_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PROJECT_DIR="$(cd "${SLURM_DIR}/../.." && pwd -P)"
-cd "${PROJECT_DIR}"
 source "${SLURM_DIR}/config.sh"
+cd "${PROJECT_DIR}"
 
-mkdir -p "${CONFIG_DIR}" "${LOG_DIR}/slurm" "${REPEATMODELER_OUTDIR}" "${CANDIDATE_OUTDIR}" "${MCHELPER_OUTDIR}" "${FINAL_OUTDIR}"
+mkdir -p "${CONFIG_DIR}" "${LOG_DIR}" "${REPEATMODELER_OUTDIR}" "${CANDIDATE_OUTDIR}" "${MCHELPER_OUTDIR}" "${FINAL_OUTDIR}"
 
 if [[ ! -d "${GENOME_DIR}" ]]; then
     echo "ERROR: GENOME_DIR does not exist: ${GENOME_DIR}" >&2
