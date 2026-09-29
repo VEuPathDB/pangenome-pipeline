@@ -80,7 +80,7 @@ require_config() {
 }
 
 # find_script VAR REL - REL is a path from the pipeline root, e.g.
-# 06_GET_PANGENES/scripts/get_pangenes_common.sh.
+# workflow/step06_get_pangenes/get_pangenes_common.sh.
 find_script() {
     local __var="$1" rel="$2"
     [[ -e "$PIPELINE_DIR/$rel" ]] || _pipeline_die "cannot find $rel in the pipeline ($PIPELINE_DIR)"

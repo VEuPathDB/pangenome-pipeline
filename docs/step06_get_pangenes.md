@@ -27,13 +27,17 @@ installed via `micromamba`.
 Two stages, in order: get every genome's GFF and FASTA into one directory, paired up by
 filename the way `get_pangenes` expects, then run `get_pangenes` itself.
 
+Both jobs are in [`workflow/step06_get_pangenes/`](../workflow/step06_get_pangenes/) and are
+submitted from the project folder. Everything goes to `$STEP06_OUT` = `$OUTPUT_DIR/step06_get_pangenes/`,
+by default `output/step06_get_pangenes/` in the project folder (see [outputs](../README.md#outputs)).
+
 > The relabeling this step used to do (`protein_coding_gene`/`pseudogene` → feature type
 > `gene`, `pseudogenic_transcript` → `transcript`) is no longer needed here - step 05's own
-> [7a](../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)/[7b](../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)
+> [7a](step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)/[7b](step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)
 > already write their output in exactly that shape (and already renumber every gene ID to be
 > unique across the whole panel, which this step never did). Non-coding RNA genes are also
 > already left correctly untouched by 7a/7b - typed away from `gene` back in
-> [step 05's step 3](../docs/step05_cross_genome_annotation_integration.md#step-3-prepare-the-gffs-for-liftoff),
+> [step 05's step 3](step05_cross_genome_annotation_integration.md#step-3-prepare-the-gffs-for-liftoff),
 > so `get_pangenes` never sees them as candidates, without needing any `source`-column retag.
 
 
@@ -51,9 +55,9 @@ project's `pipeline_config.sh` (see the [main README](../README.md#getting-the-p
 ### Step 1: Link each genome's GFF and FASTA into one directory
 
 Input: each genome's `<genome>_final_annotation_filtered.gff` (from
-[step 05's 7a](../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes))
+[step 05's 7a](step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes))
 or `<genome>_final_annotation_tagged.gff` (from
-[7b](../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)),
+[7b](step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)),
 whichever approach you're running with.
 
 `get_pangenes` pairs up a genome's GFF and FASTA by filename - both need to sit in the same
@@ -64,15 +68,15 @@ This step just symlinks both into place (no file is copied), one job, instant.
 
 **Separate scripts for 7a and 7b** - both can run independently, each into its own directory,
 so nothing stops you running `get_pangenes` on both and comparing the two pangene calls:
-[`scripts/link_for_get_pangenes_7a.slurm.sh`](scripts/link_for_get_pangenes_7a.slurm.sh) ·
-[`scripts/link_for_get_pangenes_7b.slurm.sh`](scripts/link_for_get_pangenes_7b.slurm.sh).
+[`link_for_get_pangenes_7a.slurm.sh`](../workflow/step06_get_pangenes/link_for_get_pangenes_7a.slurm.sh) ·
+[`link_for_get_pangenes_7b.slurm.sh`](../workflow/step06_get_pangenes/link_for_get_pangenes_7b.slurm.sh).
 Each wrapper only holds its own `#SBATCH` header and settings; the linking itself is shared, in
-[`scripts/get_pangenes_common.sh`](scripts/get_pangenes_common.sh) (sourced, not submitted).
+[`get_pangenes_common.sh`](../workflow/step06_get_pangenes/get_pangenes_common.sh) (sourced, not submitted).
 
 #### What you need before starting
 
 - Every genome's own `<genome>_final_annotation_filtered.gff` (7a) or `_tagged.gff` (7b), from
-  step 05's 7a/7b `OUT_DIR`.
+  step 05's 7a/7b `OUT_DIR` (`$STEP05_OUT/filtered_annotation` / `$STEP05_OUT/tagged_annotation`).
 - Every genome's own genome FASTA, in `genomes/` (step 01's assemblies folder).
 - **The same genome order** used throughout this pipeline (`genome_order.txt`, first = reference).
 
@@ -83,17 +87,17 @@ same variables, pre-filled with each approach's own defaults):
 
 | Variable | 7a default | 7b default |
 |---|---|---|
-| `ANNOTATION_DIR` | `filtered_annotation` | `tagged_annotation` |
+| `ANNOTATION_DIR` | `$STEP05_OUT/filtered_annotation` | `$STEP05_OUT/tagged_annotation` |
 | `ANNOTATION_SUFFIX` | `_final_annotation_filtered.gff` | `_final_annotation_tagged.gff` |
 | `GENOME_DIR` | `genomes` | `genomes` |
 | `GENOME_SUFFIX` | `.fna` | `.fna` |
 | `ORDER` | `genome_order.txt` | `genome_order.txt` |
-| `OUT_DIR` | `for_get_pangenes_7a` | `for_get_pangenes_7b` |
+| `OUT_DIR` | `$STEP06_OUT/for_get_pangenes_7a` | `$STEP06_OUT/for_get_pangenes_7b` |
 
-**Run** (either or both - they don't touch each other's files):
+**Run** from the project folder (either or both - they don't touch each other's files):
 ```bash
-sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_7a.slurm.sh
-sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_7b.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step06_get_pangenes/link_for_get_pangenes_7a.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step06_get_pangenes/link_for_get_pangenes_7b.slurm.sh
 ```
 
 #### Checking it worked
@@ -108,10 +112,10 @@ sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_7b.slurm.sh
 Input: each genome's `<genome>_for_get_pangenes.gff` + matching `.fna`, from step 1 above.
 
 Same split as step 1 - each variant reads its own `INPUT_DIR` and never touches the other's:
-[`scripts/run_get_pangenes_7a_job.sh`](scripts/run_get_pangenes_7a_job.sh) ·
-[`scripts/run_get_pangenes_7b_job.sh`](scripts/run_get_pangenes_7b_job.sh).
+[`run_get_pangenes_7a_job.sh`](../workflow/step06_get_pangenes/run_get_pangenes_7a_job.sh) ·
+[`run_get_pangenes_7b_job.sh`](../workflow/step06_get_pangenes/run_get_pangenes_7b_job.sh).
 As in step 1, the get_pangenes call itself lives in
-[`scripts/get_pangenes_common.sh`](scripts/get_pangenes_common.sh).
+[`get_pangenes_common.sh`](../workflow/step06_get_pangenes/get_pangenes_common.sh).
 
 #### Dependencies
 
@@ -122,7 +126,7 @@ As in step 1, the get_pangenes call itself lives in
 
 #### What you need before starting
 
-- Every genome's `<genome>_for_get_pangenes.gff` + `.fna` in `for_get_pangenes_7a`/`_7b` -
+- Every genome's `<genome>_for_get_pangenes.gff` + `.fna` in `$STEP06_OUT/for_get_pangenes_7a`/`_7b` -
   step 1's output.
 - `get_pangenes` itself installed (see "Installing get_pangenes" above).
 
@@ -134,22 +138,23 @@ variables in both, pre-filled with each approach's own `INPUT_DIR`; `GET_PANGENE
 
 | Variable | Meaning |
 |---|---|
-| `INPUT_DIR` | Directory with every genome's `<genome>_for_get_pangenes.gff` (+ matching `.fna`) - `./for_get_pangenes_7a`/`_7b` by default |
+| `INPUT_DIR` | Directory with every genome's `<genome>_for_get_pangenes.gff` (+ matching `.fna`) - `$STEP06_OUT/for_get_pangenes_7a`/`_7b` by default |
 | `N_CPUS` | Should match `--cpus-per-task` in the `#SBATCH` header above it |
 | `TAXA_THRESHOLD` | `get_pangenes`' `-t` - minimum number of genomes a pangene cluster must appear in to be reported at all; `0` reports everything, including genome-private (singleton) clusters |
 | `TAXON_REGEX` (optional, exported before submitting) | `get_pangenes`' `-s` - a regex to group genome names into taxa; if unset, every genome is treated as its own taxon |
 
-**Run** (either or both):
+**Run** from the project folder (either or both):
 ```bash
-sbatch 06_GET_PANGENES/scripts/run_get_pangenes_7a_job.sh
-sbatch 06_GET_PANGENES/scripts/run_get_pangenes_7b_job.sh
+sbatch $PIPELINE_DIR/workflow/step06_get_pangenes/run_get_pangenes_7a_job.sh
+sbatch $PIPELINE_DIR/workflow/step06_get_pangenes/run_get_pangenes_7b_job.sh
 ```
 
 #### Checking it worked
 
-- The job's log (`pangenes_7a_<jobid>.log`/`.err` or `pangenes_7b_...`) should end with
-  `get_pangenes (7a/7b) completed. Outputs (pangene_matrix*.tab, etc.) are in <INPUT_DIR>`.
-- `get_pangenes` writes its output (`pangene_matrix*.tab` and its other result files) directly
-  into `INPUT_DIR`, alongside the GFFs/FASTAs it read - not a separate output directory.
+- The job's log (`logs/get_pangenes_7a_<jobid>.out`/`.err` or `get_pangenes_7b_...`) should end with
+  `get_pangenes (7a/7b) completed. Outputs (pangene_matrix*.tab, etc.) are in <INPUT_DIR>_pangenes/`.
+- `get_pangenes` writes its output (`pangene_matrix*.tab` and its other result files) to a folder
+  next to `INPUT_DIR` named after it: `$STEP06_OUT/for_get_pangenes_7a_pangenes/` /
+  `..._7b_pangenes/`. Steps 07 and 08 read it from there.
 
 [Back to top level](../README.md)

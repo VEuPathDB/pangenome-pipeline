@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=link_for_get_pangenes_7a
 #SBATCH --partition=low
-#SBATCH --output=link_for_get_pangenes_7a_%j.out
-#SBATCH --error=link_for_get_pangenes_7a_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=1G
@@ -20,20 +20,25 @@
 # place - no file is copied or rewritten, so it's instant even for a lot of genomes.
 #
 # Submit from your project folder:
-#     sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_7a.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step06_get_pangenes/link_for_get_pangenes_7a.slurm.sh
 
 set -euo pipefail
 
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 # Edit these for your run.
-ANNOTATION_DIR="filtered_annotation"                  # step 05's 7a OUT_DIR
+ANNOTATION_DIR="$STEP05_OUT/filtered_annotation"                  # step 05's 7a OUT_DIR
 ANNOTATION_SUFFIX="_final_annotation_filtered.gff"     # matches 7a's naming
 GENOME_DIR="genomes"                                   # step-01 assemblies folder
 GENOME_SUFFIX=".fna"                                   # filename suffix for each genome's own FASTA
 ORDER="genome_order.txt"                               # same genome list used throughout this pipeline
-OUT_DIR="for_get_pangenes_7a"                          # point run_get_pangenes_7a_job.sh's INPUT_DIR here
+OUT_DIR="$STEP06_OUT/for_get_pangenes_7a"                          # point run_get_pangenes_7a_job.sh's INPUT_DIR here
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
-find_script COMMON 06_GET_PANGENES/scripts/get_pangenes_common.sh
+find_script COMMON workflow/step06_get_pangenes/get_pangenes_common.sh
 # shellcheck source=get_pangenes_common.sh
 source "$COMMON"
 

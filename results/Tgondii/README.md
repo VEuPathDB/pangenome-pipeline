@@ -786,8 +786,8 @@ Output: `tagged_annotation/<genome>_final_annotation_tagged.gff` + `<genome>_int
 
 Ran `get_pangenes` on the 7b GFFs (`tagged_annotation/`, nothing pre-filtered), 15 genomes:
 ```bash
-sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_7b.slurm.sh
-sbatch 06_GET_PANGENES/scripts/run_get_pangenes_7b_job.sh
+sbatch workflow/step06_get_pangenes/link_for_get_pangenes_7b.slurm.sh
+sbatch workflow/step06_get_pangenes/run_get_pangenes_7b_job.sh
 ```
 Result: **11,031 pangenes** across the 15 genomes (`for_get_pangenes_7b_pangenes/pangene_matrix*.tab`;
 `pangene_matrix_genes.tr.tab` lists the gene IDs of every genome in every pangene).

@@ -1,4 +1,4 @@
-"""06_GET_PANGENES - the 7a/7b wrappers and their shared body (get_pangenes_common.sh)."""
+"""workflow/step06_get_pangenes - the 7a/7b wrappers and their shared body (get_pangenes_common.sh)."""
 
 import os
 import subprocess
@@ -6,25 +6,28 @@ import subprocess
 import pytest
 from conftest import REPO_ROOT
 
-SCRIPTS = REPO_ROOT / "06_GET_PANGENES" / "scripts"
+JOBS = "workflow/step06_get_pangenes"
+SCRIPTS = REPO_ROOT / JOBS
+STEP05 = "output/step05_cross_genome_annotation_integration"
+STEP06 = "output/step06_get_pangenes"
 
 
 @pytest.fixture
 def project(tmp_path):
-    """A minimal project folder with two genomes' step-05 outputs and assemblies."""
-    (tmp_path / "lib").symlink_to(REPO_ROOT / "lib")  # the pipeline is cloned into the project root
-    (tmp_path / "genome_order.txt").write_text("# reference first\nME49\n\nGT1\n")
+    """A minimal project folder with two genomes' step-05 outputs (in output/step05_*/) and assemblies."""
+    project = tmp_path / "project"
+    (project / "genomes").mkdir(parents=True)
+    (project / "genome_order.txt").write_text("# reference first\nME49\n\nGT1\n")
     for sub, suffix in (
         ("filtered_annotation", "_final_annotation_filtered.gff"),
         ("tagged_annotation", "_final_annotation_tagged.gff"),
     ):
-        (tmp_path / sub).mkdir()
+        (project / STEP05 / sub).mkdir(parents=True)
         for genome in ("ME49", "GT1"):
-            (tmp_path / sub / f"{genome}{suffix}").write_text(f"{sub} {genome}\n")
-    (tmp_path / "genomes").mkdir()
+            (project / STEP05 / sub / f"{genome}{suffix}").write_text(f"{sub} {genome}\n")
     for genome in ("ME49", "GT1"):
-        (tmp_path / "genomes" / f"{genome}.fna").write_text(f">{genome}\nACGT\n")
-    return tmp_path
+        (project / "genomes" / f"{genome}.fna").write_text(f">{genome}\nACGT\n")
+    return project
 
 
 def _bash(args, cwd, **env):
@@ -34,12 +37,12 @@ def _bash(args, cwd, **env):
 
 
 @pytest.mark.parametrize(("variant", "annotation_dir"), [("7a", "filtered_annotation"), ("7b", "tagged_annotation")])
-def test_link_wrapper_symlinks_gff_and_fasta(project, variant, annotation_dir):
-    result = _bash([str(SCRIPTS / f"link_for_get_pangenes_{variant}.slurm.sh")], cwd=project)
+def test_link_job_symlinks_gff_and_fasta(run_job, project, variant, annotation_dir):
+    result = run_job(f"{JOBS}/link_for_get_pangenes_{variant}.slurm.sh", project)
     assert result.returncode == 0, result.stderr
     assert "2 genome(s) linked" in result.stdout
 
-    out = project / f"for_get_pangenes_{variant}"
+    out = project / STEP06 / f"for_get_pangenes_{variant}"
     assert sorted(p.name for p in out.iterdir()) == [
         "GT1_for_get_pangenes.fna",
         "GT1_for_get_pangenes.gff",
@@ -50,21 +53,11 @@ def test_link_wrapper_symlinks_gff_and_fasta(project, variant, annotation_dir):
     assert gff.is_symlink() and gff.read_text() == f"{annotation_dir} GT1\n"
 
 
-def test_link_wrapper_fails_on_missing_input(project):
+def test_link_job_fails_on_missing_input(run_job, project):
     (project / "genomes" / "GT1.fna").unlink()
-    result = _bash([str(SCRIPTS / "link_for_get_pangenes_7a.slurm.sh")], cwd=project)
+    result = run_job(f"{JOBS}/link_for_get_pangenes_7a.slurm.sh", project)
     assert result.returncode != 0
     assert "missing genomes/GT1.fna" in result.stderr
-
-
-def test_link_wrapper_finds_common_file_from_submit_dir(project, tmp_path_factory):
-    """Under sbatch the wrapper runs from a spool copy - the shared file is found via SLURM_SUBMIT_DIR."""
-    spool = tmp_path_factory.mktemp("spool")
-    job = spool / "slurm_script"
-    job.write_text((SCRIPTS / "link_for_get_pangenes_7a.slurm.sh").read_text())
-    (project / "06_GET_PANGENES").symlink_to(REPO_ROOT / "06_GET_PANGENES")
-    result = _bash([str(job)], cwd=project, SLURM_SUBMIT_DIR=str(project))
-    assert result.returncode == 0, result.stderr
 
 
 @pytest.mark.parametrize(
@@ -78,20 +71,23 @@ def test_run_get_pangenes_calls_tool_with_settings(tmp_path, taxon_regex, expect
     env_bin = tmp_path / "env_bin"
     env_bin.mkdir()
     fake = env_bin / "get_pangenes.pl"
-    fake.write_text('#!/bin/bash\necho "$@" > "$(dirname "$0")/called_with"\n')
+    fake.write_text('#!/bin/bash\necho "$@" > "$(dirname "$0")/called_with"; pwd > "$(dirname "$0")/ran_in"\n')
     fake.chmod(0o755)
+    (tmp_path / "out" / "in").mkdir(parents=True)
     script = (
         "set -euo pipefail\n"
         "module() { :; }\n"  # no environment modules outside the cluster
         f"source {REPO_ROOT / 'lib' / 'slurm_common.sh'}\n"
         f"source {SCRIPTS / 'get_pangenes_common.sh'}\n"
-        f"GET_PANGENES_ENV={env_bin} INPUT_DIR=in N_CPUS=4 TAXA_THRESHOLD=0 VARIANT=7a\n"
+        f"GET_PANGENES_ENV={env_bin} INPUT_DIR={tmp_path}/out/in N_CPUS=4 TAXA_THRESHOLD=0 VARIANT=7a\n"
         "run_get_pangenes\n"
     )
     result = _bash(["-c", script], cwd=tmp_path, TAXON_REGEX=taxon_regex)
     assert result.returncode == 0, result.stderr
     assert "get_pangenes (7a) completed" in result.stdout
     assert (env_bin / "called_with").read_text().strip() == expected_args.format(env=env_bin)
+    # run from INPUT_DIR's parent, so get_pangenes' <input>_pangenes/ lands next to INPUT_DIR
+    assert (env_bin / "ran_in").read_text().strip() == str(tmp_path / "out")
 
 
 def test_run_get_pangenes_needs_the_env_setting(tmp_path):

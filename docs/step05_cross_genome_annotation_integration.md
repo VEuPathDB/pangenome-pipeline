@@ -798,7 +798,7 @@ sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/plot_fi
   `All genomes filtered. Outputs are in ...`.
 
 Once every genome has its `_final_annotation_filtered.gff` and the QC plots look right, move
-on to [step 06 - GET_PANGENES](../06_GET_PANGENES/README.md) to prepare and run
+on to [step 06 - GET_PANGENES](step06_get_pangenes.md) to prepare and run
 `get_pangenes` itself.
 
 ### 7b. No filtering (tag, decide after get_pangenes)

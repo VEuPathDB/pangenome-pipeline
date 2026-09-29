@@ -56,11 +56,16 @@ run_get_pangenes() {
   local GETP="$GET_PANGENES_ENV/get_pangenes.pl"
   local BEDTOOLS="$GET_PANGENES_ENV/bedtools"
 
+  # get_pangenes writes its results to <input folder>_pangenes/; run it from the input folder's
+  # parent so that lands next to INPUT_DIR (in $STEP06_OUT), not in the submit folder.
+  local in_parent in_name
+  in_parent="$(dirname "$INPUT_DIR")"
+  in_name="$(basename "$INPUT_DIR")"
   if [[ -n "${TAXON_REGEX:-}" ]]; then
-    "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -s "$TAXON_REGEX" -n "$N_CPUS" -B "$BEDTOOLS"
+    (cd "$in_parent" && "$GETP" -d "$in_name" -t "$TAXA_THRESHOLD" -s "$TAXON_REGEX" -n "$N_CPUS" -B "$BEDTOOLS")
   else
-    "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -n "$N_CPUS" -B "$BEDTOOLS"
+    (cd "$in_parent" && "$GETP" -d "$in_name" -t "$TAXA_THRESHOLD" -n "$N_CPUS" -B "$BEDTOOLS")
   fi
 
-  echo "get_pangenes ($VARIANT) completed. Outputs (pangene_matrix*.tab, etc.) are in $INPUT_DIR"
+  echo "get_pangenes ($VARIANT) completed. Outputs (pangene_matrix*.tab, etc.) are in ${INPUT_DIR}_pangenes/"
 }
