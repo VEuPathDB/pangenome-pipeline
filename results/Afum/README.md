@@ -842,7 +842,7 @@ Run **once**, after [step 04](#04--interproscan), on `gff_with_interpro/` (the G
 domain evidence written in), so that the domain columns and plots are real. Output folder for
 this run: `annotation_check/`.
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/analyze_input_gffs_job.sh
+sbatch workflow/step05_cross_genome_annotation_integration/analyze_input_gffs_job.sh
 ```
 
 **Genes per genome** - 9,601 to 10,464 protein-coding genes per genome, split by whether the
@@ -885,14 +885,14 @@ Also in that folder: `03_gene_overlap_counts.png` (whole-gene overlap, UTR inclu
 ### Prepare the GFFs for Liftoff
 
 No genes are removed by a kill list for this species (no `gff_curated/`), so
-[`prepare_for_liftoff_job.sh`](../../05_Cross-genome_annotation_integration/README.md#step-3-prepare-the-gffs-for-liftoff)
+[`prepare_for_liftoff_job.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-3-prepare-the-gffs-for-liftoff)
 reads `gff_with_interpro/` (step 04's output) directly and writes to `gff_for_liftoff/`: genes
 reduced to their coding sequence (no UTRs), protein-coding genes and pseudogenes unified to
 `protein_coding_gene`, and tRNA genes given their own type (`tRNA_gene`) so Liftoff - which only
 transfers the types in `liftoff_feature_types.txt` (here just `protein_coding_gene`) - does not
 copy them onto other genomes. Each genome keeps its own non-coding genes.
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh
+sbatch workflow/step05_cross_genome_annotation_integration/prepare_for_liftoff_job.sh
 ```
 
 Result (`gff_for_liftoff/prepare_for_liftoff_report.tsv`), per genome: transcripts processed, UTR
@@ -965,18 +965,18 @@ Gene types changed (only where the type had to change):
 
 ### Liftoff (all-against-all)
 
-[`liftoff_all_vs_all.sh`](../../05_Cross-genome_annotation_integration/README.md#step-4-liftoff)
+[`liftoff_all_vs_all.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-4-liftoff)
 lifts every genome's prepared annotation (`gff_for_liftoff/`) onto every other genome's
 FASTA (`genomes/`) - 17 genomes, so 272 pairs. Run as one job per source genome:
 ```bash
 mkdir -p liftoff_output/logs
-sbatch --array=1-17 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
+sbatch --array=1-17 workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
 ```
 Results go to `liftoff_output/polished/`, job logs to `liftoff_output/logs/`. Resubmitting skips pairs that are already done.
 
 ### Build each genome's final annotation
 
-[`build_final_annotation_basic.sh`](../../05_Cross-genome_annotation_integration/README.md#step-5-build-each-genomes-final-annotation)
+[`build_final_annotation_basic.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-5-build-each-genomes-final-annotation)
 builds one annotation per genome anchored on its own coordinates. The reference is AF293 (first line
 of `genome_order.txt`). The layers are the reference's confident transfers (`main`), then the
 genome's own annotation from `gff_for_liftoff/` - which is where its non-coding genes come back in -
@@ -984,7 +984,7 @@ then the other genomes' good transfers (`good_<genome>`), then everything left (
 Run after all Liftoff jobs have finished, one job per genome:
 ```bash
 mkdir -p expanded_annotation/logs
-sbatch --array=1-17 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
+sbatch --array=1-17 workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh
 ```
 Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expanded_annotation/logs/`.
 
@@ -992,7 +992,7 @@ Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expan
 
 Ran [`filter_final_annotation.py`](../../src/pangenome_pipeline/step05_cross_genome_annotation_integration/filter_final_annotation.py)
 on all 17 genomes (rule details in the
-[general README](../../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
+[general README](../../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
 Output: `filtered_annotation/<genome>_final_annotation_filtered.gff`, with the genes typed `gene` and
 renumbered `Afu<strain-index>g<00001, ...>`, original ID kept in `original_ID=`. The figures come from
 `plot_filter_qc_job.sh` (`filter_qc_plots/`).

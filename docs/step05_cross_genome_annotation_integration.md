@@ -2,6 +2,15 @@
 
 ***Purpose:*** To obtain accurate and consistent gene annotations across all genome assemblies, reducing annotation-related biases in the pangenome analysis.
 
+**Running the jobs.** Every job is in
+[`workflow/step05_cross_genome_annotation_integration/`](../workflow/step05_cross_genome_annotation_integration/)
+and is submitted from the project folder. Everything this step writes goes to `$STEP05_OUT` =
+`$OUTPUT_DIR/step05_cross_genome_annotation_integration/` — by default
+`output/step05_cross_genome_annotation_integration/` in the project folder (see
+[outputs](../README.md#outputs)); the folder names below (`gff_curated/`, `liftoff_output/`,
+`expanded_annotation/`, ...) are all inside it. Its input is step 04's
+`$STEP04_OUT/gff_with_interpro/`. Job logs go to `logs/` in the project folder.
+
 
 A key premise of pangenome analysis is that gene annotation has to be **consistent across
 every genome** in the set. If a gene is genuinely present in a genome, its annotation should
@@ -53,7 +62,7 @@ genome's annotation with its own original annotation or the ones coming from oth
 |---|---|---|
 | AGAT | Step 2, Step 5 | micromamba env (`bioinfo` here) |
 | python3 (standard library only) | Step 3, Step 7a (filter itself), Step 7b | `module load python/3.11.9` (or any python3 on the PATH - nothing else needed) |
-| python3 + pandas + matplotlib | Step 1, Step 6, Step 7a (QC plot) | micromamba env (`synteny` here), already installed if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencies) |
+| python3 + pandas + matplotlib | Step 1, Step 6, Step 7a (QC plot) | micromamba env (`synteny` here), already installed if you set it up for [step 01](step01_genome_selection_qc.md#dependencies) |
 | Liftoff | Step 4 | `module load liftoff` (or your cluster's own) |
 
 These are hardcoded in each script's `### ADAPT ###` block - edit that block to point to your
@@ -74,9 +83,9 @@ own.
   strictness, plus a minor/substantial/contained severity breakdown.
 - Read-only - never edits any GFF.
 
-Scripts: [`scripts/analyze_input_gffs_job.sh`](scripts/analyze_input_gffs_job.sh) ·
+Scripts: [`analyze_input_gffs_job.sh`](../workflow/step05_cross_genome_annotation_integration/analyze_input_gffs_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/analyze_input_gffs.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/analyze_input_gffs.py). Read-only - it never edits any GFF.
-Run once, after [step 04 - InterProScan](../docs/step04_interproscan.md) - the domain-evidence
+Run once, after [step 04 - InterProScan](step04_interproscan.md) - the domain-evidence
 columns and plots (`has_domain`) only mean anything once InterPro/PFAM hits are written into the
 GFFs.
 
@@ -142,12 +151,12 @@ the two are directly comparable.
 | Variable | Default | Meaning |
 |---|---|---|
 | `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line (e.g. `genome_order.txt`) |
-| `GFF_DIR` | `gff_with_interpro` | Directory with every genome's `<genome>.gff3`/`.gff` including InterPro evidence |
-| `OUT_DIR` | `annotation_check` | Where to write the tables and plots |
+| `GFF_DIR` | `$STEP04_OUT/gff_with_interpro` | Directory with every genome's `<genome>.gff3`/`.gff` including InterPro evidence |
+| `OUT_DIR` | `$STEP05_OUT/annotation_check` | Where to write the tables and plots |
 
 **Run:**
 ```bash
-sbatch analyze_input_gffs_job.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/analyze_input_gffs_job.sh
 ```
 
 **Output**, in `OUT_DIR`:
@@ -181,7 +190,7 @@ alone can show 0% (which is why this check runs on step 04's output).
 
 If some genes are confirmed to be wrong and must be deleted (e.g. 5 genes that are known to be wrong in *T. gondii* M49 last annotation), strip them out before Liftoff.
 
-Scripts: [`scripts/remove_genes_from_gff_job.sh`](scripts/remove_genes_from_gff_job.sh) ·
+Scripts: [`remove_genes_from_gff_job.sh`](../workflow/step05_cross_genome_annotation_integration/remove_genes_from_gff_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/remove_genes_from_gff.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/remove_genes_from_gff.py)
 
 - Removing a gene removes every feature nested under it too (mRNA, exon, CDS, UTR, ...), so
@@ -206,26 +215,25 @@ ME49	TGME49_224780
 | Variable | Default | Meaning |
 |---|---|---|
 | `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line (e.g. `genome_order.txt`) |
-| `GFF_DIR` | `gff_with_interpro` | Directory with every genome's GFF to remove genes from |
-| `KILL_LIST` | `kill_list_manual.tsv` | The kill list TSV described above |
-| `OUT_DIR` | `gff_curated` | Where to write the curated GFFs - must differ from `GFF_DIR` |
+| `GFF_DIR` | `$STEP04_OUT/gff_with_interpro` | Directory with every genome's GFF to remove genes from |
+| `KILL_LIST` | `$STEP05_OUT/kill_list_manual.tsv` | The kill list TSV described above - you write it, in the step's output folder |
+| `OUT_DIR` | `$STEP05_OUT/gff_curated` | Where to write the curated GFFs - must differ from `GFF_DIR` |
 
 **Run:**
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff_job.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/remove_genes_from_gff_job.sh
 ```
 
-**Output** - everything goes to `OUT_DIR` (default **`gff_curated/`**, next to `gff_with_interpro/`, in the
-project folder):
+**Output** - everything goes to `OUT_DIR` (default **`$STEP05_OUT/gff_curated/`**):
 
 | File | What it is |
 |---|---|
 | `gff_curated/<genome>.gff3` | one GFF **per genome in the list** - the kill-listed genes (and everything nested under them) removed; genomes with nothing on the kill list are identical copies. Same file name as the input, so it is a drop-in replacement for `gff_with_interpro/` |
 | `gff_curated/removed_genes_report.tsv` | one row per removed gene: genome, gene ID, feature type, number of GFF lines removed |
-| `remove_genes_from_gff_<jobid>.out` / `.err` | the job logs, in the folder you submitted from (not in `gff_curated/`) |
+| `logs/remove_genes_from_gff_<jobid>.out` / `.err` | the job logs, in the project folder (not in `gff_curated/`) |
 
-`gff_with_interpro/` itself is never changed. [Step 3](#step-3-prepare-the-gffs-for-liftoff) reads
-`gff_curated/`; if you skip this step (no genes to remove), point step 3 at `gff_with_interpro/` instead.
+`$STEP04_OUT/gff_with_interpro/` itself is never changed. [Step 3](#step-3-prepare-the-gffs-for-liftoff) reads
+`gff_curated/`; if you skip this step (no genes to remove), point step 3 at `$STEP04_OUT/gff_with_interpro/` instead.
 
 **Checking it worked:** the job's `.err` log has one block per genome with kill-listed genes -
 how many genes and GFF lines were removed, per gene - and a `WARNING` for any ID that wasn't
@@ -234,7 +242,7 @@ found (a typo in the ID, or the wrong genome name on that line; nothing is remov
 
 ### Step 3: Prepare the GFFs for Liftoff
 
-Scripts: [`scripts/prepare_for_liftoff_job.sh`](scripts/prepare_for_liftoff_job.sh) ·
+Scripts: [`prepare_for_liftoff_job.sh`](../workflow/step05_cross_genome_annotation_integration/prepare_for_liftoff_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/prepare_for_liftoff.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/prepare_for_liftoff.py)
 
 Two things, done on a copy - the input GFFs are never edited.
@@ -283,12 +291,12 @@ Pseudogenes with no CDS are not touched by this part.
 | Variable | Default | Meaning |
 |---|---|---|
 | `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line |
-| `GFF_DIR` | `gff_curated` | GFFs to prepare - the kill-list output (step 2), or `gff_with_interpro` if step 2 was skipped |
-| `OUT_DIR` | `gff_for_liftoff` | Where to write the prepared GFFs - must differ from `GFF_DIR` |
+| `GFF_DIR` | `$STEP05_OUT/gff_curated` | GFFs to prepare - the kill-list output (step 2), or `$STEP04_OUT/gff_with_interpro` if step 2 was skipped |
+| `OUT_DIR` | `$STEP05_OUT/gff_for_liftoff` | Where to write the prepared GFFs - must differ from `GFF_DIR` |
 
 **Run:**
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/prepare_for_liftoff_job.sh
 ```
 
 **Output**, in `OUT_DIR`:
@@ -302,7 +310,7 @@ sbatch 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh
 
 Lifts every genome's own annotation onto every other genome's FASTA, all-against-all.
 
-Script: [`scripts/liftoff_all_vs_all.sh`](scripts/liftoff_all_vs_all.sh). It runs
+Script: [`liftoff_all_vs_all.sh`](../workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh). It runs
 [Liftoff](https://github.com/agshumate/Liftoff) once per source-target pair, skipping any pair
 whose result already exists, so it is safe to resubmit.
 
@@ -311,10 +319,10 @@ whose result already exists, so it is safe to resubmit.
 | Variable | Default | Meaning |
 |---|---|---|
 | `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line |
-| `GFF_DIR` | `gff_for_liftoff` | The prepared GFFs - [step 3](#step-3-prepare-the-gffs-for-liftoff)'s output |
-| `FEATURE_TYPES` | `gff_for_liftoff/liftoff_feature_types.txt` | Which types Liftoff transfers - also step 3's output |
+| `GFF_DIR` | `$STEP05_OUT/gff_for_liftoff` | The prepared GFFs - [step 3](#step-3-prepare-the-gffs-for-liftoff)'s output |
+| `FEATURE_TYPES` | `$GFF_DIR/liftoff_feature_types.txt` | Which types Liftoff transfers - also step 3's output |
 | `FASTA_DIR` | `genomes` | Every genome's own FASTA |
-| `OUT_DIR` | `liftoff_output` | Where to write the pair results |
+| `OUT_DIR` | `$STEP05_OUT/liftoff_output` | Where to write the pair results |
 
 **LiftOff parameters**
 
@@ -333,28 +341,25 @@ otherwise every run uses:
 | `-gap_open` | `2` | `1` | same as above |
 | `-gap_extend` | `1` | `1` | unchanged from Liftoff's own default |
 | `-f liftoff_feature_types.txt` | `gene` only | `protein_coding_gene` | Which top-level feature types to transfer - written by [step 3](#step-3-prepare-the-gffs-for-liftoff), so non-coding RNA genes (given a different type there) are not transferred. **If step 3 wasn't run, you must build this file yourself** and decide which feature types to list - e.g. a previous pipeline used `gene`, `pseudogene` and `protein_coding_gene` together |
-| `-dir` | one shared `intermediate_files/` | one folder per pair | Liftoff writes temporary files (some with a fixed name, e.g. `polish.sam`) here - two Liftoff runs sharing a folder would overwrite each other, so every pair gets its own (`liftoff_output/tmp/<source>_onto_<target>`), removed when the pair finishes; a folder left there means that pair failed |
+| `-dir` | one shared `intermediate_files/` | one folder per pair | Liftoff writes temporary files (some with a fixed name, e.g. `polish.sam`) here - two Liftoff runs sharing a folder would overwrite each other, so every pair gets its own (`$STEP05_OUT/liftoff_output/tmp/<source>_onto_<target>`), removed when the pair finishes; a folder left there means that pair failed |
 ___
 
 Liftoff's own coverage/identity scores (`coverage=`, `sequence_ID=`) on the output are what
 the "build final annotation" step's quality filter (`get_good_transfer_ids.py`) and the
 filter step's overlap resolution both read - nothing recomputes them independently later.
 
-**Run** from the project folder. Job logs go to `liftoff_output/logs/` (one per array task), which has
-to exist before submitting - SLURM does not create it, and without it the job leaves no log. Either as one
+**Run** from the project folder. Job logs go to `logs/` (one per array task). Either as one
 job (sequential):
 ```bash
-mkdir -p liftoff_output/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
 ```
 or one job per source genome, in parallel (much faster; N = number of genomes):
 ```bash
-mkdir -p liftoff_output/logs
 N=$(grep -c . genome_order.txt)
-sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
+sbatch --array=1-${N} $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
 ```
 
-**Output**, in `liftoff_output/`:
+**Output**, in `$STEP05_OUT/liftoff_output/`:
 
 - `polished/<source>_onto_<target>_liftoff.gff3_polished` - one per pair, the file step 5 reads
   with `PAIR_SUFFIX="_liftoff.gff3_polished"`;
@@ -370,10 +375,10 @@ best-supported, regardless of source? See
 [Step 8](#step-8-build-each-genomes-final-annotation-best-model)** - not written yet, so
 following it end to end isn't possible yet.
 
-Scripts: [`scripts/build_final_annotation_basic.sh`](scripts/build_final_annotation_basic.sh) ·
-[`scripts/build_final_annotation.sh`](scripts/build_final_annotation.sh) ·
+Scripts: [`build_final_annotation_basic.sh`](../workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh) ·
+[`build_final_annotation.sh`](../workflow/step05_cross_genome_annotation_integration/build_final_annotation.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/get_good_transfer_ids.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/get_good_transfer_ids.py) ·
-[`scripts/check_final_annotations_job.sh`](scripts/check_final_annotations_job.sh)
+[`check_final_annotations_job.sh`](../workflow/step05_cross_genome_annotation_integration/check_final_annotations_job.sh)
 
 The pipeline is built around AGAT's `agat_sp_complement_annotations.pl`, which only adds a
 source's genes if they don't overlap a CDS already placed by an earlier source in the same
@@ -447,14 +452,14 @@ never merges or reshapes an existing gene model.
 #### Running it
 
 **Edit the settings at the top of `build_final_annotation_basic.sh`** (defaults are set for the
-standard layout of this pipeline - `gff_for_liftoff/`, `liftoff_output/polished/`, `genome_order.txt`):
+standard layout of this pipeline - `$STEP05_OUT/gff_for_liftoff/`, `$STEP05_OUT/liftoff_output/polished/`, `genome_order.txt`):
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `INPUT_DIR` | `gff_for_liftoff` | Directory with every genome's own GFF - the prepared GFFs (step 3) |
-| `PAIRWISE_DIR` | `liftoff_output/polished` | Directory with your Liftoff output |
-| `OUTPUT_DIR` | `expanded_annotation` | Where to write the final annotations |
-| `ORDER` | `genome_order.txt` | The same file from [step 01](../docs/step01_genome_selection_qc.md#6-the-genome-list-genome_ordertxt), reused as-is - no need to create a new one. Comma-separated genome names, **first one = the reference** you trust most (e.g. `"AF293,strain2,strain3"`), or a path to a file with one genome name per line |
+| `INPUT_DIR` | `$STEP05_OUT/gff_for_liftoff` | Directory with every genome's own GFF - the prepared GFFs (step 3) |
+| `PAIRWISE_DIR` | `$STEP05_OUT/liftoff_output/polished` | Directory with your Liftoff output |
+| `FINAL_DIR` | `$STEP05_OUT/expanded_annotation` | Where to write the final annotations |
+| `ORDER` | `genome_order.txt` | The same file from [step 01](step01_genome_selection_qc.md#6-the-genome-list-genome_ordertxt), reused as-is - no need to create a new one. Comma-separated genome names, **first one = the reference** you trust most (e.g. `"AF293,strain2,strain3"`), or a path to a file with one genome name per line |
 | `ORIGINAL_SUFFIX` | `.gff3` | Filename suffix for each genome's own GFF in `INPUT_DIR` (the prepare step always writes `.gff3`) |
 | `PAIR_SUFFIX` | `_liftoff.gff3_polished` | Filename suffix of the Liftoff output |
 | `MIN_COVERAGE` | `0.9` | Minimum Liftoff coverage for a transfer to count as "good" (round 1) instead of falling back to a low-confidence "rescue" (round 2) |
@@ -464,20 +469,18 @@ Also check the `#SBATCH` lines at the very top (`--time` especially - building e
 one after another can take a while with a lot of genomes) and the `micromamba activate
 bioinfo` line (change the environment name if your cluster's AGAT isn't called that).
 
-**Run** from the project folder. Job logs go to `expanded_annotation/logs/`, which has to exist before
-submitting (SLURM does not create it). Either every genome in one job:
+**Run** from the project folder. Job logs go to `logs/` (the check below reads them there). Either
+every genome in one job:
 ```bash
-mkdir -p expanded_annotation/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh
 ```
 or one job per genome, in parallel (each genome's build is independent; N = number of genomes):
 ```bash
-mkdir -p expanded_annotation/logs
 N=$(grep -c . genome_order.txt)
-sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
+sbatch --array=1-${N} $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh
 ```
 
-#### Output, in `OUTPUT_DIR`
+#### Output, in `FINAL_DIR`
 
 | File | Shows |
 |---|---|
@@ -485,17 +488,17 @@ sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final
 
 #### Checking it worked
 
-- `<OUTPUT_DIR>/<genome>_final_annotation.gff` should exist for every genome once the job
+- `<FINAL_DIR>/<genome>_final_annotation.gff` should exist for every genome once the job
   finishes. To check all of them at once, run from the project folder:
   ```bash
-  bash 05_Cross-genome_annotation_integration/scripts/check_final_annotations_job.sh
+  bash $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/check_final_annotations_job.sh
   ```
   It prints `OK`, `RUNNING` (the job is still in the queue or running) or `MISSING` per genome. For each
   missing genome it says how far the build got (main, round 1 or round 2), shows the end of that job's
   `.err` log, names the AGAT log to read, and prints the `sbatch --array=...` command that rebuilds only
   those genomes. It exits with an error if any genome is missing, and asks you to run it again if some
   are still running.
-- `expanded_annotation/logs/build_final_annotation_<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error`
+- `logs/build_final_annotation_<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error`
   lines at the top; one pair per genome when run as an array) has one `=== Genome N/total: <genome> ===` block per genome as it works through
   `ORDER`, and ends with `All genomes processed.` or an `ERROR:` line.
 
@@ -505,7 +508,7 @@ sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final
 > specifically - its `source` tiers (`main`/`good_<genome>`/`rescued_<genome>`/own-annotation)
 > drive several of the checks below. 
 
-Scripts: [`scripts/plot_final_annotation_qc_job.sh`](scripts/plot_final_annotation_qc_job.sh) ·
+Scripts: [`plot_final_annotation_qc_job.sh`](../workflow/step05_cross_genome_annotation_integration/plot_final_annotation_qc_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_final_annotation_qc.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_final_annotation_qc.py)
 
 Once every genome has its `_final_annotation.gff`, this gives a first look at the raw build's
@@ -516,22 +519,20 @@ quality - before any filtering, which is [step 7](#step-7-final-annotation-if-us
 | Variable | Default | Meaning |
 |---|---|---|
 | `STRAINS` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line - **first one = the reference**, same as the build step's `ORDER` |
-| `FINAL_DIR` | `expanded_annotation` | The build step's `OUTPUT_DIR` |
-| `GENOME_DIR` | `gff_for_liftoff` | Directory with every genome's own annotation, to compare the gene counts with |
+| `FINAL_DIR` | `$STEP05_OUT/expanded_annotation` | The build step's `FINAL_DIR` |
+| `GENOME_DIR` | `$STEP05_OUT/gff_for_liftoff` | Directory with every genome's own annotation, to compare the gene counts with |
 | `GENOME_SUFFIX` | `.gff3` | Filename suffix for each genome's own GFF in `GENOME_DIR` |
-| `OUT_DIR` | `final_annotation_qc_plots` | Where to write the plots and `summary.tsv` |
+| `OUT_DIR` | `$STEP05_OUT/final_annotation_qc_plots` | Where to write the plots and `summary.tsv` |
 
 It needs Python 3 + matplotlib; the job activates the `synteny` micromamba environment, which
-has both (same env as [step 01](../docs/step01_genome_selection_qc.md#dependencies)).
+has both (same env as [step 01](step01_genome_selection_qc.md#dependencies)).
 
-**Run** from the project folder. The job log goes to `final_annotation_qc_plots/logs/`, which has to
-exist before submitting (SLURM does not create it):
+**Run** from the project folder:
 ```bash
-mkdir -p final_annotation_qc_plots/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc_job.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/plot_final_annotation_qc_job.sh
 ```
 
-Produces, in `OUT_DIR` (`final_annotation_qc_plots/`):
+Produces, in `OUT_DIR` (`$STEP05_OUT/final_annotation_qc_plots/`):
 
 | File | Shows |
 |---|---|
@@ -634,9 +635,9 @@ Moreover, due to the liftoff process that can predict slightly different gene mo
 
 ### 7a. Filter (drop unsupported genes before get_pangenes)
 
-Scripts: [`scripts/filter_final_annotation_job.sh`](scripts/filter_final_annotation_job.sh) ·
+Scripts: [`filter_final_annotation_job.sh`](../workflow/step05_cross_genome_annotation_integration/filter_final_annotation_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/filter_final_annotation.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/filter_final_annotation.py) ·
-[`scripts/plot_filter_qc_job.sh`](scripts/plot_filter_qc_job.sh) ·
+[`plot_filter_qc_job.sh`](../workflow/step05_cross_genome_annotation_integration/plot_filter_qc_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_filter_qc.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/plot_filter_qc.py) · shared with 7b and the QC plots:
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py) (GFF parsing, CDS-overlap scan, ID renumbering)
 
@@ -724,7 +725,7 @@ unconditionally - not because those genes lack real domains, but because that an
 source never recorded them. This project's own reference (AF293/FungiDB) is exactly this
 case: 0 of its ~32,000 CDS lines carry an InterPro/PFAM hit - every gene sourced from it relies
 entirely on its description text (or, for `main`/being the reference, on not needing evidence
-at all) to survive an overlap dispute. That is why [step 04 - InterProScan](../docs/step04_interproscan.md) runs
+at all) to survive an overlap dispute. That is why [step 04 - InterProScan](step04_interproscan.md) runs
 before everything else in this step: it writes real domain evidence into every genome's GFF, so
 the rule works from each genome's own InterProScan result rather than whatever the source
 annotation happened to record. **[Step 1's native annotation check](#step-1-native-annotation-check)**, run on
@@ -736,12 +737,12 @@ step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_d
 - **Python 3**, standard library only, for filtering - `module load python/3.11.9` (or any
   python3 on the PATH, nothing else needed).
 - **matplotlib** (+ pandas), for the QC plots only - micromamba env `synteny`, already
-  installed if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencies).
+  installed if you set it up for [step 01](step01_genome_selection_qc.md#dependencies).
 - No AGAT, no Liftoff needed for this step - those were only for the build step above.
 
 #### What you need before starting
 
-- Every genome's own `<genome>_final_annotation.gff`, from the build step's `OUTPUT_DIR`.
+- Every genome's own `<genome>_final_annotation.gff`, from the build step's `FINAL_DIR`.
 - **The same genome order** used in the build step (`ORDER`, first = reference) - reused here
   so strain-index numbering and the reference/`main` logic stay consistent.
 
@@ -752,8 +753,8 @@ step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_d
 | Variable | Default | Meaning |
 |---|---|---|
 | `STRAINS` | `genome_order.txt` | Comma-separated genome names or a file with one per line, **first = the reference**, same as the build step's `ORDER` |
-| `FINAL_DIR` | `expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `OUTPUT_DIR`) |
-| `OUT_DIR` | `filtered_annotation` | Where to write the filtered GFFs + `_filter_report.tsv` files |
+| `FINAL_DIR` | `$STEP05_OUT/expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `FINAL_DIR`) |
+| `OUT_DIR` | `$STEP05_OUT/filtered_annotation` | Where to write the filtered GFFs + `_filter_report.tsv` files |
 | `MIN_RESCUED_COVERAGE` | `0.5` | Every `rescued_<genome>` gene below this Liftoff coverage is dropped outright |
 | `MIN_OVERLAP_BP` | `20` | CDS-to-CDS overlaps under this many bp are ignored entirely |
 | `MIN_OVERLAP_GENOMES` | `2` | A gene present in more than 2 genomes needs a qualifying overlap in at least this many of them to count as a real, recurring conflict rather than an isolated Liftoff boundary glitch |
@@ -764,14 +765,13 @@ step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_d
 **Run** (one single SLURM job, works through every genome in `STRAINS` in one Python process -
 the cross-genome case-6 pass needs all of them loaded together anyway):
 ```bash
-mkdir -p filtered_annotation/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/filter_final_annotation_job.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/filter_final_annotation_job.sh
 ```
 
 Then, once that's done, **edit the settings at the top of `plot_filter_qc_job.sh`**
 (`STRAINS`, `ORIGINAL_DIR`, `FILTERED_DIR`, `GENOME_DIR`/`GENOME_SUFFIX`, `OUT_DIR`) and:
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/plot_filter_qc_job.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/plot_filter_qc_job.sh
 ```
 
 **Output**, in `OUT_DIR`:
@@ -792,7 +792,7 @@ sbatch 05_Cross-genome_annotation_integration/scripts/plot_filter_qc_job.sh
 - `<OUT_DIR>/<genome>_filter_report.tsv` lists every removed gene and why - nothing is ever
   silently dropped.
 - `<OUT_DIR>/filter_summary.tsv` - one row per genome: `n_original`/`n_kept`/`n_removed`.
-- The job's `..._<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error` lines at the
+- The job's `logs/filter_final_annotation_<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error` lines at the
   top) reports the panel-wide presence/overlap-scan counts, then one summary line per genome
   (`<genome>: N protein-coding genes -> M kept, K removed (%) -> <path>`), and ends with
   `All genomes filtered. Outputs are in ...`.
@@ -803,7 +803,7 @@ on to [step 06 - GET_PANGENES](../06_GET_PANGENES/README.md) to prepare and run
 
 ### 7b. No filtering (tag, decide after get_pangenes)
 
-Scripts: [`scripts/tag_final_annotation_job.sh`](scripts/tag_final_annotation_job.sh) ·
+Scripts: [`tag_final_annotation_job.sh`](../workflow/step05_cross_genome_annotation_integration/tag_final_annotation_job.sh) ·
 [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/tag_final_annotation.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/tag_final_annotation.py) · [`src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py`](../src/pangenome_pipeline/step05_cross_genome_annotation_integration/annotation_common.py)
 
 **Why this exists.** 7a's overlap-resolution rule can still be wrong in a specific way: if a
@@ -846,7 +846,7 @@ pangene-level confidence call it produces, isn't built yet - planned as part of
 
 #### What you need before starting
 
-- Every genome's own `<genome>_final_annotation.gff`, from the build step's `OUTPUT_DIR`.
+- Every genome's own `<genome>_final_annotation.gff`, from the build step's `FINAL_DIR`.
 - **The same genome order** used in the build step (`ORDER`, first = reference).
 
 #### Running it
@@ -856,15 +856,14 @@ pangene-level confidence call it produces, isn't built yet - planned as part of
 | Variable | Default | Meaning |
 |---|---|---|
 | `STRAINS` | `genome_order.txt` | Comma-separated genome names or a file with one per line, **first = the reference** |
-| `FINAL_DIR` | `expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `OUTPUT_DIR`) |
-| `OUT_DIR` | `tagged_annotation` | Where to write the tagged GFFs + `_intersect_pairs.tsv` files |
+| `FINAL_DIR` | `$STEP05_OUT/expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `FINAL_DIR`) |
+| `OUT_DIR` | `$STEP05_OUT/tagged_annotation` | Where to write the tagged GFFs + `_intersect_pairs.tsv` files |
 | `MIN_OVERLAP_BP` | `20` | CDS-to-CDS overlaps under this many bp are ignored entirely |
 | `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
 
 **Run:**
 ```bash
-mkdir -p tagged_annotation/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/tag_final_annotation_job.sh
+sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/tag_final_annotation_job.sh
 ```
 
 #### Checking it worked

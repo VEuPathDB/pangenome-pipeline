@@ -29,11 +29,11 @@ filename the way `get_pangenes` expects, then run `get_pangenes` itself.
 
 > The relabeling this step used to do (`protein_coding_gene`/`pseudogene` → feature type
 > `gene`, `pseudogenic_transcript` → `transcript`) is no longer needed here - step 05's own
-> [7a](../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes)/[7b](../05_Cross-genome_annotation_integration/README.md#7b-no-filtering-tag-decide-after-get_pangenes)
+> [7a](../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)/[7b](../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)
 > already write their output in exactly that shape (and already renumber every gene ID to be
 > unique across the whole panel, which this step never did). Non-coding RNA genes are also
 > already left correctly untouched by 7a/7b - typed away from `gene` back in
-> [step 05's step 3](../05_Cross-genome_annotation_integration/README.md#step-3-prepare-the-gffs-for-liftoff),
+> [step 05's step 3](../docs/step05_cross_genome_annotation_integration.md#step-3-prepare-the-gffs-for-liftoff),
 > so `get_pangenes` never sees them as candidates, without needing any `source`-column retag.
 
 
@@ -51,9 +51,9 @@ project's `pipeline_config.sh` (see the [main README](../README.md#getting-the-p
 ### Step 1: Link each genome's GFF and FASTA into one directory
 
 Input: each genome's `<genome>_final_annotation_filtered.gff` (from
-[step 05's 7a](../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes))
+[step 05's 7a](../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes))
 or `<genome>_final_annotation_tagged.gff` (from
-[7b](../05_Cross-genome_annotation_integration/README.md#7b-no-filtering-tag-decide-after-get_pangenes)),
+[7b](../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)),
 whichever approach you're running with.
 
 `get_pangenes` pairs up a genome's GFF and FASTA by filename - both need to sit in the same

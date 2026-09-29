@@ -1,4 +1,4 @@
-"""05_Cross-genome_annotation_integration - Liftoff transfer filtering and overlap resolution."""
+"""step05_cross_genome_annotation_integration - Liftoff transfer filtering and overlap resolution."""
 
 import os
 import subprocess

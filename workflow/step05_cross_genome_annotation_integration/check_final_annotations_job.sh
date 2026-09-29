@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=check_final_annotations
 #SBATCH --partition=low
-#SBATCH --output=expanded_annotation/logs/%x_%j.out
-#SBATCH --error=expanded_annotation/logs/%x_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=1G
@@ -14,20 +14,27 @@
 #
 # It only looks at files and takes a second, so it can be run directly on the login node, from
 # your project folder:
-#     bash 05_Cross-genome_annotation_integration/scripts/check_final_annotations_job.sh
-# or submitted as a job (the log folder must exist first):
-#     mkdir -p expanded_annotation/logs && sbatch 05_Cross-genome_annotation_integration/scripts/check_final_annotations_job.sh
+#     bash $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/check_final_annotations_job.sh
+# or submitted as a job:
+#     sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/check_final_annotations_job.sh
 
 set -euo pipefail
 
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 # ─── Edit these for your run ───
 GENOMES="genome_order.txt"                  # file with one genome name per line (same as the build's ORDER)
-OUTPUT_DIR="expanded_annotation"            # build_final_annotation_basic.sh's OUTPUT_DIR
-BUILD_SCRIPT="05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh"   # only used to print the resubmit command
+FINAL_DIR="$STEP05_OUT/expanded_annotation"   # build_final_annotation_basic.sh's FINAL_DIR
+BUILD_LOGS="$PROJECT_DIR/logs"              # where the build jobs' SLURM logs are
+BUILD_SCRIPT="$PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh"   # only used to print the resubmit command
 # ────────────────────────────────
 
 [[ -f "$GENOMES" ]]    || { echo "ERROR: genome list not found: $GENOMES (run from the project folder)" >&2; exit 1; }
-[[ -d "$OUTPUT_DIR" ]] || { echo "ERROR: $OUTPUT_DIR not found - has the build been submitted yet?" >&2; exit 1; }
+[[ -d "$FINAL_DIR" ]] || { echo "ERROR: $FINAL_DIR not found - has the build been submitted yet?" >&2; exit 1; }
 
 genomes=()
 while IFS= read -r line; do
@@ -41,22 +48,22 @@ n_ok=0
 for i in "${!genomes[@]}"; do
     g="${genomes[$i]}"
     task=$((i + 1))
-    if [[ -s "$OUTPUT_DIR/${g}_final_annotation.gff" ]]; then
+    if [[ -s "$FINAL_DIR/${g}_final_annotation.gff" ]]; then
         echo "OK       $g"
         n_ok=$((n_ok + 1))
         continue
     fi
 
     # How far did it get? Each layer leaves its own file in the genome's folder.
-    if   [[ -s "$OUTPUT_DIR/$g/step_rescued.gff" ]]; then where="the final overlap check"
-    elif [[ -s "$OUTPUT_DIR/$g/step_good.gff"    ]]; then where="round 2 (rescue)"
-    elif [[ -s "$OUTPUT_DIR/$g/step_main.gff"    ]]; then where="round 1 (good transfers)"
-    elif [[ -d "$OUTPUT_DIR/$g"                  ]]; then where="the main step"
+    if   [[ -s "$FINAL_DIR/$g/step_rescued.gff" ]]; then where="the final overlap check"
+    elif [[ -s "$FINAL_DIR/$g/step_good.gff"    ]]; then where="round 2 (rescue)"
+    elif [[ -s "$FINAL_DIR/$g/step_main.gff"    ]]; then where="round 1 (good transfers)"
+    elif [[ -d "$FINAL_DIR/$g"                  ]]; then where="the main step"
     else                                                  where=""
     fi
 
     # The job's own log (found through the line the build prints for this genome).
-    joblog=$(grep -l -E "building ${g}\$|=== Genome: ${g} |=== Genome [0-9]+/[0-9]+: ${g} ===" "$OUTPUT_DIR"/logs/build_final_annotation_*.out 2>/dev/null | tail -1 || true)
+    joblog=$(grep -l -E "building ${g}\$|=== Genome: ${g} |=== Genome [0-9]+/[0-9]+: ${g} ===" "$BUILD_LOGS"/build_final_annotation_*.out 2>/dev/null | tail -1 || true)
 
     # Is that job still queued or running? Then the genome is not missing, just not finished yet.
     running=0
@@ -80,9 +87,9 @@ for i in "${!genomes[@]}"; do
     elif [[ -n "$joblog" ]]; then
         echo "           job log: ${joblog%.out}.err (empty)"
     else
-        echo "           no job log found for this genome in $OUTPUT_DIR/logs/ - was it submitted?"
+        echo "           no job log found for this genome in $BUILD_LOGS/ - was it submitted?"
     fi
-    latest=$(ls -t "$OUTPUT_DIR/$g"/*.log 2>/dev/null | head -1 || true)
+    latest=$(ls -t "$FINAL_DIR/$g"/*.log 2>/dev/null | head -1 || true)
     [[ -n "$latest" ]] && echo "           newest AGAT log: $latest"
     missing_tasks+=("$task")
 done

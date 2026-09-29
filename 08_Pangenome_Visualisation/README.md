@@ -81,8 +81,8 @@ labels the entries by their IPR accession.
 `get_pangenes` writes the matrices in a subfolder whose name depends on the genome and the options it was run
 with, so the job looks for them by file name. There are two sets of pangenes, and the same plots are made for each:
 
-- **7a**, with filtering: the GFFs were filtered before `get_pangenes` ([step 05](../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
-- **7b**, no filtering ([step 05](../05_Cross-genome_annotation_integration/README.md#7b-no-filtering-tag-decide-after-get_pangenes)): the GFFs were only tagged, nothing removed. It carries the `intersect=` tag, which one plot needs.
+- **7a**, with filtering: the GFFs were filtered before `get_pangenes` ([step 05](../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
+- **7b**, no filtering ([step 05](../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)): the GFFs were only tagged, nothing removed. It carries the `intersect=` tag, which one plot needs.
 
 **Occupancy categories.** Occupancy is the number of genomes (N) a pangene is present in. The categories are cut in
 numbers of genomes, not in percentages. Each pangene falls in exactly one, decided in this order (`categorize` in

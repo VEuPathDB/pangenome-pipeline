@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH --job-name=liftoff_all_vs_all
 #SBATCH --partition=low
-#SBATCH --output=liftoff_output/logs/%x_%j.out
-#SBATCH --error=liftoff_output/logs/%x_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=16
 #SBATCH --mem=32G
@@ -10,33 +10,37 @@
 #
 # All-against-all Liftoff: every genome's annotation is lifted onto every other genome's FASTA.
 #
-# Input annotation = the GFFs written by prepare_for_liftoff_job.sh (gff_for_liftoff/), with
-# liftoff_feature_types.txt from the same folder. FASTAs = the project's genomes/ folder.
+# Input annotation = the GFFs written by prepare_for_liftoff_job.sh ($STEP05_OUT/gff_for_liftoff/),
+# with liftoff_feature_types.txt from the same folder. FASTAs = the project's genomes/ folder.
 #
-# Submit from your project folder. The log folder must exist BEFORE submitting (SLURM does not
-# create it - without it the job produces no log at all), hence the mkdir. Either everything in
-# one job (sequential):
-#     mkdir -p liftoff_output/logs && sbatch 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
+# Submit from your project folder (logs/ must exist there - SLURM does not create it). Either
+# everything in one job (sequential):
+#     sbatch $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
 # or one job per source genome, in parallel (N = number of genomes in GENOMES):
-#     mkdir -p liftoff_output/logs
 #     N=$(grep -c . genome_order.txt)
-#     sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
-# Logs: liftoff_output/logs/liftoff_all_vs_all_<jobid>.out / .err - one pair per array task.
+#     sbatch --array=1-${N} $PIPELINE_DIR/workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
+# Logs: logs/liftoff_all_vs_all_<jobid>.out / .err - one pair per array task.
 #
 # Safe to resubmit: a source->target pair whose polished output already exists is skipped.
-# Parallel-safe: every pair uses its own temporary folder (liftoff_output/tmp/<source>_onto_<target>,
+# Parallel-safe: every pair uses its own temporary folder ($STEP05_OUT/liftoff_output/tmp/<source>_onto_<target>,
 # deleted when the pair finishes; a folder left behind means that pair failed - see the .err).
 
 set -euo pipefail
 
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 # ─── Edit these for your run ───
 GENOMES="genome_order.txt"                    # file with one genome name per line
-GFF_DIR="gff_for_liftoff"                     # prepared GFFs: <genome>.gff3 (or .gff)
-FEATURE_TYPES="gff_for_liftoff/liftoff_feature_types.txt"   # top-level types to transfer (written by prepare_for_liftoff.py).
+GFF_DIR="$STEP05_OUT/gff_for_liftoff"        # prepared GFFs: <genome>.gff3 (or .gff)
+FEATURE_TYPES="$GFF_DIR/liftoff_feature_types.txt"   # top-level types to transfer (written by prepare_for_liftoff.py).
                                               # Liftoff only transfers type "gene" unless a type is listed here (-f) -
                                               # exact match - so this is what keeps non-coding RNA genes from being copied.
 FASTA_DIR="genomes"                           # <genome>.fna (or .fa / .fasta)
-OUT_DIR="liftoff_output"                      # results: ${OUT_DIR}/polished/<source>_onto_<target>_liftoff.gff3_polished
+OUT_DIR="$STEP05_OUT/liftoff_output"         # results: ${OUT_DIR}/polished/<source>_onto_<target>_liftoff.gff3_polished
 # ────────────────────────────────
 
 set +u

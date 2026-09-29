@@ -468,11 +468,11 @@ Run **once**, after [step 04](#04--interproscan), on `gff_with_interpro/` (the G
 domain evidence written in), so that the domain columns and plots are real. Output folder for
 this run: `annotation_check_with_interpro/`.
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/analyze_input_gffs_job.sh
+sbatch workflow/step05_cross_genome_annotation_integration/analyze_input_gffs_job.sh
 ```
 (`GFF_DIR="gff_with_interpro"` is the script's default; for the run above `OUT_DIR` was set to
 `annotation_check_with_interpro`. Full description of every output file:
-[general README](../../05_Cross-genome_annotation_integration/README.md#step-1-native-annotation-check).)
+[general README](../../docs/step05_cross_genome_annotation_integration.md#step-1-native-annotation-check).)
 
 **Genes per genome** - 8,000 to 10,000 protein-coding genes per genome, split by whether the
 gene carries InterPro/PFAM evidence (56-62% do, in every genome, so no genome stands out
@@ -524,25 +524,25 @@ genes are removed. Listed in `kill_list_manual.tsv` (project root):
 | `TGME49_321700` | Kinase-like \| domain-containing protein | `TGME49_500405` | 800 |
 
 Removing them (40 GFF lines including their exons/transcripts) is done by
-[`remove_genes_from_gff_job.sh`](../../05_Cross-genome_annotation_integration/README.md#step-2-remove-specific-genes-from-the-gffs-optional-manual-kill-list),
+[`remove_genes_from_gff_job.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-2-remove-specific-genes-from-the-gffs-optional-manual-kill-list),
 reading `gff_with_interpro/` and writing every genome to `gff_curated/` (genomes without an
 entry in the list are copied unchanged):
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff_job.sh
+sbatch workflow/step05_cross_genome_annotation_integration/remove_genes_from_gff_job.sh
 ```
 `kill_list_manual.tsv` has no header, one gene per line: `genome<TAB>gene_id`
 (e.g. `ME49	TGME49_242250`). Run this step **before** "Prepare the GFFs for Liftoff" below.
 
 ### Prepare the GFFs for Liftoff
 
-[`prepare_for_liftoff_job.sh`](../../05_Cross-genome_annotation_integration/README.md#step-3-prepare-the-gffs-for-liftoff)
+[`prepare_for_liftoff_job.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-3-prepare-the-gffs-for-liftoff)
 reads `gff_curated/` and writes to `gff_for_liftoff/`: genes reduced to their coding sequence
 (no UTRs), protein-coding genes and pseudogenes unified to `protein_coding_gene`, and the
 non-coding RNA genes given a different type (`ncRNA_gene`, `tRNA_gene`) so Liftoff - which only
 transfers the types in `liftoff_feature_types.txt` - does not copy them onto other genomes. Each
 genome keeps its own non-coding genes. This is what goes into Liftoff:
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh
+sbatch workflow/step05_cross_genome_annotation_integration/prepare_for_liftoff_job.sh
 ```
 
 Result (`gff_for_liftoff/prepare_for_liftoff_report.tsv`; `liftoff_feature_types.txt` contains
@@ -586,18 +586,18 @@ the type list Liftoff transfers.
 
 ### Liftoff (all-against-all)
 
-[`liftoff_all_vs_all.sh`](../../05_Cross-genome_annotation_integration/README.md#step-4-liftoff)
+[`liftoff_all_vs_all.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-4-liftoff)
 lifts every genome's prepared annotation (`gff_for_liftoff/`) onto every other genome's
 FASTA (`genomes/`) - 15 genomes, so 210 pairs. Run as one job per source genome:
 ```bash
 mkdir -p liftoff_output/logs
-sbatch --array=1-15 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
+sbatch --array=1-15 workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
 ```
 Results go to `liftoff_output/polished/`, job logs to `liftoff_output/logs/`. Resubmitting skips pairs that are already done.
 
 ### Build each genome's final annotation
 
-[`build_final_annotation_basic.sh`](../../05_Cross-genome_annotation_integration/README.md#step-5-build-each-genomes-final-annotation)
+[`build_final_annotation_basic.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-5-build-each-genomes-final-annotation)
 builds one annotation per genome anchored on its own coordinates. The reference is ME49 (first line
 of `genome_order.txt`). The layers are the reference's confident transfers (`main`), then the
 genome's own annotation from `gff_for_liftoff/` - which is where its non-coding genes come back in -
@@ -605,7 +605,7 @@ then the other genomes' good transfers (`good_<genome>`), then everything left (
 Run after all Liftoff jobs have finished, one job per genome:
 ```bash
 mkdir -p expanded_annotation/logs
-sbatch --array=1-15 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
+sbatch --array=1-15 workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh
 ```
 Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expanded_annotation/logs/`.
 
@@ -615,14 +615,14 @@ Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expan
 
 ### Step 6: Built annotation check
 
-QC on the raw build output, before [step 7](../../05_Cross-genome_annotation_integration/README.md#step-7-final-annotation-if-using-step-5-pre-get_pangenes)'s
+QC on the raw build output, before [step 7](../../docs/step05_cross_genome_annotation_integration.md#step-7-final-annotation-if-using-step-5-pre-get_pangenes)'s
 filter runs. Output folder: `final_annotation_qc_plots/`.
 ```bash
 mkdir -p final_annotation_qc_plots/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc_job.sh
+sbatch workflow/step05_cross_genome_annotation_integration/plot_final_annotation_qc_job.sh
 ```
 (Full description of every output file:
-[general README](../../05_Cross-genome_annotation_integration/README.md#step-6-built-annotation-check-if-using-step-5).)
+[general README](../../docs/step05_cross_genome_annotation_integration.md#step-6-built-annotation-check-if-using-step-5).)
 
 **Gene counts** - each genome's final build has 9,249-9,933 protein-coding genes, well above
 its own original annotation (8,000-10,000), since genes are being pulled in from every other
@@ -680,7 +680,7 @@ above, per genome).
 
 Ran [`filter_final_annotation.py`](05_Cross-genome_annotation_integration/scripts/filter_final_annotation.py)
 on all 15 genomes (rule details in the
-[general README](../../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
+[general README](../../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
 Output: `filtered_annotation/<genome>_final_annotation_filtered.gff` - `gene`-typed, IDs
 renumbered `Tg<strain-index>g<00001, ...>`, original ID kept in `original_ID=`.
 
@@ -755,7 +755,7 @@ transfers):
 
 Ran [`tag_final_annotation.py`](05_Cross-genome_annotation_integration/scripts/tag_final_annotation.py)
 on all 15 genomes (rule details in the
-[general README](../../05_Cross-genome_annotation_integration/README.md#7b-no-filtering-tag-decide-after-get_pangenes)).
+[general README](../../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)).
 Nothing removed - same `gene`-typing/ID-renumbering as 7a, plus an `intersect=` tag on every
 gene recording what it overlaps (`NA`/`with_main`/`with_other_with_domain`/`with_other_no_domain`).
 Output: `tagged_annotation/<genome>_final_annotation_tagged.gff` + `<genome>_intersect_pairs.tsv`.
