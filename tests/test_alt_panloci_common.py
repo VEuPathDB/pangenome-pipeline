@@ -113,13 +113,15 @@ def test_merge_hal_liftover_primary_and_duplicates(pc, write_file, tmp_path):
     assert len(qc.read_text().splitlines()) == 3
 
 
-def test_runner_finds_the_package_without_copying(tmp_path):
-    """run_get_panloci.sh finds src/ from its own folder; it then stops at the placeholder RUN_DIR."""
-    runner = REPO_ROOT / "Alternative_Get_PanLoci_pipeline" / "scripts_no_slurm" / "run_get_panloci.sh"
-    env = {k: v for k, v in os.environ.items() if k != "PIPELINE_DIR"}
+def test_runner_finds_the_pipeline_and_defaults_to_alt_panloci_out(tmp_path):
+    """run_get_panloci.sh finds the checkout from its own folder; with no RUN_DIR set it works in
+    output/alternative_get_panloci/ under the folder it is run from (and stops there: no samples.tsv)."""
+    runner = REPO_ROOT / "workflow" / "alternative_get_panloci" / "no_slurm" / "run_get_panloci.sh"
+    env = {k: v for k, v in os.environ.items() if k not in ("PIPELINE_DIR", "RUN_DIR", "SLURM_SUBMIT_DIR")}
+    env["PIPELINE_CONFIG"] = str(tmp_path / "no_config.sh")
     found = subprocess.run(["bash", str(runner)], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
-    assert "src/ not found" not in found.stderr
-    assert "/path/to/panlocus_run" in found.stderr  # got as far as `cd "${RUN_DIR}"`
+    assert found.returncode == 1
+    assert f"Samples table not found: {tmp_path}/output/alternative_get_panloci/samples.tsv" in found.stderr
 
     wrong = subprocess.run(
         ["bash", str(runner)],
@@ -130,4 +132,4 @@ def test_runner_finds_the_package_without_copying(tmp_path):
         check=False,
     )
     assert wrong.returncode == 1
-    assert "pangenome-pipeline src/ not found - set PIPELINE_DIR" in wrong.stderr
+    assert "pipeline not found - export PIPELINE_DIR" in wrong.stderr

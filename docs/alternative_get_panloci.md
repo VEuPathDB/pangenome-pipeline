@@ -96,7 +96,7 @@ all annotated strains have been evaluated.
 Required:
 
 - Bash (Linux/macOS)
-- SLURM (optional; required only when using the scripts in `scripts/` on an HPC cluster)
+- SLURM (optional; required only when using the scripts in `workflow/alternative_get_panloci/` on an HPC cluster)
 - Python 3.8 or newer
   - only Python standard-library modules are used
   - FASTA sequence extraction is performed internally by the Python scripts
@@ -111,24 +111,31 @@ Required:
 
 The Python code (steps 1-3 and their shared helpers) lives in the pipeline's package,
 [`src/pangenome_pipeline/alternative_get_panloci/`](../src/pangenome_pipeline/alternative_get_panloci/), and is run
-with `python3 -m pangenome_pipeline.alternative_get_panloci.<step>`. Nothing needs copying into `RUN_DIR`: both
-runners find the package by looking upwards from where they are started (the submit folder under SLURM, the
-script's own folder otherwise) and put it on `PYTHONPATH`; set `PIPELINE_DIR` to the repository folder if they
-can't. The job scripts come in two directories tailored for different environments:
+with `python3 -m pangenome_pipeline.alternative_get_panloci.<step>`. Nothing needs copying into `RUN_DIR`: the
+scripts load the pipeline's `lib/slurm_common.sh` (through `PIPELINE_DIR` under SLURM, or from the script's own
+location when run with `bash`), which puts the package on `PYTHONPATH` - see the
+[main README](../README.md#getting-the-pipeline-into-a-project).
 
-- **`scripts/` (SLURM / HPC Cluster)**:
-  - [`scripts/step0_run_cactus_pangenome.slurm`](scripts/step0_run_cactus_pangenome.slurm): SLURM batch job script to construct the Cactus HAL alignment.
-  - [`scripts/run_get_panloci.slurm`](scripts/run_get_panloci.slurm): SLURM batch orchestrator running Steps 1, 2, and 3 sequentially.
+**Where it runs.** Run the scripts from the project folder. The run folder `RUN_DIR` - which holds the inputs
+(`samples.tsv`, `genomes_all.txt`) and everything the pipeline writes (`cactus_output/`, `candidate_transfers/`,
+`validation/`, `panlocus_catalogue/`) - defaults to `$ALT_PANLOCI_OUT` = `$OUTPUT_DIR/alternative_get_panloci/`, by
+default `output/alternative_get_panloci/` in the project folder (see [outputs](../README.md#outputs)). Set `RUN_DIR`
+at the top of the scripts, or for one run (`sbatch --export=ALL,RUN_DIR=...`), to use another folder.
+
+The job scripts come in two directories tailored for different environments:
+
+- **`workflow/alternative_get_panloci/` (SLURM / HPC Cluster)**:
+  - [`step0_run_cactus_pangenome.slurm`](../workflow/alternative_get_panloci/step0_run_cactus_pangenome.slurm): SLURM batch job script to construct the Cactus HAL alignment.
+  - [`run_get_panloci.slurm`](../workflow/alternative_get_panloci/run_get_panloci.slurm): SLURM batch orchestrator running Steps 1, 2, and 3 sequentially.
   - [`src/pangenome_pipeline/alternative_get_panloci/step1_prepare_seed_transfers.py`](../src/pangenome_pipeline/alternative_get_panloci/step1_prepare_seed_transfers.py): Step 1 Python script (seed coordinate extraction and `halLiftover`).
   - [`src/pangenome_pipeline/alternative_get_panloci/step2_validate_transfers.py`](../src/pangenome_pipeline/alternative_get_panloci/step2_validate_transfers.py): Step 2 Python script (`minimap2` DNA validation).
   - [`src/pangenome_pipeline/alternative_get_panloci/step3_build_panlocus_catalogue.py`](../src/pangenome_pipeline/alternative_get_panloci/step3_build_panlocus_catalogue.py): Step 3 Python script (sequential catalogue expansion and PAV matrix generation).
   - [`src/pangenome_pipeline/alternative_get_panloci/panloci_common.py`](../src/pangenome_pipeline/alternative_get_panloci/panloci_common.py): helpers the three step scripts share (samples.tsv, GFF/FASTA reading, halLiftover merging).
 
-- **`scripts_no_slurm/` (Direct Bash / Non-SLURM Servers & Workstations)**:
-  - [`scripts_no_slurm/step0_run_cactus_pangenome.sh`](scripts_no_slurm/step0_run_cactus_pangenome.sh): Direct Bash script to construct the Cactus HAL alignment.
-  - [`scripts_no_slurm/run_get_panloci.sh`](scripts_no_slurm/run_get_panloci.sh): Direct Bash orchestrator running Steps 1, 2, and 3 sequentially.
+- **`workflow/alternative_get_panloci/no_slurm/` (Direct Bash / Non-SLURM Servers & Workstations)**:
+  - [`no_slurm/step0_run_cactus_pangenome.sh`](../workflow/alternative_get_panloci/no_slurm/step0_run_cactus_pangenome.sh): Direct Bash script to construct the Cactus HAL alignment.
+  - [`no_slurm/run_get_panloci.sh`](../workflow/alternative_get_panloci/no_slurm/run_get_panloci.sh): Direct Bash orchestrator running Steps 1, 2, and 3 sequentially.
   - The Step 1–3 Python code is the same package as for the SLURM version (see above).
-  - [`scripts_no_slurm/README_get_panloci.md`](scripts_no_slurm/README_get_panloci.md): Dedicated guide for non-SLURM execution.
 
 Both versions run the exact same Python code, with the same command-line arguments and output structures.
 
@@ -160,7 +167,7 @@ OUT_DIR/OUT_NAME.full.hal
 ```
 
 This `.full.hal` file is then used by Steps 1 and 3 through the `PANGENOME_HAL`
-variable in `scripts/run_get_panloci.slurm` or `scripts_no_slurm/run_get_panloci.sh`.
+variable in `run_get_panloci.slurm` or `no_slurm/run_get_panloci.sh`.
 
 If a suitable Cactus HAL alignment was already generated in a previous run, Step
 0 can be skipped and the existing `.full.hal` path can be supplied directly as
@@ -337,9 +344,9 @@ Their roles are:
 Script:
 
 ```text
-scripts/step0_run_cactus_pangenome.slurm         # SLURM execution
+workflow/alternative_get_panloci/step0_run_cactus_pangenome.slurm            # SLURM execution
 # or
-scripts_no_slurm/step0_run_cactus_pangenome.sh   # Direct Bash execution
+workflow/alternative_get_panloci/no_slurm/step0_run_cactus_pangenome.sh      # Direct Bash execution
 ```
 
 Purpose:
@@ -390,7 +397,7 @@ The exact set of files depends on the Cactus version and selected options.
 Important Step 0 variables:
 
 ```text
-PROJECT_DIR
+RUN_DIR
 GENOMES_FILE
 CACTUS_SIF
 OUT_DIR
@@ -438,7 +445,7 @@ Recommended checks after Step 0:
 - Check the Cactus log and error files for warnings about skipped or filtered
   contigs.
 - Use the final `.full.hal` path as `PANGENOME_HAL` in
-  `scripts/run_get_panloci.slurm` or `scripts_no_slurm/run_get_panloci.sh`.
+  `run_get_panloci.slurm` or `no_slurm/run_get_panloci.sh`.
 
 ## Step 1: Prepare Seed Panlocus Transfers
 
@@ -1028,51 +1035,52 @@ the sequential catalogue expansion.
 
 ## Running the Pipeline
 
-The pipeline can be executed in two ways depending on your environment: on an HPC cluster using **SLURM** (`scripts/`), or directly via **standard Bash** (`scripts_no_slurm/`). Both workflows execute the exact same Python steps and share the same configuration parameters.
+The pipeline can be executed in two ways depending on your environment: on an HPC cluster using **SLURM** (`workflow/alternative_get_panloci/`), or directly via **standard Bash** (`workflow/alternative_get_panloci/no_slurm/`). Both workflows execute the exact same Python steps and share the same configuration parameters.
 
-### Option A: SLURM Execution (`scripts/`)
+### Option A: SLURM Execution (`workflow/alternative_get_panloci/`)
 
 #### 1. Run Step 0 (Cactus HAL Alignment)
-Edit paths and parameters at the top of `scripts/step0_run_cactus_pangenome.slurm`:
+Edit paths and parameters at the top of `workflow/alternative_get_panloci/step0_run_cactus_pangenome.slurm`, then submit from the project folder:
 ```bash
-sbatch scripts/step0_run_cactus_pangenome.slurm
+sbatch $PIPELINE_DIR/workflow/alternative_get_panloci/step0_run_cactus_pangenome.slurm
 ```
-When Step 0 finishes, use the generated HAL path (`PROJECT_DIR/OUT_DIR/OUT_NAME.full.hal`) as `PANGENOME_HAL` in the next script.
+When Step 0 finishes, the HAL is at `RUN_DIR/OUT_DIR/OUT_NAME.full.hal` - the default `PANGENOME_HAL` of the next script
+(`$RUN_DIR/cactus_output/pangenome.full.hal`).
 
 #### 2. Run Steps 1–3 (Panloci Catalogue Pipeline)
-Edit paths and parameters at the top of `scripts/run_get_panloci.slurm`, then submit:
+Edit paths and parameters at the top of `workflow/alternative_get_panloci/run_get_panloci.slurm`, then submit from the project folder:
 ```bash
-sbatch scripts/run_get_panloci.slurm
+sbatch $PIPELINE_DIR/workflow/alternative_get_panloci/run_get_panloci.slurm
 ```
 
 ---
 
-### Option B: Direct Bash Execution without SLURM (`scripts_no_slurm/`)
+### Option B: Direct Bash Execution without SLURM (`workflow/alternative_get_panloci/no_slurm/`)
 
 For standard Linux servers or local workstations:
 
 #### 1. Run Step 0 (Cactus HAL Alignment)
-Edit configuration variables in `scripts_no_slurm/step0_run_cactus_pangenome.sh`, grant permissions, and run:
+Edit configuration variables in `workflow/alternative_get_panloci/no_slurm/step0_run_cactus_pangenome.sh`, grant permissions, and run from the project folder:
 ```bash
-chmod +x scripts_no_slurm/step0_run_cactus_pangenome.sh
-./scripts_no_slurm/step0_run_cactus_pangenome.sh
+chmod +x $PIPELINE_DIR/workflow/alternative_get_panloci/no_slurm/step0_run_cactus_pangenome.sh
+$PIPELINE_DIR/workflow/alternative_get_panloci/no_slurm/step0_run_cactus_pangenome.sh
 ```
 
 #### 2. Run Steps 1–3 (Panloci Catalogue Pipeline)
-Edit configuration variables in `scripts_no_slurm/run_get_panloci.sh`, grant permissions, and run:
+Edit configuration variables in `workflow/alternative_get_panloci/no_slurm/run_get_panloci.sh`, grant permissions, and run from the project folder:
 ```bash
-chmod +x scripts_no_slurm/run_get_panloci.sh
-./scripts_no_slurm/run_get_panloci.sh
+chmod +x $PIPELINE_DIR/workflow/alternative_get_panloci/no_slurm/run_get_panloci.sh
+$PIPELINE_DIR/workflow/alternative_get_panloci/no_slurm/run_get_panloci.sh
 ```
 
 ---
 
 ### Configuration Variables
 
-Both `scripts/run_get_panloci.slurm` and `scripts_no_slurm/run_get_panloci.sh` use identical variables:
+Both `run_get_panloci.slurm` and `no_slurm/run_get_panloci.sh` use identical variables:
 
 ```text
-RUN_DIR             # Working directory for the analysis run
+RUN_DIR             # Working directory for the analysis run (default $ALT_PANLOCI_OUT)
 SAMPLES_TSV         # Path to samples.tsv metadata table
 CACTUS_SIF          # Singularity/Apptainer container (.sif) image
 PANGENOME_HAL       # Full Cactus HAL alignment path (.full.hal)
