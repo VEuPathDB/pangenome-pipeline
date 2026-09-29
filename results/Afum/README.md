@@ -221,13 +221,13 @@ cleaning. The rest of the GFF is the 8 chromosomes; no small contigs were carrie
 ### 01.3 Header formatting & renaming
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/rename_headers_slurm.sh
+sbatch workflow/step01_genome_selection_qc/rename_headers_slurm.sh
 ```
 
 ### 01.4 Species check (whole-genome ANI vs AF293, `skani`)
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/check_species.slurm.sh
+sbatch workflow/step01_genome_selection_qc/check_species.slurm.sh
 ```
 
 All 16 genomes are *A. fumigatus* sensu stricto — **ANI 99.2–99.6 %** to AF293, aligned
@@ -252,7 +252,7 @@ The AF293 mitochondrial contig (`mito_A_fumigatus_Af293`, 31,765 bp) was extract
 represented:
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/screen_organelles.slurm.sh
+sbatch workflow/step01_genome_selection_qc/screen_organelles.slurm.sh
 ```
 
 Full table: [`organelle_screen.tsv`](01_Genome_Selection_QC/organelle_screen/organelle_screen.tsv).
@@ -299,11 +299,11 @@ tiles the entire contig, so the whole thing is organellar and safe to drop.
 
 These 12 contigs are in [`01_Genome_Selection_QC/drop_contigs.txt`](01_Genome_Selection_QC/drop_contigs.txt).
 They were removed from `genomes/` and `gff_originals/` with the shared
-[contig-removal tool](../../01_Genome_Selection_QC/README.md#12-remove-the-unwanted-contigs) —
+[contig-removal tool](../../docs/step01_genome_selection_qc.md#12-remove-the-unwanted-contigs) —
 the wrapper does a dry run, then applies:
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh
+sbatch workflow/step01_genome_selection_qc/drop_contigs_slurm.sh
 ```
 
 Result — nuclear contigs remaining: **AF293** 8, **AF100-9B** 8, **ATCC 42202** 9, **47-4** 22.
@@ -316,7 +316,7 @@ genomes were already mito-free and were not touched. (The genome table above sti
 Whole-genome alignments were generated with `minimap2 -x asm10` and plotted with `plot_dotplot.py`:
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/synteny_vs_ref.slurm.sh
+sbatch workflow/step01_genome_selection_qc/synteny_vs_ref.slurm.sh
 ```
 
 | Assembly / Strain | Synteny Dotplot vs AF293 | Assembly / Strain | Synteny Dotplot vs AF293 |
@@ -412,7 +412,7 @@ haplotig-style overlap, extra rDNA copy); their genes would be counted twice and
 pangenome.
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/contig_redundancy.slurm.sh
+sbatch workflow/step01_genome_selection_qc/contig_redundancy.slurm.sh
 ```
 
 Self-aligns each genome (`minimap2 -xasm5 -DP`, the `purge_dups` call), combined with the
@@ -497,7 +497,7 @@ span, `blastn`s it against the whole assembly, keeps the best hit off its own co
 checks it lands on an annotated gene:
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/check_redundant_genes.slurm.sh
+sbatch workflow/step01_genome_selection_qc/check_redundant_genes.slurm.sh
 ```
 
 Per genome: `contig_redundancy/<label>.redundant_genes.{tsv,fa,blast.tsv}` — the per-gene
@@ -541,7 +541,7 @@ Added to the cumulative
 the FASTA and the GFF:
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh
+sbatch workflow/step01_genome_selection_qc/drop_contigs_slurm.sh
 ```
 
 **Not dropped:** the `small-unplaced` gene-rich contigs (ATCC 42202, ATCC 46645, eAF1436,
@@ -556,7 +556,7 @@ sbatch 01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh
 > download.
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/contig_size_profile.slurm.sh
+sbatch workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh
 ```
 
 Out of 17 genomes, only **2** have any contig under 10 kb left: **A1163** (32 contigs, but

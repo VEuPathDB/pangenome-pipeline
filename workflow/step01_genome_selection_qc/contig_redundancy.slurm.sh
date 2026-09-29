@@ -4,24 +4,24 @@
 #SBATCH --cpus-per-task=8
 #SBATCH --mem=16G
 #SBATCH --time=04:00:00
-#SBATCH --output=contig_redundancy_%j.out
-#SBATCH --error=contig_redundancy_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Report-only contig-redundancy screen (step 01). For every genome in
 # genome_order.txt it:
-#   1. indexes the FASTA          -> contig_redundancy/<label>.fai
-#   2. self-aligns it             -> contig_redundancy/<label>.self.paf
+#   1. indexes the FASTA          -> $STEP01_OUT/contig_redundancy/<label>.fai
+#   2. self-aligns it             -> $STEP01_OUT/contig_redundancy/<label>.self.paf
 #                                    (minimap2 -xasm5 -DP <asm> <asm>, the call purge_dups uses)
 # then contig_redundancy.py combines that with the existing
-# synteny/<label>_vs_<reference>.paf (reference = first genome in genome_order.txt, as in
+# $STEP01_OUT/synteny/<label>_vs_<reference>.paf (reference = first genome in genome_order.txt, as in
 # synteny_vs_ref.slurm.sh) and gff_originals/<label>.gff into
-#   contig_redundancy/REPORT.md   +   contig_redundancy/<label>.contigs.tsv
+#   contig_redundancy/REPORT.md   +   contig_redundancy/<label>.contigs.tsv  (in $STEP01_OUT)
 #
 # Nothing is dropped. Review the report, then edit
-# 01_Genome_Selection_QC/drop_contigs.txt by hand and run drop_contigs_slurm.sh.
+# $STEP01_OUT/drop_contigs.txt by hand and run drop_contigs_slurm.sh.
 #
 # Submit from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/contig_redundancy.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/contig_redundancy.slurm.sh
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ADAPT BEFORE RUNNING:
@@ -35,7 +35,11 @@
 
 set -eo pipefail
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 ### ADAPT ### — put minimap2 / samtools / python3 on the PATH:
 activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
@@ -55,10 +59,10 @@ DUP_MIN_ID="0.95"   # min identity of the self-alignment blocks that count
 
 set -u
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 GENOME_DIR="$PROJECT_DIR/genomes"
 ORDER="$PROJECT_DIR/genome_order.txt"
-OUT_DIR="$PROJECT_DIR/contig_redundancy"
+OUT_DIR="$STEP01_OUT/contig_redundancy"
+SYNTENY_DIR="$STEP01_OUT/synteny"      # synteny_vs_ref.slurm.sh's output
 THREADS="${SLURM_CPUS_PER_TASK:-8}"
 
 [[ -f "$ORDER" ]] || { echo "ERROR: $ORDER not found" >&2; exit 1; }
@@ -90,9 +94,10 @@ done
 
 echo
 echo "=== building report ==="
-python3 -m pangenome_pipeline.step01_genome_selection_qc.contig_redundancy "$PROJECT_DIR" --ref "${LABELS[0]}" --md "contig_redundancy/REPORT.md" \
+python3 -m pangenome_pipeline.step01_genome_selection_qc.contig_redundancy "$PROJECT_DIR" --ref "${LABELS[0]}" \
+    --self-dir "$OUT_DIR" --synteny-dir "$SYNTENY_DIR" --md "$OUT_DIR/REPORT.md" \
     --chrom-min-mb "$CHROM_MIN_MB" --dup-frac "$DUP_FRAC" --dup-min-id "$DUP_MIN_ID"
 
 echo
-echo "Done. See contig_redundancy/REPORT.md and contig_redundancy/<label>.contigs.tsv"
-echo "Review, then add contigs to 01_Genome_Selection_QC/drop_contigs.txt by hand."
+echo "Done. See $OUT_DIR/REPORT.md and $OUT_DIR/<label>.contigs.tsv"
+echo "Review, then add contigs to $STEP01_OUT/drop_contigs.txt by hand."

@@ -102,18 +102,24 @@ assembly, you check the genes on them, and the confirmed duplicates go on the dr
 
 ## 2. Directory layout
 
-This step needs two folders at the project root — `genomes/` and `gff_originals/` — alongside
-`genome_order.txt` (section 6); see the
-[full project layout](../README.md#getting-the-pipeline-into-a-project) in the main README for
-where every step's own folder sits relative to these. Create the two here:
+This step needs two folders in the project folder — `genomes/` and `gff_originals/` — alongside
+`genome_order.txt` (section 6); see
+[getting the pipeline into a project](../README.md#getting-the-pipeline-into-a-project) in the main
+README. Create the two here:
 
 ```bash
 mkdir -p genomes gff_originals
 ```
 
-Run every command below **from `<project>/`** — so `genomes/`, `gff_originals/`,
-`genome_order.txt` are in the current directory and the scripts are at
-`01_Genome_Selection_QC/scripts/`.
+Run every command below **from the project folder**, so `genomes/`, `gff_originals/` and
+`genome_order.txt` are in the current directory. The job scripts are in the pipeline checkout, at
+[`$PIPELINE_DIR/workflow/step01_genome_selection_qc/`](../workflow/step01_genome_selection_qc/).
+
+**Outputs** go to `$STEP01_OUT` = `$OUTPUT_DIR/step01_genome_selection_qc/` — by default
+`output/step01_genome_selection_qc/` in the project folder (see
+[outputs](../README.md#outputs) in the main README to put them elsewhere). The exceptions are
+sections 5 and 12, which edit `genomes/` and `gff_originals/` in place: those two folders are the
+normalised inputs every later step reads.
 
 Keep the two folders separate and the basenames identical (`genomes/Af293.fna` ↔
 `gff_originals/Af293.gff3`). Downstream that is `--genomes-dir genomes` /
@@ -199,7 +205,7 @@ step-02 scripts also accept `.fasta`/`.fa` and `.gff`, but keeping the whole set
 ## 5. Trim the FASTA headers
 
 Scripts: [`rename_headers.py`](../src/pangenome_pipeline/step01_genome_selection_qc/rename_headers.py) ·
-[`rename_headers_slurm.sh`](scripts/rename_headers_slurm.sh).
+[`rename_headers_slurm.sh`](../workflow/step01_genome_selection_qc/rename_headers_slurm.sh).
 
 `rename_headers.py` needs no other input. For every FASTA it trims each header to its first
 token (`>CM000171.1 Aspergillus fumigatus chromosome 1` → `>CM000171.1`) and, if the filename
@@ -216,12 +222,11 @@ written elsewhere instead, you have to open `rename_headers_slurm.sh` and change
 `python3 ... --in-place` line to `--outdir <dir>` yourself (see the argument table below for
 what that changes).
 
-Submit it from the project folder, so it finds `01_Genome_Selection_QC/scripts/`, `genomes/`
-and `gff_originals/`. It has an ADAPT BEFORE RUNNING block at the top (SBATCH resources, the
+Submit it from the project folder, so it finds `genomes/` and `gff_originals/`. It has an ADAPT BEFORE RUNNING block at the top (SBATCH resources, the
 module load python line) — set that to your cluster first.
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/rename_headers_slurm.sh
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/rename_headers_slurm.sh
 ```
 
 It trims every header in genomes/ in place, then cross-checks: every sequence name in each
@@ -304,16 +309,16 @@ they are named variables in that block (or `--flags` on the underlying `.py`, li
 `--help`); the sections below call out which ones actually need attention — the rest have
 species-agnostic defaults and can be left alone.
 
-Script: [`check_species.slurm.sh`](scripts/check_species.slurm.sh).
+Script: [`check_species.slurm.sh`](../workflow/step01_genome_selection_qc/check_species.slurm.sh).
 
 `skani` computes whole-genome ANI of every genome against the reference (line 1 of
 `genome_order.txt`).
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/check_species.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/check_species.slurm.sh
 ```
 
-**Output:** `species_check/species_check.tsv` — one row per genome:
+**Output:** `$STEP01_OUT/species_check/species_check.tsv` — one row per genome:
 
 - `ANI_to_<ref>` — the % identity itself. `0.00` specifically means skani couldn't align the
   genome to the reference at all (too divergent), not that it measured 0% identity.
@@ -338,10 +343,10 @@ screening, synteny comparisons — get a picture of the raw material first: how 
 each assembly has, how big they are, and whether the smallest ones actually carry an
 annotated gene. 
 
-Scripts: [`scripts/contig_size_profile.slurm.sh`](scripts/contig_size_profile.slurm.sh)  · [`src/pangenome_pipeline/step01_genome_selection_qc/contig_size_profile.py`](../src/pangenome_pipeline/step01_genome_selection_qc/contig_size_profile.py).
+Scripts: [`contig_size_profile.slurm.sh`](../workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh)  · [`contig_size_profile.py`](../src/pangenome_pipeline/step01_genome_selection_qc/contig_size_profile.py).
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/contig_size_profile.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh
 ```
 
 For every genome: contig lengths from its `.fai` (built automatically via `samtools faidx` if
@@ -352,7 +357,7 @@ on an otherwise-empty contig doesn't make that contig look load-bearing for the 
 `GFF_INDIR` and `MIN_LEN` (10,000 bp — the length under which a contig counts as "small") are
 both variables at the top of `contig_size_profile.slurm.sh`, edit them there.
 
-**Output,** all in `contig_size_profile/`:
+**Output,** all in `$STEP01_OUT/contig_size_profile/`:
 
 - `contig_sizes.tsv` — every contig, with its length and gene counts.
 - `contig_size_summary.tsv` — one row per genome: total contigs, total bp, and how many of
@@ -376,7 +381,7 @@ deciding a contig's fate.
 
 ## 9. Synteny vs the reference
 
-Scripts: [`synteny_vs_ref.slurm.sh`](scripts/synteny_vs_ref.slurm.sh) ·
+Scripts: [`synteny_vs_ref.slurm.sh`](../workflow/step01_genome_selection_qc/synteny_vs_ref.slurm.sh) ·
 [`plot_dotplot.py`](../src/pangenome_pipeline/step01_genome_selection_qc/plot_dotplot.py).
 
 `minimap2` aligns the reference (line 1 of `genome_order.txt`) to every other genome, then one
@@ -385,10 +390,10 @@ reference. Blue = same strand, red = inversion. Edit `PRESET` at the top of
 `synteny_vs_ref.slurm.sh` (`asm5`/`asm10`/`asm20`) for more divergent species.
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/synteny_vs_ref.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/synteny_vs_ref.slurm.sh
 ```
 
-**Output:** `synteny/<label>_vs_<ref>.png` (the dot-plot) and `synteny/<label>_vs_<ref>.paf`
+**Output:** `$STEP01_OUT/synteny/<label>_vs_<ref>.png` (the dot-plot) and `$STEP01_OUT/synteny/<label>_vs_<ref>.paf`
 (the raw alignment), one pair per non-reference genome.
 
 [↑ Back to top](#table-of-content)
@@ -397,7 +402,7 @@ sbatch 01_Genome_Selection_QC/scripts/synteny_vs_ref.slurm.sh
 
 ## 10. Organelle screen
 
-Scripts: [`screen_organelles.slurm.sh`](scripts/screen_organelles.slurm.sh) ·
+Scripts: [`screen_organelles.slurm.sh`](../workflow/step01_genome_selection_qc/screen_organelles.slurm.sh) ·
 [`screen_organelles.py`](../src/pangenome_pipeline/step01_genome_selection_qc/screen_organelles.py).
 
 Tells you, for each genome, whether the mitochondrion / apicoplast / etc. is present as its
@@ -420,7 +425,7 @@ ORGANELLE_CONTIGS="mito_A_fumigatus_Af293"      # space-separated if more than o
 ```
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/screen_organelles.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/screen_organelles.slurm.sh
 ```
 
 The script pulls those contig(s) out of `SOURCE_GENOME`, `blastn`s them against every genome
@@ -447,7 +452,7 @@ several contigs shows up as several rows.
 | `fragments_only` | only fragments |
 | `absent` | no hit |
 
-**Output:** `organelle_screen/organelle_screen.tsv` and a per-organelle summary in the job log.
+**Output:** `$STEP01_OUT/organelle_screen/organelle_screen.tsv` and a per-organelle summary in the job log.
 Use it to build the drop list in [section 12](#12-remove-the-unwanted-contigs).
 
 [↑ Back to top](#table-of-content)
@@ -456,7 +461,7 @@ Use it to build the drop list in [section 12](#12-remove-the-unwanted-contigs).
 
 ## 11. Contig-redundancy screen
 
-Scripts: [`contig_redundancy.slurm.sh`](scripts/contig_redundancy.slurm.sh) ·
+Scripts: [`contig_redundancy.slurm.sh`](../workflow/step01_genome_selection_qc/contig_redundancy.slurm.sh) ·
 [`contig_redundancy.py`](../src/pangenome_pipeline/step01_genome_selection_qc/contig_redundancy.py).
 
 Long-read assemblers (Canu, Flye, …) sometimes leave **small contigs that are really a
@@ -484,7 +489,7 @@ you're considering dropping. Nothing is removed until you edit the drop list in
 ### 11.1 Screen
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/contig_redundancy.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/contig_redundancy.slurm.sh
 ```
 
 **Parameters** — the `TUNING` block at the top of `contig_redundancy.slurm.sh` (or the same
@@ -503,8 +508,8 @@ work the same regardless of species, so you don't need to touch them; see
 
 **Output:**
 
-- `contig_redundancy/REPORT.md` — summary + flagged contigs.
-- `contig_redundancy/<label>.contigs.tsv` — every contig.
+- `$STEP01_OUT/contig_redundancy/REPORT.md` — summary + flagged contigs.
+- `$STEP01_OUT/contig_redundancy/<label>.contigs.tsv` — every contig.
 
 Then, per flagged contig:
 
@@ -521,7 +526,7 @@ explicit contig, `--contigs <id>`) and add them to the drop list if the genes ch
 
 ### 11.2 Verify gene-carrying `small-redundant` contigs
 
-Scripts: [`check_redundant_genes.slurm.sh`](scripts/check_redundant_genes.slurm.sh) ·
+Scripts: [`check_redundant_genes.slurm.sh`](../workflow/step01_genome_selection_qc/check_redundant_genes.slurm.sh) ·
 [`check_redundant_genes.py`](../src/pangenome_pipeline/step01_genome_selection_qc/check_redundant_genes.py). For every gene on a flagged
 contig it cuts the gene's genomic span (`samtools faidx`), `blastn`s it against the whole
 assembly, keeps the best hit **not** on the gene's own contig, and checks whether that hit
@@ -549,7 +554,7 @@ sbatch .../check_redundant_genes.slurm.sh --also-unplaced          # add every s
 | `--min-id` | `98` | % identity for a gene's off-contig hit to count as a duplicate |
 | `--min-cov` | `90` | % of the gene's length that hit must cover |
 
-**Output,** per genome, in `contig_redundancy/`:
+**Output,** per genome, in `$STEP01_OUT/contig_redundancy/`:
 
 - `<label>.redundant_genes.tsv` — one row per gene: `contig · gene · description ·
   best_off_contig_hit · pct_gene_covered · pct_identity · hit_gene · hit_gene_description ·
@@ -577,12 +582,12 @@ end with a report naming the contigs that should not go into the pangenome — m
 (section 11). This section removes those contigs from `genomes/` **and** `gff_originals/`
 before step 02, so every genome carries the same nuclear-only content.
 
-Scripts: [`drop_contigs_slurm.sh`](scripts/drop_contigs_slurm.sh) ·
+Scripts: [`drop_contigs_slurm.sh`](../workflow/step01_genome_selection_qc/drop_contigs_slurm.sh) ·
 [`drop_contigs.py`](../src/pangenome_pipeline/step01_genome_selection_qc/drop_contigs.py).
 
 ### 12.1 Write the drop list
 
-One `<genome_basename>  <contig_id>` per line in `01_Genome_Selection_QC/drop_contigs.txt`
+One `<genome_basename>  <contig_id>` per line in `$STEP01_OUT/drop_contigs.txt`
 (`#` comments and blank lines allowed). The contig ID is the FASTA header's first token — the
 same string that is in GFF column 1 (section 5).
 
@@ -591,14 +596,14 @@ from the dataset. Add lines as you find more (organelle, then redundant, then an
 don't delete old ones. Re-running is safe: a contig already gone from both the FASTA and the
 GFF is skipped with a note, not an error (`--strict` restores the error, to catch typos).
 
-Read the contigs off `organelle_screen/organelle_screen.tsv`:
+Read the contigs off `$STEP01_OUT/organelle_screen/organelle_screen.tsv`:
 
 - **drop** a contig when the organelle covers (almost) the whole of it — a `full`,
   `full_in_scaffold`, or `MULTIPLE_COPIES` contig is the organelle itself;
 - **keep** a contig where the organelle is only a fragment sitting inside a much larger
   nuclear sequence (`fragment` / a NUMT / NUPT) — that is real nuclear DNA.
 
-...and off `contig_redundancy/REPORT.md` ([section 11](#11-contig-redundancy-screen)):
+...and off `$STEP01_OUT/contig_redundancy/REPORT.md` ([section 11](#11-contig-redundancy-screen)):
 
 - **drop** a `small-redundant` contig once you've confirmed it carries no unique genes;
 - **keep** `small-placed` / `small-unplaced` unless a BLAST check says otherwise.
@@ -619,7 +624,7 @@ note on any already gone, e.g. from an earlier run) — then **applies it in the
 separate step needed:
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/drop_contigs_slurm.sh
 ```
 
 To preview only, without writing anything, call the underlying script yourself instead —
@@ -627,8 +632,8 @@ To preview only, without writing anything, call the underlying script yourself i
 it only once you've checked the output:
 
 ```bash
-PYTHONPATH=src python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs 01_Genome_Selection_QC/drop_contigs.txt              # preview only
-PYTHONPATH=src python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs 01_Genome_Selection_QC/drop_contigs.txt --apply       # then, once satisfied
+PYTHONPATH=$PIPELINE_DIR/src python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs output/step01_genome_selection_qc/drop_contigs.txt              # preview only
+PYTHONPATH=$PIPELINE_DIR/src python3 -m pangenome_pipeline.step01_genome_selection_qc.drop_contigs output/step01_genome_selection_qc/drop_contigs.txt --apply       # then, once satisfied
 ```
 
 | argument | meaning |

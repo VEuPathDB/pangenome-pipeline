@@ -4,17 +4,17 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --time=00:30:00
-#SBATCH --output=drop_contigs_%j.out
-#SBATCH --error=drop_contigs_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Remove named contigs (e.g. organelle contigs from the organelle screen) from
 # the assemblies in genomes/ and the matching features from gff_originals/,
-# driven by a  <genome> <contig>  list file. See 01_Genome_Selection_QC/README.md
-# section 9.
+# driven by a  <genome> <contig>  list file. See docs/step01_genome_selection_qc.md
+# section 12.
 #
 # This is a seconds-long text job - it does not need a cluster; `bash` is fine.
 # Submit / run from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/drop_contigs_slurm.sh
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ADAPT BEFORE RUNNING:
@@ -25,11 +25,17 @@
 #     is already there.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-# --- the list of contigs to drop -----------------------------------------------
-LIST="01_Genome_Selection_QC/drop_contigs.txt"
-# -----------------------------------------------------------------------------
-
 set -eo pipefail
+
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
+# --- the list of contigs to drop -----------------------------------------------
+LIST="$STEP01_OUT/drop_contigs.txt"   # written by hand (see the doc), kept with the step-01 outputs
+# -----------------------------------------------------------------------------
 
 ### ADAPT ### — put python3 on the PATH:
 export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
@@ -38,9 +44,7 @@ module load python/3.11.9
 
 set -u
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # pipeline_config.sh, and src/ on PYTHONPATH
-LIST_PATH="$PROJECT_DIR/$LIST"
+LIST_PATH="$LIST"
 
 [[ -f "$LIST_PATH" ]] || { echo "ERROR: list file $LIST_PATH not found - set LIST at the top" >&2; exit 1; }
 

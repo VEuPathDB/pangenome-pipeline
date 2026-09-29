@@ -53,7 +53,7 @@ genome's annotation with its own original annotation or the ones coming from oth
 |---|---|---|
 | AGAT | Step 2, Step 5 | micromamba env (`bioinfo` here) |
 | python3 (standard library only) | Step 3, Step 7a (filter itself), Step 7b | `module load python/3.11.9` (or any python3 on the PATH - nothing else needed) |
-| python3 + pandas + matplotlib | Step 1, Step 6, Step 7a (QC plot) | micromamba env (`synteny` here), already installed if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies) |
+| python3 + pandas + matplotlib | Step 1, Step 6, Step 7a (QC plot) | micromamba env (`synteny` here), already installed if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencies) |
 | Liftoff | Step 4 | `module load liftoff` (or your cluster's own) |
 
 These are hardcoded in each script's `### ADAPT ###` block - edit that block to point to your
@@ -454,7 +454,7 @@ standard layout of this pipeline - `gff_for_liftoff/`, `liftoff_output/polished/
 | `INPUT_DIR` | `gff_for_liftoff` | Directory with every genome's own GFF - the prepared GFFs (step 3) |
 | `PAIRWISE_DIR` | `liftoff_output/polished` | Directory with your Liftoff output |
 | `OUTPUT_DIR` | `expanded_annotation` | Where to write the final annotations |
-| `ORDER` | `genome_order.txt` | The same file from [step 01](../01_Genome_Selection_QC/README.md#6-the-genome-list-genome_ordertxt), reused as-is - no need to create a new one. Comma-separated genome names, **first one = the reference** you trust most (e.g. `"AF293,strain2,strain3"`), or a path to a file with one genome name per line |
+| `ORDER` | `genome_order.txt` | The same file from [step 01](../docs/step01_genome_selection_qc.md#6-the-genome-list-genome_ordertxt), reused as-is - no need to create a new one. Comma-separated genome names, **first one = the reference** you trust most (e.g. `"AF293,strain2,strain3"`), or a path to a file with one genome name per line |
 | `ORIGINAL_SUFFIX` | `.gff3` | Filename suffix for each genome's own GFF in `INPUT_DIR` (the prepare step always writes `.gff3`) |
 | `PAIR_SUFFIX` | `_liftoff.gff3_polished` | Filename suffix of the Liftoff output |
 | `MIN_COVERAGE` | `0.9` | Minimum Liftoff coverage for a transfer to count as "good" (round 1) instead of falling back to a low-confidence "rescue" (round 2) |
@@ -522,7 +522,7 @@ quality - before any filtering, which is [step 7](#step-7-final-annotation-if-us
 | `OUT_DIR` | `final_annotation_qc_plots` | Where to write the plots and `summary.tsv` |
 
 It needs Python 3 + matplotlib; the job activates the `synteny` micromamba environment, which
-has both (same env as [step 01](../01_Genome_Selection_QC/README.md#dependencies)).
+has both (same env as [step 01](../docs/step01_genome_selection_qc.md#dependencies)).
 
 **Run** from the project folder. The job log goes to `final_annotation_qc_plots/logs/`, which has to
 exist before submitting (SLURM does not create it):
@@ -736,7 +736,7 @@ step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_d
 - **Python 3**, standard library only, for filtering - `module load python/3.11.9` (or any
   python3 on the PATH, nothing else needed).
 - **matplotlib** (+ pandas), for the QC plots only - micromamba env `synteny`, already
-  installed if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies).
+  installed if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencies).
 - No AGAT, no Liftoff needed for this step - those were only for the build step above.
 
 #### What you need before starting

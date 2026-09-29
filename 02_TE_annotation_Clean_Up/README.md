@@ -323,7 +323,7 @@ Scripts: [`src/pangenome_pipeline/step02_te_annotation_clean_up/summarize_te_con
 [`scripts/summarize_te_content.slurm.sh`](scripts/summarize_te_content.slurm.sh).
 
 **Dependencies:** python3 + pandas + matplotlib — micromamba env `synteny`, already installed
-if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies).
+if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencies).
 
 #### What this script does:
 1. **Filtering:** Drops non-TE hits (such as `Simple_repeat` and `Low_complexity`) from each RepeatMasker `.out` file, writing cleaned tables to `<outdir>/filtered_out/<genome_id>.filtered.out`.
@@ -384,7 +384,7 @@ wrapper) · [`src/pangenome_pipeline/step02_te_annotation_clean_up/te_gene_overl
 calls, in that order).
 
 **Dependencies:** python3 + pandas + matplotlib — micromamba env `synteny`, already installed
-if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies).
+if you set it up for [step 01](../docs/step01_genome_selection_qc.md#dependencies).
 
 One job does the whole review, writing everything into a single folder:
 
@@ -479,7 +479,7 @@ Scripts: [`scripts/build_te_kill_lists.slurm.sh`](scripts/build_te_kill_lists.sl
 wrapper) · [`src/pangenome_pipeline/step02_te_annotation_clean_up/build_te_kill_lists.py`](../src/pangenome_pipeline/step02_te_annotation_clean_up/build_te_kill_lists.py) (what it calls).
 
 **Dependencies:** python3 + pandas — micromamba env `synteny`, already installed if you set it
-up for [step 01](../01_Genome_Selection_QC/README.md#dependencies) — and AGAT
+up for [step 01](../docs/step01_genome_selection_qc.md#dependencies) — and AGAT
 (`agat_sp_filter_feature_from_kill_list.pl`), hardcoded here with an env called `bioinfo`
 (adapt to your own).
 

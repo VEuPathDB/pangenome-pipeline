@@ -7,6 +7,7 @@ file path, with their folder on sys.path for sibling imports.
 
 import importlib.util
 import os
+import subprocess
 import sys
 from pathlib import Path
 
@@ -60,3 +61,41 @@ def write_file(tmp_path):
 
 def gff_line(seqid, ftype, start, end, strand, attrs, source="test"):
     return "\t".join([seqid, source, ftype, str(start), str(end), ".", strand, ".", attrs]) + "\n"
+
+
+@pytest.fixture
+def run_job(tmp_path):
+    """Run a workflow/ job script the way sbatch does: a spool copy, submitted from a project folder.
+
+    run_job("workflow/stepNN_x/job.sh", project, *args, **env) -> CompletedProcess. The pipeline is
+    found through PIPELINE_DIR; `module` and micromamba activation are no-ops, and python3 is this
+    interpreter. The checkout's own pipeline_config.sh (if any) is not loaded.
+    """
+    stubs = tmp_path / "stub_bin"
+    stubs.mkdir()
+    (stubs / "module").write_text("#!/bin/sh\nexit 0\n")
+    (stubs / "micromamba").write_text("#!/bin/sh\necho 'micromamba() { :; }'\n")
+    for stub in ("module", "micromamba"):
+        (stubs / stub).chmod(0o755)
+    (stubs / "python3").symlink_to(sys.executable)
+
+    def _run(script, project, *args, **env):
+        spool = tmp_path / "spool"
+        spool.mkdir(exist_ok=True)
+        job = spool / "slurm_script"
+        job.write_text((REPO_ROOT / script).read_text())
+        full_env = {
+            **os.environ,
+            "PATH": f"{stubs}:{os.environ['PATH']}",
+            "PIPELINE_DIR": str(REPO_ROOT),
+            "SLURM_SUBMIT_DIR": str(project),
+            "PIPELINE_CONFIG": str(tmp_path / "no_pipeline_config.sh"),
+            "MAMBA_EXE": str(stubs / "micromamba"),
+            "MAMBA_ROOT_PREFIX": str(tmp_path),
+            **env,
+        }
+        return subprocess.run(
+            ["bash", str(job), *args], cwd=project, env=full_env, capture_output=True, text=True, check=False
+        )
+
+    return _run

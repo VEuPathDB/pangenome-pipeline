@@ -5,15 +5,15 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=4G
 #SBATCH --time=00:30:00
-#SBATCH --output=contig_size_profile_%j.out
-#SBATCH --error=contig_size_profile_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Per-genome contig size profile - how many contigs, how big, and how much
 # of the assembly sits in short contigs (possible junk/contamination, not
 # necessarily redundant with anything else - see contig_redundancy.py for
 # the duplication screen, a different question).
 #
-# Output, all in OUTDIR: contig_sizes.tsv (every contig, + n_genes if GFF_INDIR is
+# Output, all in OUTDIR ($STEP01_OUT/contig_size_profile): contig_sizes.tsv (every contig, + n_genes if GFF_INDIR is
 # set), contig_size_summary.tsv (one row per genome), plots/contig_size_profile_by_genome.png
 # (contig-count histogram by size bin, kb/Mb), plots/small_contig_count_by_genome.png, and
 # (only if GFF_INDIR is set) plots/genes_by_contig_size_bin_by_genome.png,
@@ -23,19 +23,23 @@
 # closer look) by eye.
 #
 # Submit from your project folder (the one that holds genomes/):
-#     sbatch 01_Genome_Selection_QC/scripts/contig_size_profile.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh
 #
+set -euo pipefail
+
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+
 # ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
 GENOMES="genomes"                       # step-01 assemblies folder
 GFF_INDIR="gff_originals"               # optional: one GFF3 per genome, for the gene-count plot.
                                          # Set to "" to skip gene counting (contig sizes only).
-OUTDIR="contig_size_profile"            # where the tables/plots go
+OUTDIR="$STEP01_OUT/contig_size_profile"   # where the tables/plots go
 MIN_LEN=10000                           # contigs shorter than this (bp) count as "small"
 # ────────────────────────────────────────────────────────────────────────────
-
-set -euo pipefail
-
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 
 [[ -d "$GENOMES" ]] || { echo "ERROR: genomes folder not found: $GENOMES (run from the project folder)" >&2; exit 1; }
 

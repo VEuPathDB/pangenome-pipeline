@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=2
 #SBATCH --mem=8G
 #SBATCH --time=01:00:00
-#SBATCH --output=check_redundant_genes_%j.out
-#SBATCH --error=check_redundant_genes_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # For every `small-redundant` contig that carries genes (from the contig-redundancy
 # screen), check whether those genes are genuinely already present elsewhere in the
@@ -17,13 +17,13 @@
 #     keep the best hit NOT on the gene's own contig
 #     GFF check       -> does that hit land on an annotated gene?
 #
-# Output: contig_redundancy/<label>.redundant_genes.tsv  + a per-contig verdict in
+# Output: $STEP01_OUT/contig_redundancy/<label>.redundant_genes.tsv  + a per-contig verdict in
 # the job log (DROP-OK = every gene confirmed elsewhere; REVIEW = some not).
 #
 # Submit from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/check_redundant_genes.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/check_redundant_genes.slurm.sh
 #     # one genome only:
-#     sbatch 01_Genome_Selection_QC/scripts/check_redundant_genes.slurm.sh GCA_040142975.1
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/check_redundant_genes.slurm.sh GCA_040142975.1
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ADAPT BEFORE RUNNING:
@@ -34,23 +34,27 @@
 
 set -eo pipefail
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 ### ADAPT ### — put samtools / blastn / python3 on the PATH:
 activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 set -u
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 
-[[ -d "$PROJECT_DIR/contig_redundancy" ]] || {
-    echo "ERROR: run contig_redundancy.slurm.sh first" >&2; exit 1; }
+REDUNDANCY_DIR="$STEP01_OUT/contig_redundancy"   # contig_redundancy.slurm.sh's output, read and added to
+[[ -d "$REDUNDANCY_DIR" ]] || {
+    echo "ERROR: $REDUNDANCY_DIR not found - run contig_redundancy.slurm.sh first" >&2; exit 1; }
 
 # any args passed to sbatch are genome labels; none -> auto-detect
-python3 -m pangenome_pipeline.step01_genome_selection_qc.check_redundant_genes "$PROJECT_DIR" "$@"
+python3 -m pangenome_pipeline.step01_genome_selection_qc.check_redundant_genes "$PROJECT_DIR" --redundancy-dir "$REDUNDANCY_DIR" "$@"
 
 echo
-echo "Done. Per genome in contig_redundancy/ :"
+echo "Done. Per genome in $REDUNDANCY_DIR/ :"
 echo "  <label>.redundant_genes.tsv        per-gene table + descriptions + verdict"
 echo "  <label>.redundant_genes.fa         the extracted gene spans (manual BLAST / TE-aid)"
 echo "  <label>.redundant_genes.blast.tsv  the raw blastn hits"

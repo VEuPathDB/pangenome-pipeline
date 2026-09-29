@@ -34,7 +34,7 @@ This document tracks the execution, parameters, and results of the pangenome ana
   continuously acquired and a significant source of **intraspecific** variation, i.e. it
   differs from strain to strain within the panel, not just between *T. gondii* and its
   organelle. **Implication for [step 01](#01--genome-selection--qc):** the
-  [organelle screen](../../01_Genome_Selection_QC/README.md#10-organelle-screen)
+  [organelle screen](../../docs/step01_genome_selection_qc.md#10-organelle-screen)
   should expect to find many more, and more scattered, organellar fragments in the nuclear
   assemblies than the single small NUMT seen in the Afum panel — most will be small fragments
   genuinely embedded in nuclear contigs (real nuclear DNA — keep, per the existing
@@ -43,7 +43,7 @@ This document tracks the execution, parameters, and results of the pangenome ana
   Also, unlike a fungus, *T. gondii* carries **two organelles to screen** — mitochondrion
   *and* apicoplast (a relict, non-photosynthetic plastid retained by most Apicomplexa) — both
   need their own contig/fragment identified before the
-  [organelle screen](../../01_Genome_Selection_QC/README.md#10-organelle-screen)
+  [organelle screen](../../docs/step01_genome_selection_qc.md#10-organelle-screen)
   can be run.
 
 * **Population structure is clonal despite an obligate sexual cycle.** Type I, II and III
@@ -173,13 +173,13 @@ cd ..
 ### Header formatting & renaming
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/rename_headers_slurm.sh
+sbatch workflow/step01_genome_selection_qc/rename_headers_slurm.sh
 ```
 
 ### Species check (whole-genome ANI vs ME49, `skani`)
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/check_species.slurm.sh
+sbatch workflow/step01_genome_selection_qc/check_species.slurm.sh
 ```
 
 All 14 genomes are *T. gondii* — **ANI 98.7–99.7 %** to ME49, aligned fraction 0.93–0.98,
@@ -199,7 +199,7 @@ every genome `same_species`. No contamination or wrong-species assemblies. Full 
 ### Contig size profile
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/contig_size_profile.slurm.sh
+sbatch workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh
 ```
 
 **34,066 sub-10kb contigs across the panel** — 93–99% of each genome's contig count for every
@@ -245,7 +245,7 @@ justification for dropping other than contig size alone.
 Whole-genome alignments were generated with `minimap2 -x asm10` and plotted with `plot_dotplot.py`:
 
 ```bash
-sbatch 01_Genome_Selection_QC/scripts/synteny_vs_ref.slurm.sh
+sbatch workflow/step01_genome_selection_qc/synteny_vs_ref.slurm.sh
 ```
 
 | Assembly / Strain | Synteny Dotplot vs ME49 | Assembly / Strain | Synteny Dotplot vs ME49 |

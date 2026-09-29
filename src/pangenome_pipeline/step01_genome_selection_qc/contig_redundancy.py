@@ -16,7 +16,7 @@ For every genome, one row per contig, three questions:
 
 It writes tables + a summary and DROPS NOTHING. Review
 contig_redundancy/REPORT.md, then add the contigs you decide to remove to
-01_Genome_Selection_QC/drop_contigs.txt by hand and run drop_contigs_slurm.sh
+the step-01 drop list ($STEP01_OUT/drop_contigs.txt) by hand and run drop_contigs_slurm.sh
 (that tool strips them from genomes/ and gff_originals/ together).
 
     contig_redundancy.py <project_dir> [options]

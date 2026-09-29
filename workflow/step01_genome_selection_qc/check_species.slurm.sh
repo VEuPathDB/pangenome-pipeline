@@ -4,17 +4,17 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
 #SBATCH --time=02:00:00
-#SBATCH --output=check_species_%j.out
-#SBATCH --error=check_species_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # Confirm every genome is the same species as the reference (line 1 of
 # genome_order.txt), by whole-genome ANI with skani. Catches mislabelled public
 # assemblies - especially cryptic sibling species - and gross contamination.
 #
 # Submit from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/check_species.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/check_species.slurm.sh
 #
-# Output:  species_check/species_check.tsv
+# Output:  $STEP01_OUT/species_check/species_check.tsv
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ADAPT BEFORE RUNNING:
@@ -28,7 +28,11 @@ THRESHOLD=95        # ANI (%) at/above which a genome is called the same species
 
 set -eo pipefail
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 ### ADAPT ### — put skani on the PATH:
 activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
@@ -41,10 +45,9 @@ command -v skani >/dev/null || {
     exit 1
 }
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 GENOME_DIR="$PROJECT_DIR/genomes"
 ORDER="$PROJECT_DIR/genome_order.txt"
-OUT_DIR="$PROJECT_DIR/species_check"
+OUT_DIR="$STEP01_OUT/species_check"
 mkdir -p "$OUT_DIR"
 
 fasta_for () {

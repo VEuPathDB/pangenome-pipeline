@@ -15,10 +15,11 @@ is `DROP-OK` only when every one of its genes is `duplicated`.
 
     check_redundant_genes.py <project_dir> [label ...] [options]
 
-With no labels it does every genome whose contig_redundancy/<label>.contigs.tsv
+With no labels it does every genome whose <redundancy-dir>/<label>.contigs.tsv
 has a `small-redundant` row carrying genes.
 
-Needs `samtools` and `blastn` on PATH. Per genome it writes to contig_redundancy/ :
+Needs `samtools` and `blastn` on PATH. Per genome it writes to <redundancy-dir> (the
+contig_redundancy.py output folder, --redundancy-dir):
   <label>.redundant_genes.tsv        one row per gene: descriptions + verdict
   <label>.redundant_genes.fa        the extracted gene spans (for manual BLAST / TE-aid)
   <label>.redundant_genes.blast.tsv the raw blastn hits
@@ -145,7 +146,7 @@ def flagged_contigs(tsv, want_classes):
 def analyse(label, proj, a):
     genome = find_file(*[os.path.join(proj, "genomes", f"{label}.{e}") for e in ("fna", "fasta", "fa")])
     gff = find_file(*[os.path.join(proj, "gff_originals", f"{label}.{e}") for e in ("gff", "gff3")])
-    tsv = os.path.join(proj, "contig_redundancy", f"{label}.contigs.tsv")
+    tsv = os.path.join(proj, a.redundancy_dir, f"{label}.contigs.tsv")
     for name, p in (("genome FASTA", genome), ("GFF", gff), ("contigs.tsv", tsv)):
         if not p or not os.path.exists(p):
             sys.stderr.write(f"  ! {label}: {name} not found — skipping\n")
@@ -169,7 +170,7 @@ def analyse(label, proj, a):
         sys.stderr.write(f"  - {label}: GFF has no gene features on {sorted(targets)}\n")
         return None
 
-    out_dir = os.path.join(proj, "contig_redundancy")
+    out_dir = os.path.join(proj, a.redundancy_dir)
     workdir = tempfile.mkdtemp(prefix=f"redcheck_{label}_")
     regions = os.path.join(workdir, "regions.txt")
     with open(regions, "w") as fh:
@@ -277,6 +278,11 @@ def main():
     ap.add_argument("labels", nargs="*", help="genome labels (default: auto-detect)")
     ap.add_argument("--contigs", nargs="*", default=None, help="restrict to these contig IDs (one genome only)")
     ap.add_argument(
+        "--redundancy-dir",
+        default="contig_redundancy",
+        help="contig_redundancy.py's output folder, read and written here (relative to project_dir, or absolute)",
+    )
+    ap.add_argument(
         "--also-unplaced", action="store_true", help="also check small-unplaced contigs, not just small-redundant"
     )
     ap.add_argument("--min-id", type=float, default=98.0, help="%% identity for 'duplicated'")
@@ -286,7 +292,7 @@ def main():
     proj = os.path.abspath(a.project_dir)
     labels = a.labels
     if not labels:
-        cr = os.path.join(proj, "contig_redundancy")
+        cr = os.path.join(proj, a.redundancy_dir)
         for fn in sorted(os.listdir(cr)):
             if not fn.endswith(".contigs.tsv"):
                 continue
@@ -303,7 +309,7 @@ def main():
         res = analyse(lab, proj, a)
         if not res:
             continue
-        out = os.path.join(proj, "contig_redundancy", f"{lab}.redundant_genes.tsv")
+        out = os.path.join(proj, a.redundancy_dir, f"{lab}.redundant_genes.tsv")
         with open(out, "w") as fh:
             fh.write(
                 "contig\tgene\tdescription\tbest_off_contig_hit\tpct_gene_covered\t"

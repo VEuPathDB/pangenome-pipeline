@@ -1,6 +1,6 @@
 # Pangenome Analysis Pipeline Documentation
 
-This repository documents the **pangenome analysis workflow**. The pipeline consists of several steps, each with its own `README.md` and a `scripts/` folder containing the associated codes.
+This repository documents the **pangenome analysis workflow**. The pipeline consists of several steps, each with its own page in [`docs/`](docs/), its job scripts in [`workflow/`](workflow/) and its Python code in [`src/pangenome_pipeline/`](src/pangenome_pipeline/).
 
 **Internal document.** This is primarily an internal working document: the scripts are mostly
 SLURM scripts, including code already adapted for our shared containers/installations. They
@@ -23,7 +23,7 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 
 | Step | |
 |---|---|
-| [01 – Genome Selection & QC](01_Genome_Selection_QC/README.md) | Selects and quality-checks the genome set itself, and normalizes every assembly/GFF into one consistent naming convention every later step relies on. Profiles every contig's size and whether the small ones carry genes, to see how contiguous each assembly actually is and catch species-specific peculiarities (e.g. Tgondii's fragmented mitochondrial genome). Screens for and removes organelle (mitochondrial/apicoplast) and redundant/duplicate contigs avoiding inflated gene counts from genome redundancy, and false PAV from inconsistent organelle-genome inclusion across the panel.|
+| [01 – Genome Selection & QC](docs/step01_genome_selection_qc.md) | Selects and quality-checks the genome set itself, and normalizes every assembly/GFF into one consistent naming convention every later step relies on. Profiles every contig's size and whether the small ones carry genes, to see how contiguous each assembly actually is and catch species-specific peculiarities (e.g. Tgondii's fragmented mitochondrial genome). Screens for and removes organelle (mitochondrial/apicoplast) and redundant/duplicate contigs avoiding inflated gene counts from genome redundancy, and false PAV from inconsistent organelle-genome inclusion across the panel.|
 | [02 – TE Annotation & Clean Up](02_TE_annotation_Clean_Up/README.md) | Builds a species-specific curated TE library and annotates every genome with it, giving a TE-composition picture per genome (total content, superfamily/family breakdown). Scores how much of each annotated gene's CDS overlaps a TE and filters out genes that are probably TEs. Keeping TEs annotated as genes inflates the cloud (rare/strain-specific) gene category, since TEs are expected to insert at different locations in different strains. **Starships** (giant mobile elements in fungi that carry real host genes as cargo) are deliberately kept, not removed — their cargo genes are genuine; identifying the Starships is a step we need to do later when we have the pangenome results. |
 | [03 – *de novo* Genome Annotation](03_denovo_Genome_Annotation/README.md) | **Optional** — only for genomes with no gene annotation at all. For fungal genomes, runs **Funannotate**, a standard *de novo* annotator. Without this step, the assembly could still get by on genes transferred from other strains (step 05's Liftoff) — but any gene truly unique to this strain, with no counterpart in any other genome's annotation, would never be captured that way. |
 | [04 – InterProScan](04_InterProScan/README.md) | Some genomes may already carry InterPro domain annotation in their description, but for every genome to be on the same InterProScan version, this step re-runs it across the panel — the presence of an InterPro domain is used as evidence in step 05. |
@@ -35,7 +35,7 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 
 ## Steps
 
-- **[01 - Genome Selection & QC](01_Genome_Selection_QC/README.md)** 
+- **[01 - Genome Selection & QC](docs/step01_genome_selection_qc.md)** 
 - **[02 - TE Annotation & Clean Up](02_TE_annotation_Clean_Up/README.md)**
 - **[03 - *de novo* Genome Annotation ](03_denovo_Genome_Annotation/README.md)** 
 - **[04 - InterProScan](04_InterProScan/README.md)** 
@@ -71,41 +71,66 @@ GET_PANGENES calls pangenes from annotated gene models, so its results are bound
 
 ## Getting the pipeline into a project
 
-Clone or download this repository into the root folder of the species project you're working
-on, so its step folders sit directly under it, alongside your own `genomes/`,
-`gff_originals/`, and `genome_order.txt`:
+The pipeline and a species project are two separate folders. Clone the pipeline once, anywhere
+(it holds only code and docs), and tell your shell where it is:
 
 ```bash
-git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
+git clone https://github.com/adriludwig/pangenome-pipeline.git ~/pangenome-pipeline
+echo 'export PIPELINE_DIR=~/pangenome-pipeline' >> ~/.bashrc    # sbatch passes it on to every job
 ```
 
 ```
-<project>/
-├── 01_Genome_Selection_QC/
-│   └── scripts/
-├── 02_TE_annotation_Clean_Up/
-│   └── scripts/
-├── 03_denovo_Genome_Annotation/
-│   └── scripts/
-├── 04_InterProScan/
-│   └── scripts/
-├── 05_Cross-genome_annotation_integration/
-│   └── scripts/
-├── 06_GET_PANGENES/
-│   └── scripts/
-├── 07_Post_GET_PANGENES_adjusting/
-│   └── scripts/
-├── 08_Pangenome_Visualisation/
-│   └── scripts/
-├── src/pangenome_pipeline/     the Python code, one subpackage per step (keep it with the step folders)
-├── lib/slurm_common.sh         shell helpers every job script loads
-├── species_specific/           one-off scripts for a single species (Afum/, Tgondii/)
-├── genome_order.txt            the genome list (generated in step 01)
-├── genomes/                    <basename>.fna    – assemblies
-└── gff_originals/              <basename>.gff3   – each genome's own annotation
+pangenome-pipeline/                   the pipeline checkout ($PIPELINE_DIR)
+├── workflow/stepNN_<name>/           each step's job scripts - what you sbatch
+├── docs/stepNN_<name>.md             each step's documentation
+├── src/pangenome_pipeline/           the Python code, one subpackage per step (same stepNN_<name> names)
+├── lib/slurm_common.sh               shell helpers every job script loads
+├── species_specific/                 one-off scripts for a single species (Afum/, Tgondii/)
+└── pipeline_config.sh                your cluster's settings (from pipeline_config.example.sh)
 ```
 
-`genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01. 
+A species project is a folder of your own with the inputs; jobs are **submitted from it**, and
+everything they write goes under its `output/`:
+
+```
+<project>/                            submit every job from here
+├── genome_order.txt                  the genome list (generated in step 01)
+├── genomes/                          <basename>.fna    – assemblies
+├── gff_originals/                    <basename>.gff3   – each genome's own annotation
+├── pipeline_config.sh                optional: settings that differ for this project
+├── logs/                             SLURM logs of every job - create it once: mkdir -p logs
+└── output/                           $OUTPUT_DIR - one folder per step
+    ├── step01_genome_selection_qc/
+    ├── step02_te_annotation_clean_up/
+    ├── ...
+    └── step08_pangenome_visualisation/
+```
+
+`genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01. Then, e.g.:
+
+```bash
+cd <project>
+mkdir -p logs
+sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/check_species.slurm.sh
+```
+
+`mkdir -p logs` matters: SLURM writes each job's log to `logs/<job name>_<job id>.out` and does not
+create the folder itself - without it a job runs but leaves no log.
+
+### Outputs
+
+Every step writes under `$OUTPUT_DIR/stepNN_<name>/`, and reads earlier steps' results from there
+too. `OUTPUT_DIR` defaults to `output/` in the project folder; to put a run somewhere else (a
+scratch disk, or a second run next to the first), set it in the project's `pipeline_config.sh` or
+for one job:
+
+```bash
+sbatch --export=ALL,OUTPUT_DIR=/scratch/me/afum_run2 $PIPELINE_DIR/workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh
+```
+
+A relative `OUTPUT_DIR` is taken from the project folder. Inside the job scripts each step's folder
+is `$STEP01_OUT` ... `$STEP08_OUT` (defined in [`lib/slurm_common.sh`](lib/slurm_common.sh)); any of
+them can be set on its own too.
 
 **Python code.** Every step's Python lives in the `pangenome_pipeline` package under
 [`src/`](src/pangenome_pipeline/), one subpackage per step (`step01_genome_selection_qc`, ...,
@@ -114,21 +139,23 @@ with `python3 -m pangenome_pipeline.<step>.<module>`; `lib/slurm_common.sh` puts
 nothing needs installing on the cluster. To run a module by hand from the project folder:
 
 ```bash
-PYTHONPATH=src python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.filter_final_annotation --help
-# or once, in the environment you use:  pip install -e .
+PYTHONPATH=$PIPELINE_DIR/src python3 -m pangenome_pipeline.step05_cross_genome_annotation_integration.filter_final_annotation --help
+# or once, in the environment you use:  pip install -e $PIPELINE_DIR
 ```
 
-**Cluster settings - once per project.** Where micromamba, the tool installs and the databases live
-on your cluster is set in one file, `pipeline_config.sh` at the project root. It is not part of the
-repository; start from the template:
+**Cluster settings - once per checkout.** Where micromamba, the tool installs and the databases
+live on your cluster is set in one file, `pipeline_config.sh` in the pipeline checkout. It is not
+part of the repository; start from the template:
 
 ```bash
+cd $PIPELINE_DIR
 cp pipeline_config.example.sh pipeline_config.sh   # then fill in the paths you need
 ```
 
-Every job script loads it through [`lib/slurm_common.sh`](lib/slurm_common.sh), so submit jobs from
-the project folder. A job stops with a message naming any setting it needs that is still empty.
-Any setting can also be given for a single job, e.g. `sbatch --export=ALL,LABEL=Toxo7a ...`.
+Every job script loads it through [`lib/slurm_common.sh`](lib/slurm_common.sh), followed by the
+project's own `pipeline_config.sh` if there is one, so a project only needs the settings that
+differ. A job stops with a message naming any setting it needs that is still empty. Any setting
+can also be given for a single job, e.g. `sbatch --export=ALL,LABEL=Toxo7a ...`.
 
 What stays in each script: the `#SBATCH` lines, the `### ADAPT ###` block (cluster module names;
 the micromamba environment it activates is named in `pipeline_config.sh`), and the run's own
@@ -138,5 +165,5 @@ settings at the top of the script (input folders, thresholds, and species-specif
 If a script fails with `Permission denied`, restore the executable bit on all scripts:
 
 ```bash
-chmod +x $(find . -name "*.sh")
+chmod +x $(find $PIPELINE_DIR -name "*.sh")
 ```

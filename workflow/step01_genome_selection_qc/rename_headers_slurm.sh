@@ -4,12 +4,12 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=8G
 #SBATCH --time=02:00:00
-#SBATCH --output=rename_headers_%j.out
-#SBATCH --error=rename_headers_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
-# Trim FASTA headers, in place, in genomes/ (see 01_Genome_Selection_QC/README.md).
+# Trim FASTA headers, in place, in genomes/ (see docs/step01_genome_selection_qc.md).
 # Submit from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/rename_headers_slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/rename_headers_slurm.sh
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ADAPT BEFORE RUNNING:
@@ -28,10 +28,11 @@ module load python/3.11.9
 
 set -u
 
-# The folder sbatch was run from (SLURM runs the script from a spool dir, so we
-# can't use the script's own path). Falls back to $PWD for a plain `bash` run.
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # pipeline_config.sh, and src/ on PYTHONPATH
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 
 # --- edit these if your folders differ -------------------------------------
 GENOME_DIR="$PROJECT_DIR/genomes"

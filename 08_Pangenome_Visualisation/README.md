@@ -29,7 +29,7 @@ Easiest fix: create an env with the same name and every package above installed:
 
     micromamba create -n synteny -c conda-forge python numpy scipy matplotlib pandas seaborn
 
-If `synteny` already exists from [step 01](../01_Genome_Selection_QC/README.md#dependencies), it has most of them; add what is
+If `synteny` already exists from [step 01](../docs/step01_genome_selection_qc.md#dependencies), it has most of them; add what is
 missing with `micromamba install -n synteny -c conda-forge scipy seaborn`.
 
 
@@ -75,7 +75,7 @@ labels the entries by their IPR accession.
 | `pangene_matrix_genes.tr.tab` (same, cells = gene IDs) | `get_pangenes` | every plot that looks at genes |
 | `POCS.matrix.tab` | `get_pangenes`, same folder as the matrices | POCS heatmap |
 | the GFFs given to `get_pangenes` (`<genome>_for_get_pangenes.gff`) | [step 06](../06_GET_PANGENES/README.md), gene IDs must match the matrix | domains, protein length, `valid_ORFs`, gene source, `intersect=` |
-| `contig_sizes.tsv` (genome, contig, length) | [step 01](../01_Genome_Selection_QC/README.md), contig size profile | contig size plot |
+| `contig_sizes.tsv` (genome, contig, length) | [step 01](../docs/step01_genome_selection_qc.md), contig size profile | contig size plot |
 | InterPro `entry.list` (IPR id → name) | downloaded once from EBI | names in the enrichment plot |
 
 `get_pangenes` writes the matrices in a subfolder whose name depends on the genome and the options it was run

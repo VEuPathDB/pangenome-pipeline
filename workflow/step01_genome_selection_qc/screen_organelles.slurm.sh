@@ -4,8 +4,8 @@
 #SBATCH --cpus-per-task=4
 #SBATCH --mem=8G
 #SBATCH --time=04:00:00
-#SBATCH --output=screen_organelles_%j.out
-#SBATCH --error=screen_organelles_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 #
 # For each genome in genome_order.txt: is a given organelle present as its own
 # contig, spread / DUPLICATED over several contigs, only a fragment inserted in a
@@ -17,9 +17,9 @@
 # are visible).
 #
 # Submit from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/screen_organelles.slurm.sh
+#     sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/screen_organelles.slurm.sh
 #
-# Output:  organelle_screen/organelle_screen.tsv  + a summary in the .out log
+# Output:  $STEP01_OUT/organelle_screen/organelle_screen.tsv  + a summary in the .out log
 #
 # ═══════════════════════════════════════════════════════════════════════════════
 #  ADAPT BEFORE RUNNING:
@@ -45,17 +45,20 @@ ORGANELLE_CONTIGS="${ORGANELLE_CONTIGS:?set ORGANELLE_CONTIGS (e.g. mito_A_fumig
 
 set -eo pipefail
 
-source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 ### ADAPT ### — put blastn / samtools / python3 on the PATH:
 activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
 ### END ADAPT ###
 
 set -u
 
-PROJECT_DIR="${SLURM_SUBMIT_DIR:-$PWD}"
 GENOME_DIR="$PROJECT_DIR/genomes"
 ORDER="$PROJECT_DIR/genome_order.txt"
-OUT_DIR="$PROJECT_DIR/organelle_screen"
+OUT_DIR="$STEP01_OUT/organelle_screen"
 
 mkdir -p "$OUT_DIR/blast"
 
