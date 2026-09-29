@@ -6,6 +6,23 @@
 
 Skip this step if good gene annotations are already available for all your genomes. 
 
+**Where it runs.** Submit every job from the project folder
+(`sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/<job>`). Each job then works in one
+folder, `$STEP03_OUT` = `$OUTPUT_DIR/step03_denovo_genome_annotation/` (by default
+`output/step03_denovo_genome_annotation/` in the project folder, see
+[outputs](../README.md#outputs)): every path below (`genomes/genome.fna`, `funannotate/`,
+`funannotate_predict/`, the RNA-seq reads, ...) is relative to it. Put this step's own inputs there
+before the first job:
+
+```bash
+mkdir -p output/step03_denovo_genome_annotation/genomes
+cp <assembly>.fna output/step03_denovo_genome_annotation/genomes/genome.fna     # the genome to annotate
+cp <step 02 library> output/step03_denovo_genome_annotation/curated_TE_library.fa  # for Repeat Masking
+```
+
+The reads of [Step 2](#step-2-rna-seq-evidence-preparation) are downloaded and combined in that
+folder too. The SLURM logs go to `logs/` in the project folder.
+
 ---
 
 ## Table of Contents
@@ -136,10 +153,10 @@ singularity exec \
 
 Removes small duplicate contigs (<500 bp) and standardizes FASTA headers.
 
-Script: [`scripts/clean_and_sort.slurm.sh`](scripts/clean_and_sort.slurm.sh)
+Script: [`clean_and_sort.slurm.sh`](../workflow/step03_denovo_genome_annotation/clean_and_sort.slurm.sh)
 
 ```bash
-sbatch scripts/clean_and_sort.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/clean_and_sort.slurm.sh
 ```
 
 ### Repeat Masking
@@ -147,13 +164,13 @@ sbatch scripts/clean_and_sort.slurm.sh
 Soft-mask repetitive elements using RepeatMasker prior to gene prediction. Soft-masking converts repetitive sequences to lowercase nucleotides (allowing aligners and gene predictors to utilize these regions when supported by strong transcript/protein evidence, while suppressing false-positive *ab initio* gene calls inside TEs).
 
 #### Choosing the Repeat Library:
-- **Curated TE Library from Step 02 (Recommended):** If **[02 – TE Annotation and Clean Up](../docs/step02_te_annotation_clean_up.md)** has already been conducted for the target species/genus, use the final **curated TE library** (`curated_TE_library.fa`) produced in that step. Using a manually curated library avoids over-masking conserved host genes and minimizes annotation artifacts.
+- **Curated TE Library from Step 02 (Recommended):** If **[02 – TE Annotation and Clean Up](step02_te_annotation_clean_up.md)** has already been conducted for the target species/genus, use the final **curated TE library** (`curated_TE_library.fa`) produced in that step. Using a manually curated library avoids over-masking conserved host genes and minimizes annotation artifacts.
 - **RepeatModeler *de novo* Library (Alternative):** If Step 02 has not yet been performed or for standalone annotations, you can use the consensus output library generated *de novo* by RepeatModeler (e.g., `*-families.fa`) or a relevant clade library from Repbase/Dfam.
 
-Script: [`scripts/repeatmask.slurm.sh`](scripts/repeatmask.slurm.sh)
+Script: [`repeatmask.slurm.sh`](../workflow/step03_denovo_genome_annotation/repeatmask.slurm.sh)
 
 ```bash
-sbatch scripts/repeatmask.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/repeatmask.slurm.sh
 ```
 
 [↑ Back to top](#table-of-contents)
@@ -164,7 +181,7 @@ sbatch scripts/repeatmask.slurm.sh
 
 ### Download RNA-seq data from SRA/ENA
 
-Download selected RNA-seq accessions (SRR/ERR) using `prefetch` and convert to FASTQ with `fasterq-dump`:
+Download selected RNA-seq accessions (SRR/ERR) using `prefetch` and convert to FASTQ with `fasterq-dump`: (run these, and the concatenation below, in the step's working folder: `cd output/step03_denovo_genome_annotation` from the project folder)
 
 ```bash
 module load sra-tools/3.0.3
@@ -188,15 +205,15 @@ seqkit stats -T -j 4 fastq/*.fastq.gz
 
 ### Quality Control
 
-Script: [`scripts/fastqc.slurm.sh`](scripts/fastqc.slurm.sh)
+Script: [`fastqc.slurm.sh`](../workflow/step03_denovo_genome_annotation/fastqc.slurm.sh)
 
 ```bash
-sbatch scripts/fastqc.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/fastqc.slurm.sh
 ```
 
 ### Combining reads & fixing FASTQ headers
 
-1. **Concatenate all runs:**
+1. **Concatenate all runs** (in the step's working folder):
    ```bash
    cat fastq/*_1.fastq.gz > combined_left_trinity.fastq.gz
    cat fastq/*_2.fastq.gz > combined_right_trinity.fastq.gz
@@ -205,9 +222,9 @@ sbatch scripts/fastqc.slurm.sh
 2. **Fix FASTQ headers for Trinity:**
    Trinity requires standard `/1` and `/2` read identifiers and strict `+` delimiters on the third line.
 
-   Scripts: [`src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py`](../src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py) & [`scripts/fix_headers.slurm.sh`](scripts/fix_headers.slurm.sh)
+   Scripts: [`src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py`](../src/pangenome_pipeline/step03_denovo_genome_annotation/fix_headers.py) & [`fix_headers.slurm.sh`](../workflow/step03_denovo_genome_annotation/fix_headers.slurm.sh)
    ```bash
-   sbatch scripts/fix_headers.slurm.sh
+   sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/fix_headers.slurm.sh
    ```
 
 ### Read Normalization for SRA Paired-End Data
@@ -235,10 +252,10 @@ To handle this, use one of the two strategies:
 
 Executes Trinity *de novo* transcript assembly, aligns transcripts back to the genome with GMAP, and constructs training gene models with PASA.
 
-Script: [`scripts/train.slurm.sh`](scripts/train.slurm.sh)
+Script: [`train.slurm.sh`](../workflow/step03_denovo_genome_annotation/train.slurm.sh)
 
 ```bash
-sbatch scripts/train.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/train.slurm.sh
 ```
 
 **Key Outputs in `funannotate_train/`:**
@@ -254,10 +271,10 @@ sbatch scripts/train.slurm.sh
 
 Combines evidence from `funannotate train`, protein alignments (Exonerate), and *ab initio* gene predictors (GeneMark-ES, AUGUSTUS, SNAP, GlimmerHMM) using EvidenceModeler (EVM).
 
-Script: [`scripts/predict.slurm.sh`](scripts/predict.slurm.sh)
+Script: [`predict.slurm.sh`](../workflow/step03_denovo_genome_annotation/predict.slurm.sh)
 
 ```bash
-sbatch scripts/predict.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/predict.slurm.sh
 ```
 
 > **Augustus Configuration Note:** Augustus requires a writable config directory. `predict.slurm.sh` automatically copies the Augustus configuration into your local working directory (`augustus_config_predict/`) and bind-mounts it.
@@ -275,10 +292,10 @@ sbatch scripts/predict.slurm.sh
 
 Passes the EVM predictions through PASA with the RNA-seq data to add 5' and 3' UTRs, refine exon junctions, and detect alternative splicing isoforms.
 
-Script: [`scripts/update.slurm.sh`](scripts/update.slurm.sh)
+Script: [`update.slurm.sh`](../workflow/step03_denovo_genome_annotation/update.slurm.sh)
 
 ```bash
-sbatch scripts/update.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/update.slurm.sh
 ```
 
 **Key Outputs in `funannotate_update/update_results/`:**
@@ -294,17 +311,17 @@ sbatch scripts/update.slurm.sh
 
 Performs comprehensive functional annotation, assigning Pfam domains, GO terms, UniProt/SwissProt IDs, MEROPS proteases, dbCAN CAZymes, SignalP peptides, and InterProScan domains.
 
-Script: [`scripts/annotate.slurm.sh`](scripts/annotate.slurm.sh)
+Script: [`annotate.slurm.sh`](../workflow/step03_denovo_genome_annotation/annotate.slurm.sh)
 
 ```bash
-sbatch scripts/annotate.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/annotate.slurm.sh
 ```
 
 *Optional standalone InterProScan:* If running InterProScan independently outside the container:
-Script: [`scripts/iprscan.slurm.sh`](scripts/iprscan.slurm.sh)
+Script: [`iprscan.slurm.sh`](../workflow/step03_denovo_genome_annotation/iprscan.slurm.sh)
 
 ```bash
-sbatch scripts/iprscan.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/iprscan.slurm.sh
 ```
 
 [↑ Back to top](#table-of-contents)
@@ -315,10 +332,10 @@ sbatch scripts/iprscan.slurm.sh
 
 Evaluates annotation completeness using BUSCO against appropriate lineage datasets (e.g. `fungi_odb10`, `ascomycota_odb10`, or `dikarya`).
 
-Script: [`scripts/busco.slurm.sh`](scripts/busco.slurm.sh)
+Script: [`busco.slurm.sh`](../workflow/step03_denovo_genome_annotation/busco.slurm.sh)
 
 ```bash
-sbatch scripts/busco.slurm.sh
+sbatch $PIPELINE_DIR/workflow/step03_denovo_genome_annotation/busco.slurm.sh
 ```
 
 [↑ Back to top](#table-of-contents)

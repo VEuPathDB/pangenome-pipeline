@@ -1,63 +1,48 @@
-"""03_denovo_Genome_Annotation jobs, submitted the way its README says: from inside the step folder.
+"""workflow/step03_denovo_genome_annotation jobs, submitted from the project folder.
 
-They find the pipeline's lib/slurm_common.sh by looking upwards from the submit folder.
+They work in $STEP03_OUT (output/step03_denovo_genome_annotation/): the step's own inputs are put there
+and every output lands there.
 """
 
 import gzip
-import os
-import subprocess
-import sys
 
 import pytest
-from conftest import REPO_ROOT
 
-STEP = "03_denovo_Genome_Annotation"
+STEP = "workflow/step03_denovo_genome_annotation"
 
 
 @pytest.fixture
-def step_dir(tmp_path):
-    """<project>/03_denovo_Genome_Annotation with its scripts/, the pipeline's lib/ and src/ at the project root."""
+def project(tmp_path):
+    """A project folder whose step-03 working folder holds the combined RNA-seq reads."""
     project = tmp_path / "project"
-    (project / STEP).mkdir(parents=True)
-    for name in ("lib", "src"):
-        (project / name).symlink_to(REPO_ROOT / name)
-    (project / STEP / "scripts").symlink_to(REPO_ROOT / STEP / "scripts")
-    stubs = tmp_path / "bin"
-    stubs.mkdir()
-    (stubs / "module").write_text("#!/bin/sh\nexit 0\n")
-    (stubs / "module").chmod(0o755)
-    (stubs / "python3").symlink_to(sys.executable)
-    return project / STEP, stubs
-
-
-def _submit(script, cwd, stubs, **env):
-    return subprocess.run(
-        ["bash", f"scripts/{script}"],
-        cwd=cwd,
-        env={**os.environ, "PATH": f"{stubs}:{os.environ['PATH']}", "SLURM_SUBMIT_DIR": str(cwd), **env},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-
-
-def test_fix_headers_job_from_the_step_folder(step_dir):
-    cwd, stubs = step_dir
+    work = project / "output" / "step03_denovo_genome_annotation"
+    work.mkdir(parents=True)
     for side in ("left", "right"):
-        with gzip.open(cwd / f"combined_{side}_trinity.fastq.gz", "wt") as fh:
+        with gzip.open(work / f"combined_{side}_trinity.fastq.gz", "wt") as fh:
             fh.write("@read1 extra words\nACGT\n+read1 extra words\nIIII\n")
-    result = _submit("fix_headers.slurm.sh", cwd, stubs)
+    return project
+
+
+def test_fix_headers_job_works_in_step03_out(run_job, project):
+    result = run_job(f"{STEP}/fix_headers.slurm.sh", project)
     assert result.returncode == 0, result.stderr
-    with gzip.open(cwd / "combined_left_trinity.fixed_headers.fastq.gz", "rt") as fh:
+    work = project / "output" / "step03_denovo_genome_annotation"
+    with gzip.open(work / "combined_left_trinity.fixed_headers.fastq.gz", "rt") as fh:
         assert fh.read() == "@read1/1\nACGT\n+\nIIII\n"
 
 
-def test_funannotate_job_finds_lib_from_the_step_folder(step_dir, tmp_path):
+def test_fix_headers_job_honours_output_dir(run_job, project, tmp_path):
+    """OUTPUT_DIR moves the whole working folder."""
+    elsewhere = tmp_path / "scratch"
+    (project / "output").rename(elsewhere)
+    result = run_job(f"{STEP}/fix_headers.slurm.sh", project, OUTPUT_DIR=str(elsewhere))
+    assert result.returncode == 0, result.stderr
+    assert (elsewhere / "step03_denovo_genome_annotation" / "combined_right_trinity.fixed_headers.fastq.gz").exists()
+
+
+def test_funannotate_job_stops_at_missing_setting(run_job, project):
     """It gets past loading lib/slurm_common.sh and stops at the missing setting, not at the source line."""
-    cwd, stubs = step_dir
-    result = _submit(
-        "busco.slurm.sh", cwd, stubs, FUNANNOTATE_SHARED="", PIPELINE_CONFIG=str(tmp_path / "no_config.sh")
-    )
+    result = run_job(f"{STEP}/busco.slurm.sh", project, FUNANNOTATE_SHARED="")
     assert result.returncode == 1
     assert "FUNANNOTATE_SHARED not set" in result.stderr
-    assert "slurm_common.sh not found" not in result.stderr
+    assert "pipeline not found" not in result.stderr

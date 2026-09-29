@@ -6,16 +6,19 @@
 #SBATCH --cpus-per-task=48
 #SBATCH --mem=128G
 #SBATCH --time=48:00:00
-#SBATCH --output=annotate_%j.out
-#SBATCH --error=annotate_%j.err
+#SBATCH --output=logs/%x_%j.out
+#SBATCH --error=logs/%x_%j.err
 
 set -euo pipefail
 
-# Step 03 jobs are submitted from inside 03_denovo_Genome_Annotation/ (see its README), so look
-# for the pipeline's lib/ upwards from there; PIPELINE_DIR overrides.
-_pd="${PIPELINE_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
-while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done
-source "$_pd/lib/slurm_common.sh" || { echo "ERROR: lib/slurm_common.sh not found above ${SLURM_SUBMIT_DIR:-$PWD} - set PIPELINE_DIR" >&2; exit 1; }
+# Find the pipeline (PIPELINE_DIR, else this checkout, else above the submit folder), then load
+# lib/slurm_common.sh: PROJECT_DIR, OUTPUT_DIR / STEPNN_OUT, find_script, activate_env, pipeline_config.sh
+_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
+[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
+# Step 03 works in one folder, $STEP03_OUT: the inputs you put there (genomes/genome.fna, the
+# RNA-seq reads, curated_TE_library.fa) and every output. The paths below are relative to it.
+mkdir -p "$STEP03_OUT" && cd "$STEP03_OUT"
 require_config FUNANNOTATE_SHARED
 SHARED="$FUNANNOTATE_SHARED"   # shared funannotate install, set in pipeline_config.sh
 # Use output from update (if updated) or predict:
