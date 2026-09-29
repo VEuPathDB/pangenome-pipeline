@@ -2,17 +2,24 @@
 #
 # Pipeline configuration: where the tools, databases and environments live on your cluster.
 #
-# Copy this file to pipeline_config.sh in the same folder (the project root) and fill it in:
+# Copy this file to pipeline_config.sh next to it (the pipeline checkout) and fill it in:
 #
 #     cp pipeline_config.example.sh pipeline_config.sh
 #
+# A species project can also have its own pipeline_config.sh (in the folder you submit jobs from);
+# it is loaded after this one, so it only needs the settings that differ for that project.
 # pipeline_config.sh is not committed (see .gitignore). Every job script loads it through
 # lib/slurm_common.sh. Anything set here can also be overridden for a single job:
 #
-#     sbatch --export=ALL,LABEL=Toxo7a 08_Pangenome_Visualisation/scripts/plot_all_job.sh
+#     sbatch --export=ALL,LABEL=Toxo7a "$PIPELINE_DIR"/workflow/step08_pangenome_visualisation/plot_all_job.sh
 #
 # Only the settings a job actually uses need to be filled in; a job stops with a message
 # naming any setting it needs that is still empty.
+
+# ── outputs ─────────────────────────────────────────────────────────────────────────────────
+# Every step writes under $OUTPUT_DIR/stepNN_<name>/. Default: output/ in the project folder;
+# a relative path is taken from the project folder.
+OUTPUT_DIR="${OUTPUT_DIR:-output}"
 
 # ── micromamba ──────────────────────────────────────────────────────────────────────────────
 # e.g. on our cluster: "$HOME/hc-storage/micromamba" and "$HOME/hc-storage/bin/micromamba/micromamba"

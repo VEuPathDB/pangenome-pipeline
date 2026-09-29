@@ -5,6 +5,10 @@ site/
 
 # Per-cluster settings (copy pipeline_config.example.sh)
 pipeline_config.sh
+
+# Job outputs and SLURM logs, if a job is ever run from inside the checkout
+/output/
+/logs/
 __pycache__/
 .DS_Store
 node_modules/
