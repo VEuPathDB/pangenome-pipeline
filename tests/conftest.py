@@ -1,8 +1,9 @@
 """Shared test helpers.
 
 load_script() imports pipeline code by its repo path: modules in src/pangenome_pipeline by their
-package name, and the loose scripts that remain outside it (step folders, species_specific/) by
-file path, with their folder on sys.path for sibling imports.
+package name, and the loose scripts that remain outside it (species_specific/, scripts/) by
+file path, with their folder on sys.path for sibling imports. run_job() runs a workflow/ job script
+the way sbatch does.
 """
 
 import importlib.util
