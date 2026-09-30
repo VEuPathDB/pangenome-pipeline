@@ -111,6 +111,7 @@ Files start with the label given to the run (for example `Afum7b`). Every figure
 | :--- | :--- | :--- | :--- |
 | Pangenome and core genome size | `_pancore`, `_pancore_separate` | Genomes are added one at a time in 100 random orders. The pangenome and the core size are drawn at each step, with the fitted curves (Tettelin for the pan, Tettelin and Willenbrock for the core). The `.log` has the fit parameters. | Is the pangenome open (still growing with each genome) and is the core stable, or is the panel too small to tell? |
 | Pangene occupancy | `_occupancy` | One bar per occupancy (1 to N genomes), coloured by category. The categories are decided as in the table above. | The overall composition: how much is core, soft-core, shell and cloud. |
+| Soft-core pangenes missing per genome | `_softcore_missing` | One bar per genome, worst first: how many soft-core pangenes that genome is missing from, plus the panel mean as a reference line. At the default cuts each soft-core pangene is missing from exactly one genome, so the count is a direct per-genome tally. | Soft-core genes are expected in nearly every genome, so no genome should carry a much larger share of the "missing" total than the others. One that does is a content-QC flag - check that genome's assembly (dropped/short contigs, low coverage) or its own annotation completeness before trusting its occupancy calls. |
 | Singletons per genome | `_singletons` | Pangenes found in only one genome, counted per genome. | Genome-specific content, and outliers. A genome with many more singletons than the others may be divergent, or carry redundant contigs, contamination or poor annotation. When two or more genomes are very close, what they share is present in more than one genome, so their singletons are automatically fewer. |
 | POCS heatmap | `_POCS_heatmap` | Percentage of conserved sequences between every pair of genomes, clustered. | How related the genomes are, and which one sits apart. |
 | Gene properties by occupancy | `_occupancy_properties`, `_occupancy_properties_log` | Top: share of genes with an InterPro/PFAM domain. Bottom: protein length. One value per pangene (over all its genes), by occupancy. A Tukey HSD test compares the four categories on these values, and the p-value of core against cloud is written on each panel. | Short genes with no domain tend to include annotation artefacts and gene fragments, but they can also be real genes. The plot shows how much the cloud differs from the core in these properties. The p-value is optimistic, because the genes of one pangene come from different genomes and are not independent samples. |
@@ -168,7 +169,7 @@ The job looks for `pangene_matrix.tr.tab` by name below `--pangenes-dir`. If it 
 stops and says so. If one plot fails, the others still run; the job lists the failed ones at the end and exits with an
 error. Set `SKIP_ENV=1` to skip the micromamba block when already inside an environment.
 
-To make only the first four plots (pan/core, occupancy, singletons, POCS) on a laptop, in seconds (the category cuts can be
+To make only the first five plots (pan/core, occupancy, soft-core missing, singletons, POCS) on a laptop, in seconds (the category cuts can be
 set with the environment variables `CORE_MISSING`, `SOFTCORE_MISSING` and `CLOUD_MAX`):
 
 ```bash
@@ -201,6 +202,7 @@ One `.png` and one `.svg` per figure, plus a `.tsv` with the values behind it (`
 pangenome_plots/
 ├── <label>_pancore.{png,svg,log}   <label>_pancore_separate.{png,svg,log}
 ├── <label>_occupancy.{png,svg,tsv}
+├── <label>_softcore_missing.{png,svg,tsv}
 ├── <label>_singletons.{png,svg,tsv}
 ├── <label>_POCS_heatmap.{png,svg}
 ├── <label>_occupancy_properties.{png,svg,tsv}   <label>_occupancy_properties_log.{png,svg,tsv}
