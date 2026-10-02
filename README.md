@@ -74,6 +74,9 @@ GET_PANGENES calls pangenes from annotated gene models, so its results are bound
 **Already have a project from before September 2026** (pipeline cloned into it, numbered step folders)? See
 [moving an existing project to the new layout](docs/migrating_projects.md).
 
+Everything that changed on this branch (layout, outputs, settings, containers, behaviour fixes) is
+summarised in [CHANGES.md](CHANGES.md).
+
 The pipeline and a species project are two separate folders. Clone the pipeline once, anywhere
 (it holds only code and docs), and tell your shell where it is:
 
