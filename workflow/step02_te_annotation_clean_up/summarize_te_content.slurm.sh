@@ -33,7 +33,7 @@ TOP_FAMILIES=15                  # families shown individually before folding in
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH
 #              (e.g. the 'synteny' env from step 01 already has matplotlib;
 #               `micromamba install -c conda-forge pandas matplotlib` otherwise):
-activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v python3 >/dev/null || { echo "ERROR: python3 not on PATH" >&2; exit 1; }

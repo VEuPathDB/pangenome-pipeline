@@ -30,7 +30,7 @@ LABEL="${LABEL:?set LABEL (prefix of every output file, e.g. Toxo7b) here or wit
 set +u
 module purge
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib):
-activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 

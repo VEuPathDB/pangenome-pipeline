@@ -363,7 +363,7 @@ load_mchelper_environment() {
 
     module purge || true
 
-    activate_env "$ENV_MCHELPER"  # env names / micromamba: pipeline_config.sh
+    activate_env "$ENV_MCHELPER"  # env names / backend: pipeline_config.sh
     set -u
 
     if ! command -v python3 >/dev/null 2>&1; then

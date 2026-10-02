@@ -30,9 +30,8 @@ OUT_DIR="$STEP05_OUT/gff_for_liftoff"             # where the prepared GFFs (+ l
 
 set +u
 module purge
-### ADAPT ### — put python3 on the PATH (standard library only, nothing else needed):
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
-module load python/3.11.9
+### ADAPT ### — put python3 on the PATH:
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 

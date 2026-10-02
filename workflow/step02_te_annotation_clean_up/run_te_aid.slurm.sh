@@ -63,7 +63,7 @@ set -euo pipefail
 set +u
 module load ncbi-blast/2.12.0 || true
 module load R/4.5.1 || true
-activate_env "$ENV_TE_ANNOT"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_TE_ANNOT"  # env names / backend: pipeline_config.sh
 set -u
 require_config TE_AID
 TEAID="$TE_AID"   # the TE-Aid executable, set in pipeline_config.sh

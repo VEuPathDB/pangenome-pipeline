@@ -33,7 +33,7 @@ GFF_OUTDIR="$STEP04_OUT/gff_with_interpro"    # new GFFs land here - GFF_INDIR i
 # ────────────────────────────────────────────────────────────────────────────
 
 ### ADAPT ### — put python3 on the PATH:
-activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 set -u

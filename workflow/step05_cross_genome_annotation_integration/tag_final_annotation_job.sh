@@ -26,13 +26,12 @@ STRAINS="genome_order.txt"                 # comma-separated names or a file wit
 FINAL_DIR="$STEP05_OUT/expanded_annotation"   # build_final_annotation_basic.sh's FINAL_DIR - the raw, unfiltered <genome>_final_annotation.gff files
 OUT_DIR="$STEP05_OUT/tagged_annotation"   # where to write the tagged GFFs + intersect-pair reports
 MIN_OVERLAP_BP="20"                        # CDS-to-CDS overlaps under this many bp are ignored - boundary-rounding noise
-ID_PREFIX="Afu"                            # renamed gene IDs look like <ID_PREFIX><N>g<00001, ...> - edit this per species
+ID_PREFIX="${ID_PREFIX:?set ID_PREFIX (renamed gene IDs look like <ID_PREFIX><N>g00001, e.g. Afu) here or with sbatch --export=ALL,ID_PREFIX=...}"
 
 set +u
 module purge
-### ADAPT ### — put python3 on the PATH (standard library only, nothing else needed):
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
-module load python/3.11.9
+### ADAPT ### — put python3 on the PATH:
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 

@@ -41,7 +41,7 @@ _pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"
 [[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }
 source "$_pd/lib/slurm_common.sh" || { echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }
 ### ADAPT ### — put minimap2 / samtools / python3 on the PATH:
-activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 # ── TUNING ───────────────────────────────────────────────────────────────────

@@ -104,7 +104,7 @@ set +u
 module purge 2>/dev/null || true
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib + pandas + seaborn):
 if [[ -z "${SKIP_ENV:-}" ]]; then
-    activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
+    activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 fi
 ### END ADAPT ###
 set -u

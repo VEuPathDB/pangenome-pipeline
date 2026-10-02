@@ -42,7 +42,7 @@ OUTDIR="$STEP04_OUT/proteins"    # <genome_label>.faa land here
 mkdir -p "$OUTDIR"
 
 ### ADAPT ### — put AGAT (agat_sp_extract_sequences.pl) on the PATH:
-activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v agat_sp_extract_sequences.pl >/dev/null \

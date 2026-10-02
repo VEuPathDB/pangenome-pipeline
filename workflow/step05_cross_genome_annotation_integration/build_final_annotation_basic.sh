@@ -40,7 +40,7 @@ set +u
 module purge
 ### ADAPT ### — put micromamba on the PATH, then activate the env (change the env name if your
 ### cluster's AGAT environment isn't called this):
-activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 

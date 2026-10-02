@@ -760,7 +760,7 @@ step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_d
 | `MIN_OVERLAP_GENOMES` | `2` | A gene present in more than 2 genomes needs a qualifying overlap in at least this many of them to count as a real, recurring conflict rather than an isolated Liftoff boundary glitch |
 | `EXTRA_COPY_REQUIRE_VALID_ORF` | `true` | `false` keeps every extra-copy gene regardless of ORF validity |
 | `REQUIRE_DOMAIN_ONLY` | `false` | `true` makes only a protein domain count as evidence, ignoring description text entirely |
-| `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
+| `ID_PREFIX` | *(required)* | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - set it per species, e.g. `Afu` for *A. fumigatus* (its reference's own native gene ID style, `Afu1g00100`): `sbatch --export=ALL,ID_PREFIX=Afu ...` |
 
 **Run** (one single SLURM job, works through every genome in `STRAINS` in one Python process -
 the cross-genome case-6 pass needs all of them loaded together anyway):
@@ -859,7 +859,7 @@ pangene-level confidence call it produces, isn't built yet - planned as part of
 | `FINAL_DIR` | `$STEP05_OUT/expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `FINAL_DIR`) |
 | `OUT_DIR` | `$STEP05_OUT/tagged_annotation` | Where to write the tagged GFFs + `_intersect_pairs.tsv` files |
 | `MIN_OVERLAP_BP` | `20` | CDS-to-CDS overlaps under this many bp are ignored entirely |
-| `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
+| `ID_PREFIX` | *(required)* | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - set it per species, e.g. `Afu` for *A. fumigatus* (its reference's own native gene ID style, `Afu1g00100`): `sbatch --export=ALL,ID_PREFIX=Afu ...` |
 
 **Run:**
 ```bash

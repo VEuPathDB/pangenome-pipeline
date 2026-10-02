@@ -31,7 +31,7 @@ OUT_DIR="$STEP05_OUT/annotation_check"   # where to write the tables and plots
 set +u
 module purge
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + matplotlib):
-activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 

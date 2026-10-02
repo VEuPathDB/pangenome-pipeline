@@ -38,8 +38,7 @@ LIST="$STEP01_OUT/drop_contigs.txt"   # written by hand (see the doc), kept with
 # -----------------------------------------------------------------------------
 
 ### ADAPT ### — put python3 on the PATH:
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
-module load python/3.11.9
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 set -u

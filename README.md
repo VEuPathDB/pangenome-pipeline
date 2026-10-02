@@ -146,8 +146,8 @@ PYTHONPATH=$PIPELINE_DIR/src python3 -m pangenome_pipeline.step05_cross_genome_a
 # or once, in the environment you use:  pip install -e $PIPELINE_DIR
 ```
 
-**Cluster settings - once per checkout.** Where micromamba, the tool installs and the databases
-live on your cluster is set in one file, `pipeline_config.sh` in the pipeline checkout. It is not
+**Cluster settings - once per checkout.** Where the tool environments, the tool installs and the
+databases live on your cluster is set in one file, `pipeline_config.sh` in the pipeline checkout. It is not
 part of the repository; start from the template:
 
 ```bash
@@ -161,9 +161,34 @@ differ. A job stops with a message naming any setting it needs that is still emp
 can also be given for a single job, e.g. `sbatch --export=ALL,LABEL=Toxo7a ...`.
 
 What stays in each script: the `#SBATCH` lines, the `### ADAPT ###` block (cluster module names;
-the micromamba environment it activates is named in `pipeline_config.sh`), and the run's own
-settings at the top of the script (input folders, thresholds, and species-specific values such as
-`SPECIES`, `LABEL` or the organelle contigs, which have no default and must be set).
+the environment it activates is named in `pipeline_config.sh`), and the run's own settings at the
+top of the script (input folders, thresholds, and species-specific values such as `SPECIES`,
+`LABEL`, `ID_PREFIX` or the organelle contigs, which have no default and must be set). The
+`#SBATCH` partition/account can be overridden for every job without editing the scripts:
+`export SBATCH_PARTITION=<partition> SBATCH_ACCOUNT=<account>` before submitting.
+
+**Tool environments - micromamba is optional.** Jobs call `activate_env <name>` (`synteny`,
+`bioinfo`, ...), which uses, per environment, the first of these that is set up
+(`ENV_BACKEND=auto`; see `pipeline_config.example.sh`):
+
+1. **container** - `$CONTAINER_DIR/<name>.sif`, or a folder `$CONTAINER_DIR/<name>/` of images (one
+   per tool is fine, e.g. biocontainers). Their programs are put on `PATH` as apptainer/singularity
+   wrappers, with the project, the pipeline and `$OUTPUT_DIR` bound in.
+2. **micromamba** - `MAMBA_EXE` and `MAMBA_ROOT_PREFIX` are set.
+3. **conda** - `conda` is on `PATH`.
+4. **path** - whatever is already on `PATH` (e.g. `module load` in your `~/.bashrc`).
+
+The pipeline's own Python code (pandas, matplotlib, numpy, scipy, seaborn) runs from a virtual
+environment pinned to [`uv.lock`](uv.lock), so every cluster gets the same package versions. Make
+it once in the checkout ([uv](https://docs.astral.sh/uv/) is a single binary, no conda needed):
+
+```bash
+cd $PIPELINE_DIR
+uv sync --frozen --no-dev      # creates .venv/ from uv.lock; PIPELINE_VENV points elsewhere
+```
+
+Its `python3` is used wherever the environment doesn't bring its own, so with containers or plain
+modules the Python steps still get the locked packages.
 
 If a script fails with `Permission denied`, restore the executable bit on all scripts:
 

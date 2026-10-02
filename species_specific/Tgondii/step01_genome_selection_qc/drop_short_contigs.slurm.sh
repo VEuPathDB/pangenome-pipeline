@@ -51,7 +51,7 @@ BACKUP_DIR="$STEP01_OUT/backup_before_short_contig_drop"   # untouched copy of e
 # ────────────────────────────────────────────────────────────────────────────
 
 ### ADAPT ### — put samtools and python3 on the PATH:
-activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 set -u

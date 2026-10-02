@@ -32,7 +32,7 @@ OUT_DIR="$STEP05_OUT/gff_curated"                 # where the curated GFFs go (e
 set +u
 module purge
 ### ADAPT ### — put micromamba on the PATH, then activate the env (standard library only):
-activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 

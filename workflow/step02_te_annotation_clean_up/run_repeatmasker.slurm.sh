@@ -31,7 +31,7 @@ RM_OUTDIR="$STEP02_OUT/repeatmasker"  # one RM_<genome_id>/ per genome goes here
 
 ### ADAPT ### — put RepeatMasker on the PATH (must be configured with a Dfam
 #              library; see the README if `famdb.py … FamDB data directory not found`):
-activate_env "$ENV_REPEATMASKER"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_REPEATMASKER"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v RepeatMasker >/dev/null || { echo "ERROR: RepeatMasker not on PATH" >&2; exit 1; }

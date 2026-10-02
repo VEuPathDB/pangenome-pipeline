@@ -15,14 +15,37 @@
 #
 # Only the settings a job actually uses need to be filled in; a job stops with a message
 # naming any setting it needs that is still empty.
+#
+# SLURM partition/account: the #SBATCH lines are read before this file, so they can't come from
+# here. Set them for every job in your shell instead (they override the #SBATCH lines):
+#     export SBATCH_PARTITION=<partition>  SBATCH_ACCOUNT=<account>
 
 # ── outputs ─────────────────────────────────────────────────────────────────────────────────
 # Every step writes under $OUTPUT_DIR/stepNN_<name>/. Default: output/ in the project folder;
 # a relative path is taken from the project folder.
 OUTPUT_DIR="${OUTPUT_DIR:-output}"
 
-# ── micromamba ──────────────────────────────────────────────────────────────────────────────
-# e.g. on our cluster: "$HOME/hc-storage/micromamba" and "$HOME/hc-storage/bin/micromamba/micromamba"
+# ── tool environments ───────────────────────────────────────────────────────────────────
+# Jobs call `activate_env <name>` (names below). ENV_BACKEND=auto picks, per environment, the first
+# of these that is set up - so micromamba is optional:
+#   1. container   $CONTAINER_DIR/<name>.sif, or $CONTAINER_DIR/<name>/*.sif (one image per tool is
+#                  fine, e.g. biocontainers minimap2 + skani for "synteny"); run with apptainer/singularity
+#   2. micromamba  MAMBA_EXE and MAMBA_ROOT_PREFIX below
+#   3. conda       conda on PATH
+#   4. path        whatever is already on PATH (module load in ~/.bashrc, ...)
+# Force one with ENV_BACKEND=container|micromamba|conda|path.
+ENV_BACKEND="${ENV_BACKEND:-auto}"
+CONTAINER_DIR="${CONTAINER_DIR:-}"
+# Extra folders the containers need to see (comma-separated), e.g. where genome symlinks point.
+# The project, the pipeline and OUTPUT_DIR are always bound.
+CONTAINER_BINDS="${CONTAINER_BINDS:-}"
+
+# The pipeline's own Python code (pandas, matplotlib, ...) runs from this venv when the environment
+# doesn't bring a python3. Make it once, pinned to uv.lock, from the pipeline checkout:
+#     uv sync --frozen --no-dev
+PIPELINE_VENV="${PIPELINE_VENV:-}"   # empty = .venv in the pipeline checkout
+
+# micromamba (optional), e.g. on our cluster: "$HOME/hc-storage/micromamba" and "$HOME/hc-storage/bin/micromamba/micromamba"
 MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-}"
 MAMBA_EXE="${MAMBA_EXE:-}"
 
