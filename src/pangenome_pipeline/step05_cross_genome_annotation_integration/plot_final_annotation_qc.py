@@ -56,12 +56,9 @@ import sys
 from collections import defaultdict
 from urllib.parse import unquote
 
+from pangenome_pipeline.common.gff import DESCRIPTION_RE, GENE_BIOTYPE_RE, ID_RE, PARENT_RE, PRODUCT_RE
 from pangenome_pipeline.common.io import read_strains
 from pangenome_pipeline.step05_cross_genome_annotation_integration.annotation_common import (
-    DESCRIPTION_RE,
-    ID_RE,
-    PARENT_RE,
-    PRODUCT_RE,
     classify_minor_position,
     find_cds_overlaps,
     int_attr,
@@ -77,7 +74,6 @@ try:
 except ImportError:
     sys.exit("ERROR: this script needs matplotlib - install it with 'pip install matplotlib'")
 
-GENE_BIOTYPE_RE = re.compile(r"(?:^|;)gene_biotype=([^;]+)")
 COPY_NUM_ID_RE = re.compile(r"(?:^|;)copy_num_ID=([^;]+)")
 COVERAGE_RE = re.compile(r"(?:^|;)coverage=([^;]+)")
 SEQUENCE_ID_RE = re.compile(r"(?:^|;)sequence_ID=([^;]+)")

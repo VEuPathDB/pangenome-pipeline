@@ -32,8 +32,7 @@ import re
 import sys
 from functools import partial
 
-from pangenome_pipeline.common.gff import find_gff as _find_gff
-from pangenome_pipeline.common.gff import gff_seqids
+from pangenome_pipeline.common.gff import find_gff as _find_gff, gff_seqids
 
 # Also accepts gzipped GFFs, unlike most steps.
 find_gff = partial(_find_gff, exts=(".gff3", ".gff", ".gff3.gz", ".gff.gz"))

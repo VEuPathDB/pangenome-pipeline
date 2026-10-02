@@ -25,7 +25,6 @@ Needs numpy, scipy, matplotlib.
 import argparse
 import csv
 import os
-import re
 import sys
 
 import matplotlib
@@ -37,11 +36,8 @@ from matplotlib.ticker import FuncFormatter, NullFormatter
 from matplotlib.transforms import blended_transform_factory
 from scipy.stats import tukey_hsd
 
+from pangenome_pipeline.common.gff import DBXREF_RE, ID_RE, PARENT_RE
 from pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy import COLORS, ORDER, categorize
-
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 
 
 def parse_gff(path):

@@ -45,6 +45,7 @@ packages = ["src/pangenome_pipeline"]
 profile = "black"
 line_length = 120
 known_first_party = ["pangenome_pipeline"]
+combine_as_imports = true
 skip = [
   ".venv",
   ".nox",
@@ -81,6 +82,7 @@ exclude = [
 ]
 
 [tool.ruff.lint.isort]
+combine-as-imports = true
 known-first-party = ["pangenome_pipeline"]
 
 [tool.uv]

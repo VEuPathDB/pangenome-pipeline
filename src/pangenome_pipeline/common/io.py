@@ -1,6 +1,7 @@
 """Reading the small list/config files the pipeline passes between steps."""
 
 import os
+from pathlib import Path
 
 
 def read_strains(value):
@@ -19,6 +20,19 @@ def read_id_list(value):
         with open(value) as fh:
             return [line.split()[0] for line in fh if line.strip() and not line.startswith("#")]
     return [g.strip() for g in value.split(",") if g.strip()]
+
+
+def load_extra_genes(path) -> set:
+    """(genome_label, gene_id) pairs from a 2-column TSV (no header; '#' lines and blank lines skipped)."""
+    pairs = set()
+    with Path(path).open() as fh:
+        for line in fh:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            genome_label, gene_id = line.split("\t")
+            pairs.add((genome_label, gene_id))
+    return pairs
 
 
 def read_paf(path, min_aln):

@@ -25,11 +25,9 @@ import re
 import sys
 from collections import Counter
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
+from pangenome_pipeline.common.gff import DBXREF_RE, ID_RE, INTERSECT_RE, PARENT_RE
+
 ORIG_RE = re.compile(r"(?:^|;)original_ID=([^;]+)")
-INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 
 
 def parse_tagged_gff(path):

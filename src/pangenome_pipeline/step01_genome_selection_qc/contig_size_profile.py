@@ -37,8 +37,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from pangenome_pipeline.common.gff import find_gff as _find_gff
-from pangenome_pipeline.common.gff import gene_description, infer_biotype, parse_attributes
+from pangenome_pipeline.common.gff import find_gff as _find_gff, gene_description, infer_biotype, parse_attributes
 
 # <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
 find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)

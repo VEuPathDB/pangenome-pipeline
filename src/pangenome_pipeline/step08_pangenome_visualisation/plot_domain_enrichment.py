@@ -29,7 +29,6 @@ import argparse
 import csv
 import glob
 import os
-import re
 import sys
 import urllib.request
 
@@ -40,12 +39,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy.stats import false_discovery_control, fisher_exact
 
+from pangenome_pipeline.common.gff import DBXREF_RE, ID_RE, PARENT_RE
 from pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy import ORDER, categorize
 
 ENTRY_LIST_URL = "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list"
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 
 
 def gene_domains(gff_dir):

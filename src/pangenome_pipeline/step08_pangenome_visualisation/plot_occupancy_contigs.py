@@ -22,7 +22,6 @@ Needs numpy, scipy, matplotlib.
 import argparse
 import csv
 import os
-import re
 import sys
 
 import matplotlib
@@ -34,9 +33,8 @@ from matplotlib.ticker import FuncFormatter, NullFormatter
 from matplotlib.transforms import blended_transform_factory
 from scipy.stats import tukey_hsd
 
+from pangenome_pipeline.common.gff import ID_RE
 from pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy import COLORS, ORDER, categorize
-
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
 
 
 def gene_contigs(path):

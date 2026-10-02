@@ -27,7 +27,7 @@ import re
 import sys
 from collections import Counter
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+from pangenome_pipeline.common.gff import ID_RE
 
 
 def parse_genes(path):

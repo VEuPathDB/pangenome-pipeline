@@ -45,14 +45,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 
+from pangenome_pipeline.common.gff import DESCRIPTION_RE, ID_RE, INTERSECT_RE, PARENT_RE, PRODUCT_RE
 from pangenome_pipeline.step08_pangenome_visualisation.plot_occupancy import COLORS, ORDER, categorize
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
 # Same list as filter_final_annotation.py: a description this generic counts as no evidence.
 GENERIC_DESCRIPTIONS = {
     "hypothetical protein",

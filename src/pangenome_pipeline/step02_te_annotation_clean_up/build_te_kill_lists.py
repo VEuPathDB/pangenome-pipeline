@@ -66,18 +66,7 @@ from pathlib import Path
 
 import pandas as pd
 
-
-def load_extra_genes(path) -> set:
-    """2-column TSV (no header): genome_label<TAB>gene_id."""
-    pairs = set()
-    with Path(path).open() as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            genome_label, gene_id = line.split("\t")
-            pairs.add((genome_label, gene_id))
-    return pairs
+from pangenome_pipeline.common.io import load_extra_genes
 
 
 def main():

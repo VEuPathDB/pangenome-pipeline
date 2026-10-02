@@ -85,8 +85,15 @@ from collections import defaultdict
 from functools import partial
 from urllib.parse import unquote
 
-from pangenome_pipeline.common.gff import biotype_category as _biotype_category
-from pangenome_pipeline.common.gff import find_gff
+from pangenome_pipeline.common.gff import (
+    DESCRIPTION_RE,
+    GENE_BIOTYPE_RE,
+    ID_RE,
+    PARENT_RE,
+    PRODUCT_RE,
+    biotype_category as _biotype_category,
+    find_gff,
+)
 from pangenome_pipeline.common.intervals import segments_overlap_bp
 
 # This script reports other RNA genes as "ncRNA_other".
@@ -101,13 +108,8 @@ try:
 except ImportError:
     sys.exit("ERROR: this script needs matplotlib - install it with 'pip install matplotlib'")
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-GENE_BIOTYPE_RE = re.compile(r"(?:^|;)gene_biotype=([^;]+)")
 BIOTYPE_RE = re.compile(r"(?:^|;)biotype=([^;]+)")
 EBI_BIOTYPE_RE = re.compile(r"(?:^|;)ebi_biotype=([^;]+)")  # VEuPathDB/FungiDB-style
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
 
 # Gene-level feature types whose category is obvious from the type name alone - no need to
 # look at attributes or children. "gene" is deliberately not here: it's used by too many

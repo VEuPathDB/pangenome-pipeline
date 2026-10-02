@@ -24,16 +24,12 @@ else happens for it.
 
 import argparse
 import os
-import re
 import shutil
 import sys
 from collections import defaultdict
 
-from pangenome_pipeline.common.gff import find_gff
+from pangenome_pipeline.common.gff import ID_RE, PARENT_RE, find_gff
 from pangenome_pipeline.common.io import read_id_list
-
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
 
 
 def read_kill_list(path):

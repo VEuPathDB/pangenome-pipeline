@@ -33,8 +33,7 @@ import argparse
 import re
 import sys
 
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
+from pangenome_pipeline.common.gff import DBXREF_RE, PARENT_RE
 
 
 def load_lookup(path):

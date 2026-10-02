@@ -46,6 +46,7 @@ from pathlib import Path
 
 import pandas as pd
 
+from pangenome_pipeline.common.io import load_extra_genes
 from pangenome_pipeline.step02_te_annotation_clean_up.te_gene_overlap import (
     GENE_FTYPE_TO_BIOTYPE,
     parse_attributes,
@@ -63,19 +64,6 @@ GENE_FTYPES = set(GENE_FTYPE_TO_BIOTYPE)
 NEW_TYPE = "mobile_genetic_element"
 FEATURE_TYPES_WITH_PARENT_GENE = {"mRNA", "tRNA", "rRNA"}
 FEATURE_TYPES_WITH_PARENT_RNA = {"exon", "CDS"}
-
-
-def load_extra_genes(path) -> set:
-    """2-column TSV (no header): genome_label<TAB>gene_id."""
-    pairs = set()
-    with Path(path).open() as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            genome_label, gene_id = line.split("\t")
-            pairs.add((genome_label, gene_id))
-    return pairs
 
 
 def build_mobile_element_line(

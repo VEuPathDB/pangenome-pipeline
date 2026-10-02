@@ -46,11 +46,9 @@ import re
 import sys
 from collections import defaultdict
 
-from pangenome_pipeline.common.gff import biotype_category, find_gff
+from pangenome_pipeline.common.gff import ID_RE, PARENT_RE, biotype_category, find_gff
 from pangenome_pipeline.common.io import read_id_list
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
 BIOTYPE_RES = [
     re.compile(r"(?:^|;)gene_biotype=([^;]+)"),
     re.compile(r"(?:^|;)biotype=([^;]+)"),
