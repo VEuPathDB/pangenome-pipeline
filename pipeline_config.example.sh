@@ -55,11 +55,14 @@ ENV_BIOINFO="${ENV_BIOINFO:-bioinfo}"                 # samtools, seqkit, AGAT
 ENV_REPEATMASKER="${ENV_REPEATMASKER:-repeatmasker4.2}"
 ENV_TE_ANNOT="${ENV_TE_ANNOT:-te_annot}"
 ENV_MCHELPER="${ENV_MCHELPER:-mchelper}"
+ENV_TE_FILTER="${ENV_TE_FILTER:-te_filter}"           # only used as a container; otherwise the TE library loads modules
+ENV_GET_PANGENES="${ENV_GET_PANGENES:-get_pangenes}"  # used when GET_PANGENES_ENV below is empty
 
 # ── step 02: TE annotation ──────────────────────────────────────────────────────────────────
-# e.g. "$HOME/hc-storage/bin/TE-Aid/TE-Aid"
+# e.g. "$HOME/hc-storage/bin/TE-Aid/TE-Aid" - leave empty to use TE-Aid from $CONTAINER_DIR/te_annot.sif
 TE_AID="${TE_AID:-}"
-# e.g. "$HOME/hc-storage/bin/MCHelper/MCHelper.py"
+# e.g. "$HOME/hc-storage/bin/MCHelper/MCHelper.py" - leave empty to use $CONTAINER_DIR/mchelper.sif
+# (containers/mchelper.def)
 MCHELPER_PY="${MCHELPER_PY:-}"
 # e.g. "$HOME/hc-storage/db_TEs/RepBase31.06.fasta/RepBase31.06.fasta"
 REPBASE_NT_FASTA="${REPBASE_NT_FASTA:-}"
@@ -74,7 +77,8 @@ BUSCO_LINEAGE="${BUSCO_LINEAGE:-}"
 FUNANNOTATE_SHARED="${FUNANNOTATE_SHARED:-}"
 
 # ── step 06: get_pangenes ───────────────────────────────────────────────────────────────────
-# bin/ of the get_pangenes micromamba environment, e.g. "$HOME/hc-storage/micromamba/envs/get_pangenes/bin"
+# bin/ of the get_pangenes micromamba environment, e.g. "$HOME/hc-storage/micromamba/envs/get_pangenes/bin".
+# Leave empty to use activate_env "$ENV_GET_PANGENES" instead (e.g. $CONTAINER_DIR/get_pangenes.sif).
 GET_PANGENES_ENV="${GET_PANGENES_ENV:-}"
 
 # ── step 08: plots ──────────────────────────────────────────────────────────────────────────

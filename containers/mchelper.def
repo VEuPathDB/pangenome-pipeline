@@ -28,9 +28,14 @@ From: dfam/tetools:1.94
     apt-get update
     apt-get install -y --no-install-recommends \
         git unzip wget ca-certificates python3-pip \
-        python3-pandas python3-opencv python3-psutil python3-sklearn r-base hmmer emboss poppler-utils
-    pip install --break-system-packages --no-cache-dir pdf2image biopython cialign
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+        python3-pandas python3-opencv python3-psutil python3-sklearn python3-matplotlib python3-scipy \
+        r-base hmmer emboss poppler-utils
+    # Keep Debian's numpy: cialign would otherwise pull numpy 2, which breaks Debian's pandas/sklearn.
+    # pip's temporary files go inside the image being built, not the host's (often small) /tmp.
+    export TMPDIR=/var/tmp/pip && mkdir -p "$TMPDIR"
+    python3 -c 'import numpy; print("numpy==" + numpy.__version__)' > "$TMPDIR/constraints.txt"
+    pip install --break-system-packages --no-cache-dir -c "$TMPDIR/constraints.txt" pdf2image biopython cialign
+    apt-get clean && rm -rf /var/lib/apt/lists/* "$TMPDIR"
 
     git clone https://github.com/GonzalezLab/MCHelper /opt/mchelper
     cd /opt/mchelper

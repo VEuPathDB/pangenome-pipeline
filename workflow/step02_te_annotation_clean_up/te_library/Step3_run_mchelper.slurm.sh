@@ -45,12 +45,22 @@ if [[ ! -e "${BUSCO_LINEAGE}" ]]; then
     exit 1
 fi
 
-if [[ ! -s "${MCHELPER_PY}" ]]; then
-    echo "ERROR: MCHelper.py not found: ${MCHELPER_PY}" >&2
+load_mchelper_environment
+
+# MCHelper itself: MCHELPER_PY (a checkout, run with the environment's python3) if set, otherwise
+# the `mchelper` command of the container built from containers/mchelper.def.
+if [[ -n "${MCHELPER_PY}" ]]; then
+    if [[ ! -s "${MCHELPER_PY}" ]]; then
+        echo "ERROR: MCHelper.py not found: ${MCHELPER_PY}" >&2
+        exit 1
+    fi
+    MCHELPER_CMD=(python3 "${MCHELPER_PY}")
+elif command -v mchelper >/dev/null 2>&1; then
+    MCHELPER_CMD=(mchelper)
+else
+    echo "ERROR: set MCHELPER_PY in pipeline_config.sh, or build \$CONTAINER_DIR/${ENV_MCHELPER}.sif from containers/mchelper.def" >&2
     exit 1
 fi
-
-load_mchelper_environment
 
 status_file="${MCHELPER_OUTDIR}/mchelper_step3_status.tsv"
 printf "genome_id\tstatus\toutput\n" > "${status_file}"
@@ -91,7 +101,7 @@ while IFS=$'\t' read -r genome_id input_fa genome_fa; do
     echo "MCHelper -e: ${MCHELPER_EXTENSION}"
     echo "Threads: ${MCHELPER_THREADS}"
 
-    python3 "${MCHELPER_PY}" \
+    "${MCHELPER_CMD[@]}" \
         -r A \
         -l "${input_fa}" \
         --te_aid N \

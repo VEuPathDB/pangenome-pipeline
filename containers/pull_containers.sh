@@ -30,7 +30,9 @@ IMAGES=(
     "$ENV_BIOINFO/samtools.sif" "$BIOCONTAINERS/samtools:1.24--h9dcdb79_1"
     "$ENV_BIOINFO/seqkit.sif" "$BIOCONTAINERS/seqkit:2.14.0--hb192632_0"
 
-    "$ENV_REPEATMASKER.sif" "$BIOCONTAINERS/repeatmasker:4.2.4--pl5321hdfd78af_0"
+    # Dfam's TE Tools image: RepeatMasker 4.2.4 with the Dfam 4.0 database (bioconda's RepeatMasker
+    # has no Dfam/FamDB data and stops before masking, even with -lib).
+    "$ENV_REPEATMASKER.sif" "docker://dfam/tetools:2.00"
     "$ENV_TE_ANNOT.sif" "$BIOCONTAINERS/te-aid:1.0.0--hdfd78af_0"
     "$ENV_GET_PANGENES.sif" "$BIOCONTAINERS/get_pangenes:20250904--hdfd78af_0"
 
@@ -46,6 +48,12 @@ if [[ -z "${CONTAINER_CMD:-}" ]]; then
     else _pipeline_die "neither apptainer nor singularity found (try: module load apptainer)"
     fi
 fi
+
+# Unpacking needs a few GB of temporary space; /tmp is often small (tmpfs or a quota).
+mkdir -p "$CONTAINER_DIR"
+export APPTAINER_TMPDIR="${APPTAINER_TMPDIR:-$(mktemp -d "$CONTAINER_DIR/.pull_tmp.XXXXXX")}"
+export SINGULARITY_TMPDIR="$APPTAINER_TMPDIR"
+trap 'rm -rf "$CONTAINER_DIR"/.pull_tmp.*' EXIT
 
 failed=0
 for ((i = 0; i < ${#IMAGES[@]}; i += 2)); do

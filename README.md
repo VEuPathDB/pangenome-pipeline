@@ -178,6 +178,28 @@ top of the script (input folders, thresholds, and species-specific values such a
 3. **conda** - `conda` is on `PATH`.
 4. **path** - whatever is already on `PATH` (e.g. `module load` in your `~/.bashrc`).
 
+To run everything from containers, fetch the images once (pinned versions, ~4 GB in all) and build
+MCHelper's, which has no published image:
+
+```bash
+bash $PIPELINE_DIR/containers/pull_containers.sh /path/to/containers   # then CONTAINER_DIR=/path/to/containers in pipeline_config.sh
+APPTAINER_TMPDIR=/a/big/disk apptainer build --fakeroot /path/to/containers/mchelper.sif $PIPELINE_DIR/containers/mchelper.def
+```
+
+| Environment | Image(s) |
+|---|---|
+| `synteny/` | biocontainers minimap2, skani, samtools, blast |
+| `bioinfo/` | biocontainers agat, samtools, seqkit |
+| `repeatmasker4.2.sif` | `dfam/tetools:2.00` (RepeatMasker 4.2.4 + Dfam 4.0) |
+| `te_annot.sif` | biocontainers te-aid (with R and BLAST+) |
+| `get_pangenes.sif` | biocontainers get_pangenes (used when `GET_PANGENES_ENV` is empty) |
+| `te_filter/` | biocontainers blast, cd-hit, seqkit (TE library Steps 2/4; replaces their `module load`s) |
+| `mchelper.sif` | built from [`containers/mchelper.def`](containers/mchelper.def) (used when `MCHELPER_PY` is empty) |
+
+Images are only used for the environments they exist for, so they can be added one at a time;
+the rest keep using micromamba or modules. Step 03 (funannotate), InterProScan and BUSCO still use
+the cluster's shared containers/modules.
+
 The pipeline's own Python code (pandas, matplotlib, numpy, scipy, seaborn) runs from a virtual
 environment pinned to [`uv.lock`](uv.lock), so every cluster gets the same package versions. Make
 it once in the checkout ([uv](https://docs.astral.sh/uv/) is a single binary, no conda needed):
