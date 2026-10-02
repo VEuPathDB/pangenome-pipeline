@@ -220,8 +220,8 @@ def test_activate_env_container(project, tmp_path, fake_apptainer):
     """A folder of images per environment: each image's tools get a wrapper, the first image wins."""
     images = tmp_path / "containers" / "synteny"
     images.mkdir(parents=True)
-    (images / "a_minimap2.sif").write_text("minimap2\nsamtools\n")
-    (images / "b_skani.sif").write_text("skani\nsamtools\nbad name\n")
+    (images / "a_minimap2.sif").write_text("minimap2\nsamtools\nbash\n")
+    (images / "b_skani.sif").write_text("skani /opt/skani/skani\nsamtools\nbad|name\n")
     env = _no_envs(tmp_path)
     env.update(
         CONTAINER_DIR=str(tmp_path / "containers"),
@@ -233,9 +233,13 @@ def test_activate_env_container(project, tmp_path, fake_apptainer):
     result = _bash(script, project, **env)
     assert result.returncode == 0, result.stderr
     assert "activate_env synteny: container" in result.stderr
+    shims = Path(
+        _bash(f"source {COMMON}; activate_env synteny; dirname $(command -v minimap2)", project, **env).stdout.strip()
+    )
+    assert not (shims / "bash").exists(), "the host's own programs are not wrapped"
     binds = f"{project},{REPO_ROOT},{project}/output,/data"
     assert result.stdout.splitlines() == [
         f"bind={binds} img=a_minimap2.sif minimap2 -x asm10",
         f"bind={binds} img=a_minimap2.sif samtools faidx",
-        f"bind={binds} img=b_skani.sif skani dist",
+        f"bind={binds} img=b_skani.sif /opt/skani/skani dist",  # called at its real path
     ]

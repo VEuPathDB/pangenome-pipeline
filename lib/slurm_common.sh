@@ -48,6 +48,8 @@ fi
 : "${ENV_REPEATMASKER:=repeatmasker4.2}"    # RepeatMasker
 : "${ENV_TE_ANNOT:=te_annot}"               # TE-Aid's dependencies (R, BLAST)
 : "${ENV_MCHELPER:=mchelper}"               # MCHelper
+: "${ENV_TE_FILTER:=te_filter}"             # BLAST+, cd-hit, seqkit (TE library Step 2/4; only as a container)
+: "${ENV_GET_PANGENES:=get_pangenes}"       # get_pangenes.pl (unless GET_PANGENES_ENV is set)
 
 # How activate_env provides them (see activate_env below) and the venv for the pipeline's own Python.
 : "${ENV_BACKEND:=auto}"
@@ -96,8 +98,8 @@ find_script() {
 # how; the default, auto, decides per environment:
 #
 #   container   $CONTAINER_DIR/NAME.sif, or a folder $CONTAINER_DIR/NAME/ of .sif images (e.g. one
-#               biocontainers image per tool). Each program in the images' /usr/local/bin and
-#               /opt/conda/bin gets a small wrapper on PATH that runs it with apptainer/singularity.
+#               biocontainers image per tool). Each program on the images' own PATH (system folders
+#               such as /usr/bin excepted) gets a small wrapper that runs it with apptainer/singularity.
 #   micromamba  MAMBA_EXE + MAMBA_ROOT_PREFIX are set.
 #   conda       conda is on PATH (or CONDA_EXE is set).
 #   path        none of the above: use whatever is already on PATH (module load, ~/.bashrc, ...).
@@ -157,8 +159,21 @@ _container_images() {
     fi
 }
 
+# Run inside an image: "name path" for each executable on its own PATH, minus the system folders.
+# path is the real file when name is a symlink to a file of the same name (bioconda's TE-Aid finds
+# its R scripts next to $0, so it must be called at its real location), else just name.
+_CONTAINER_LIST_TOOLS='IFS=:; for d in $PATH; do
+    case "$d" in /bin|/sbin|/usr/bin|/usr/sbin|/usr/local/sbin|"") continue ;; esac
+    for f in "$d"/*; do
+        [ -f "$f" ] && [ -x "$f" ] || continue
+        n="${f##*/}"; r="$(readlink -f "$f")"
+        if [ -L "$f" ] && [ "${r##*/}" = "$n" ]; then echo "$n $r"; else echo "$n $n"; fi
+    done
+done'
+
 # A folder of wrapper scripts, one per program in NAME's images, put first on PATH. The first image
-# (alphabetically) providing a program wins. The project, the pipeline, the output folder and
+# (alphabetically) providing a program wins; programs the host system has in /usr/bin or /bin (awk,
+# gzip, perl, python3, ...) are left to the host. The project, the pipeline, the output folder and
 # CONTAINER_BINDS (comma-separated) are bound into the container.
 _activate_container() {
     local name="$1" img tool shim_dir binds="" dir
@@ -182,13 +197,13 @@ _activate_container() {
 
     shim_dir="$(mktemp -d "${TMPDIR:-/tmp}/pipeline_env_${name}.XXXXXX")"
     for img in "${images[@]}"; do
-        while read -r tool; do
+        while read -r tool target; do
             [[ "$tool" =~ ^[A-Za-z0-9._+-]+$ && ! -e "$shim_dir/$tool" ]] || continue
+            [[ -e "/usr/bin/$tool" || -e "/bin/$tool" ]] && continue   # the host's own awk, perl, python3, ...
             printf '#!/bin/bash\nexec %q --silent exec --bind %q %q %q "$@"\n' \
-                "$CONTAINER_CMD" "$binds" "$img" "$tool" >"$shim_dir/$tool"
+                "$CONTAINER_CMD" "$binds" "$img" "${target:-$tool}" >"$shim_dir/$tool"
             chmod +x "$shim_dir/$tool"
-        done < <("$CONTAINER_CMD" exec "$img" sh -c \
-            'for d in /usr/local/bin /opt/conda/bin; do [ -d "$d" ] && ls "$d"; done' 2>/dev/null)
+        done < <("$CONTAINER_CMD" exec "$img" sh -c "$_CONTAINER_LIST_TOOLS" 2>/dev/null)
     done
     export PATH="$shim_dir:$PATH"
 }
