@@ -76,8 +76,11 @@ on, so its step folders sit directly under it, alongside your own `genomes/`,
 `gff_originals/`, and `genome_order.txt`:
 
 ```bash
-git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
+git clone git@github.com:adriludwig/pangenome-pipeline.git <project>/   # SSH key on your GitHub account
 ```
+
+(GitHub doesn't accept account passwords over HTTPS: use the SSH address above, or the
+`https://github.com/...` one with a personal access token as the password.)
 
 ```
 <project>/
@@ -184,12 +187,41 @@ cat test_python_env_*.out test_python_env_*.err   # ends with "ALL OK"
 Each job's log says which one it used (`activate_env synteny: container`). Set `ENV_BACKEND=container`
 to make a missing image an error instead of a fall-back.
 
-To run everything from containers, fetch the images once (pinned versions, ~4 GB in all) and build
-MCHelper's, which has no published image:
+**Getting the containers.** The images are Apptainer `.sif` files. All but one are downloaded
+from public registries (quay.io/biocontainers and Docker Hub) at the versions pinned in
+[`containers/pull_containers.sh`](containers/pull_containers.sh); MCHelper has no published image,
+so it is built from [`containers/mchelper.def`](containers/mchelper.def). One copy can serve the
+whole group - put it on storage the compute nodes can see (e.g. under hc-storage, not `/tmp`):
 
 ```bash
-bash containers/pull_containers.sh /path/to/containers   # then CONTAINER_DIR=/path/to/containers in pipeline_config.sh
-APPTAINER_TMPDIR=/a/big/disk apptainer build --fakeroot /path/to/containers/mchelper.sif containers/mchelper.def
+module load apptainer                                   # if apptainer/singularity isn't already on PATH
+bash containers/pull_containers.sh /path/to/containers  # ~4 GB; skips images already there, so safe to re-run
+APPTAINER_TMPDIR=/a/big/disk apptainer build --fakeroot /path/to/containers/mchelper.sif containers/mchelper.def   # ~1.7 GB, 30+ min
+```
+
+This needs internet access, so run it on a login node or any Linux machine with apptainer and
+copy the folder over with its sub-folders as they are (`rsync -av containers_dir/ cluster:/path/to/containers/`).
+Building `mchelper.sif` needs `--fakeroot` (or root); if the cluster allows neither, build it
+elsewhere and copy it. Then point the pipeline at the folder in `pipeline_config.sh`:
+
+```bash
+CONTAINER_DIR=/path/to/containers
+CONTAINER_BINDS=/mnt/hc-storage      # folders outside the project the tools read: databases, genome symlink targets, ...
+```
+
+and leave `GET_PANGENES_ENV`, `TE_AID` and `MCHELPER_PY` empty, or those jobs keep using the old
+installs. The folder must look like this (`activate_env NAME` looks for `NAME.sif` or `NAME/*.sif`
+directly under `CONTAINER_DIR`, no deeper):
+
+```
+/path/to/containers/
+├── synteny/     minimap2.sif skani.sif samtools.sif blast.sif
+├── bioinfo/     agat.sif samtools.sif seqkit.sif
+├── te_filter/   blast.sif cd-hit.sif seqkit.sif
+├── repeatmasker4.2.sif
+├── te_annot.sif
+├── get_pangenes.sif
+└── mchelper.sif
 ```
 
 | Environment | Image(s) |
