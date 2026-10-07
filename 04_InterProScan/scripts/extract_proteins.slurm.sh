@@ -37,7 +37,7 @@ mkdir -p "$OUTDIR"
 
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put AGAT (agat_sp_extract_sequences.pl) on the PATH:
-activate_env "$ENV_BIOINFO"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v agat_sp_extract_sequences.pl >/dev/null \

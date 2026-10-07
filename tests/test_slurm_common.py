@@ -2,6 +2,7 @@
 
 import os
 import subprocess
+from pathlib import Path
 
 import pytest
 from conftest import REPO_ROOT
@@ -93,9 +94,84 @@ def test_activate_env_keeps_nounset_setting(project, fake_micromamba, tmp_path, 
 
 
 def test_activate_env_errors(project, fake_micromamba, tmp_path):
-    no_config = _bash(f"source {COMMON}; activate_env x", project, MAMBA_EXE="", MAMBA_ROOT_PREFIX="")
+    micromamba = {"ENV_BACKEND": "micromamba", "PIPELINE_VENV": "/nonexistent"}
+    no_config = _bash(f"source {COMMON}; activate_env x", project, MAMBA_EXE="", MAMBA_ROOT_PREFIX="", **micromamba)
     assert no_config.returncode == 1 and "MAMBA_EXE MAMBA_ROOT_PREFIX not set" in no_config.stderr
 
-    env = {"MAMBA_EXE": str(fake_micromamba), "MAMBA_ROOT_PREFIX": str(tmp_path)}
+    env = {"MAMBA_EXE": str(fake_micromamba), "MAMBA_ROOT_PREFIX": str(tmp_path), **micromamba}
     missing = _bash(f"source {COMMON}; activate_env missing", project, **env)
     assert missing.returncode == 1 and "could not activate micromamba environment 'missing'" in missing.stderr
+
+    bad = _bash(f"source {COMMON}; activate_env x", project, ENV_BACKEND="docker")
+    assert bad.returncode == 1 and "ENV_BACKEND must be" in bad.stderr
+
+    no_image = _bash(f"source {COMMON}; activate_env x", project, ENV_BACKEND="container", CONTAINER_DIR=str(tmp_path))
+    assert no_image.returncode == 1 and "no container for 'x'" in no_image.stderr
+
+
+def _no_envs(tmp_path):
+    """Settings with no micromamba, conda or containers configured."""
+    path = ":".join(d for d in os.environ["PATH"].split(":") if not (Path(d) / "conda").exists())
+    return {"MAMBA_EXE": "", "CONDA_EXE": "", "CONTAINER_DIR": "", "PIPELINE_VENV": "/nonexistent", "PATH": path}
+
+
+def test_activate_env_falls_back_to_path(project, tmp_path):
+    """Nothing configured: the job uses what's already on PATH (modules etc.) and says so."""
+    result = _bash(f"set -u; source {COMMON}; activate_env synteny", project, **_no_envs(tmp_path))
+    assert result.returncode == 0, result.stderr
+    assert "activate_env synteny: path" in result.stderr
+
+
+def test_activate_env_puts_venv_python_on_path(project, tmp_path):
+    venv = tmp_path / "venv"
+    (venv / "bin").mkdir(parents=True)
+    (venv / "bin" / "python3").write_text("#!/bin/bash\necho venv-python\n")
+    (venv / "bin" / "python3").chmod(0o755)
+    env = {**_no_envs(tmp_path), "PIPELINE_VENV": str(venv)}
+    result = _bash(f"source {COMMON}; activate_env synteny; python3", project, **env)
+    assert result.stdout.strip() == "venv-python", result.stderr
+
+
+@pytest.fixture
+def fake_apptainer(tmp_path):
+    """A stand-in for apptainer: `exec IMG sh -c ...` lists the image's tools (the image file's lines);
+    `exec --bind B IMG TOOL ARGS` prints what would run."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    exe = bindir / "apptainer"
+    exe.write_text(
+        "#!/bin/bash\n"
+        '[[ "$1" == --silent ]] && shift; shift\n'
+        'if [[ "$1" == --bind ]]; then echo "bind=$2 img=$(basename "$3") ${*:4}"; else cat "$1"; fi\n'
+    )
+    exe.chmod(0o755)
+    return bindir
+
+
+def test_activate_env_container(project, tmp_path, fake_apptainer):
+    """A folder of images per environment: each image's tools get a wrapper, the first image wins."""
+    images = tmp_path / "containers" / "synteny"
+    images.mkdir(parents=True)
+    (images / "a_minimap2.sif").write_text("minimap2\nsamtools\nbash\n")
+    (images / "b_skani.sif").write_text("skani /opt/skani/skani\nsamtools\nbad|name\n")
+    env = _no_envs(tmp_path)
+    env.update(
+        CONTAINER_DIR=str(tmp_path / "containers"),
+        PATH=f"{fake_apptainer}:{env['PATH']}",
+        TMPDIR=str(tmp_path),
+        CONTAINER_BINDS="/data",
+    )
+    script = f"source {COMMON}; activate_env synteny; minimap2 -x asm10; samtools faidx; skani dist"
+    result = _bash(script, project, **env)
+    assert result.returncode == 0, result.stderr
+    assert "activate_env synteny: container" in result.stderr
+    shims = Path(
+        _bash(f"source {COMMON}; activate_env synteny; dirname $(command -v minimap2)", project, **env).stdout.strip()
+    )
+    assert not (shims / "bash").exists(), "the host's own programs are not wrapped"
+    binds = f"{project},{REPO_ROOT},/data"
+    assert result.stdout.splitlines() == [
+        f"bind={binds} img=a_minimap2.sif minimap2 -x asm10",
+        f"bind={binds} img=a_minimap2.sif samtools faidx",
+        f"bind={binds} img=b_skani.sif /opt/skani/skani dist",  # called at its real path
+    ]

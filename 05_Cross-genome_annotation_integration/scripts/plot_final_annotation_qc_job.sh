@@ -25,7 +25,7 @@ set +u
 module purge
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + matplotlib):
-activate_env "$ENV_SYNTENY"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 

@@ -13,9 +13,32 @@
 #
 # Only the settings a job actually uses need to be filled in; a job stops with a message
 # naming any setting it needs that is still empty.
+#
+# SLURM partition/account: the #SBATCH lines are read before this file, so they can't come from
+# here. Set them for every job in your shell instead (they override the #SBATCH lines):
+#     export SBATCH_PARTITION=<partition>  SBATCH_ACCOUNT=<account>
 
-# ── micromamba ──────────────────────────────────────────────────────────────────────────────
-# e.g. on our cluster: "$HOME/hc-storage/micromamba" and "$HOME/hc-storage/bin/micromamba/micromamba"
+# ── tool environments ───────────────────────────────────────────────────────────────────
+# Jobs call `activate_env <name>` (names below). ENV_BACKEND=auto picks, per environment, the first
+# of these that is set up - so micromamba is optional:
+#   1. container   $CONTAINER_DIR/<name>.sif, or $CONTAINER_DIR/<name>/*.sif (one image per tool is
+#                  fine, e.g. biocontainers minimap2 + skani for "synteny"); run with apptainer/singularity
+#   2. micromamba  MAMBA_EXE and MAMBA_ROOT_PREFIX below
+#   3. conda       conda on PATH
+#   4. path        whatever is already on PATH (module load in ~/.bashrc, ...)
+# Force one with ENV_BACKEND=container|micromamba|conda|path.
+ENV_BACKEND="${ENV_BACKEND:-auto}"
+CONTAINER_DIR="${CONTAINER_DIR:-}"
+# Extra folders the containers need to see (comma-separated), e.g. where genome symlinks point.
+# The submit folder (the project) and the pipeline are always bound.
+CONTAINER_BINDS="${CONTAINER_BINDS:-}"
+
+# The pipeline's own Python code (pandas, matplotlib, ...) runs from this venv when the environment
+# doesn't bring a python3. Make it once, pinned to uv.lock, from the pipeline checkout:
+#     uv sync --frozen --no-dev
+PIPELINE_VENV="${PIPELINE_VENV:-}"   # empty = .venv in the pipeline checkout
+
+# micromamba (optional), e.g. on our cluster: "$HOME/hc-storage/micromamba" and "$HOME/hc-storage/bin/micromamba/micromamba"
 MAMBA_ROOT_PREFIX="${MAMBA_ROOT_PREFIX:-}"
 MAMBA_EXE="${MAMBA_EXE:-}"
 
@@ -25,11 +48,14 @@ ENV_BIOINFO="${ENV_BIOINFO:-bioinfo}"                 # samtools, seqkit, AGAT
 ENV_REPEATMASKER="${ENV_REPEATMASKER:-repeatmasker4.2}"
 ENV_TE_ANNOT="${ENV_TE_ANNOT:-te_annot}"
 ENV_MCHELPER="${ENV_MCHELPER:-mchelper}"
+ENV_TE_FILTER="${ENV_TE_FILTER:-te_filter}"           # only used as a container; otherwise the TE library loads modules
+ENV_GET_PANGENES="${ENV_GET_PANGENES:-get_pangenes}"  # used when GET_PANGENES_ENV below is empty
 
 # ── step 02: TE annotation ──────────────────────────────────────────────────────────────────
-# e.g. "$HOME/hc-storage/bin/TE-Aid/TE-Aid"
+# e.g. "$HOME/hc-storage/bin/TE-Aid/TE-Aid" - leave empty to use TE-Aid from $CONTAINER_DIR/te_annot.sif
 TE_AID="${TE_AID:-}"
-# e.g. "$HOME/hc-storage/bin/MCHelper/MCHelper.py"
+# e.g. "$HOME/hc-storage/bin/MCHelper/MCHelper.py" - leave empty to use $CONTAINER_DIR/mchelper.sif
+# (containers/mchelper.def)
 MCHELPER_PY="${MCHELPER_PY:-}"
 # e.g. "$HOME/hc-storage/db_TEs/RepBase31.06.fasta/RepBase31.06.fasta"
 REPBASE_NT_FASTA="${REPBASE_NT_FASTA:-}"
@@ -44,7 +70,8 @@ BUSCO_LINEAGE="${BUSCO_LINEAGE:-}"
 FUNANNOTATE_SHARED="${FUNANNOTATE_SHARED:-}"
 
 # ── step 06: get_pangenes ───────────────────────────────────────────────────────────────────
-# bin/ of the get_pangenes micromamba environment, e.g. "$HOME/hc-storage/micromamba/envs/get_pangenes/bin"
+# bin/ of the get_pangenes micromamba environment, e.g. "$HOME/hc-storage/micromamba/envs/get_pangenes/bin".
+# Leave empty to use activate_env "$ENV_GET_PANGENES" instead (e.g. $CONTAINER_DIR/get_pangenes.sif).
 GET_PANGENES_ENV="${GET_PANGENES_ENV:-}"
 
 # ── step 08: plots ──────────────────────────────────────────────────────────────────────────

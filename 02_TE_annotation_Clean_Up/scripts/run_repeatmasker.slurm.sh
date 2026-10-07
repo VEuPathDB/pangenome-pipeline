@@ -25,7 +25,7 @@ set -euo pipefail
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put RepeatMasker on the PATH (must be configured with a Dfam
 #              library; see the README if `famdb.py … FamDB data directory not found`):
-activate_env "$ENV_REPEATMASKER"  # env names / micromamba: pipeline_config.sh
+activate_env "$ENV_REPEATMASKER"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v RepeatMasker >/dev/null || { echo "ERROR: RepeatMasker not on PATH" >&2; exit 1; }
