@@ -112,16 +112,22 @@ everything they write goes under its `output/`:
     └── step08_pangenome_visualisation/
 ```
 
-`genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01. Then, e.g.:
+Create the project's folders once (safe to re-run, nothing existing is touched):
+
+```bash
+bash $PIPELINE_DIR/setup_project.sh <project>     # makes genomes/ gff_originals/ logs/ output/
+```
+
+Put the assemblies in `genomes/` and their GFFs in `gff_originals/` (`genome_order.txt` is made in
+step 01), then submit from inside the project:
 
 ```bash
 cd <project>
-mkdir -p logs
 sbatch $PIPELINE_DIR/workflow/step01_genome_selection_qc/check_species.slurm.sh
 ```
 
-`mkdir -p logs` matters: SLURM writes each job's log to `logs/<job name>_<job id>.out` and does not
-create the folder itself - without it a job runs but leaves no log.
+`logs/` matters: SLURM writes each job's log to `logs/<job name>_<job id>.out` and does not create
+the folder itself - without it a job runs but leaves no log.
 
 ### Outputs
 
