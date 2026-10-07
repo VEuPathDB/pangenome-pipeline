@@ -104,11 +104,22 @@ git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 └── gff_originals/              <basename>.gff3   – each genome's own annotation
 ```
 
-`genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01. 
+`genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01.
 
-**Cluster settings - once per project.** Where micromamba, the tool installs and the databases live
-on your cluster is set in one file, `pipeline_config.sh` at the project root. It is not part of the
-repository; start from the template:
+**Folders - once per project.** Some jobs write their SLURM logs into a sub-folder
+(`logs/slurm/`, `expanded_annotation/logs/`, `pangenome_plots/logs/`, ...). SLURM opens the log
+before the job starts and doesn't create the folder, so a job whose log folder is missing fails
+and leaves no log. One command makes them all, plus `genomes/` and `gff_originals/` (safe to
+re-run; nothing that exists is touched):
+
+```bash
+cd <project>
+bash setup_project.sh
+```
+
+**Cluster settings - once per project.** Where the tool environments, the tool installs and the
+databases live on your cluster is set in one file, `pipeline_config.sh` at the project root. It is
+not part of the repository; start from the template:
 
 ```bash
 cp pipeline_config.example.sh pipeline_config.sh   # then fill in the paths you need
@@ -119,9 +130,82 @@ the project folder. A job stops with a message naming any setting it needs that 
 Any setting can also be given for a single job, e.g. `sbatch --export=ALL,LABEL=Toxo7a ...`.
 
 What stays in each script: the `#SBATCH` lines, the `### ADAPT ###` block (cluster module names;
-the micromamba environment it activates is named in `pipeline_config.sh`), and the run's own
-settings at the top of the script (input folders, thresholds, and species-specific values such as
-`SPECIES`, `LABEL` or the organelle contigs, which have no default and must be set).
+the environment it activates is named in `pipeline_config.sh`), and the run's own settings at the
+top of the script (input folders, thresholds, and species-specific values such as `SPECIES`,
+`LABEL`, `ID_PREFIX` or the organelle contigs, which have no default and must be set). The
+`#SBATCH` partition/account can be overridden for every job without editing the scripts:
+`export SBATCH_PARTITION=<partition> SBATCH_ACCOUNT=<account>` before submitting.
+
+**Python - once per project.** The pipeline's own Python scripts (pandas, matplotlib, numpy,
+scipy, seaborn) run from a virtual environment pinned to [`uv.lock`](uv.lock), so every cluster
+gets the same package versions. [uv](https://docs.astral.sh/uv/) is a single program that needs
+no root and no conda:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # installs uv into ~/.local/bin
+source ~/.bashrc                                   # or open a new shell; check: uv --version
+
+cd <project>
+uv sync --frozen --no-dev                          # creates .venv/ from uv.lock (downloads Python 3.11 if needed)
+```
+
+uv keeps the Python it downloads under `~/.local/share/uv/`. If the compute nodes can't see your
+home folder, or it's small, put uv's files on shared storage before `uv sync` (and add these lines
+to your `~/.bashrc`):
+
+```bash
+export UV_PYTHON_INSTALL_DIR=$HOME/hc-storage/.uv_python
+export UV_CACHE_DIR=$HOME/hc-storage/.uv_cache
+```
+
+Jobs find `.venv/` themselves (`PIPELINE_VENV` in `pipeline_config.sh` points elsewhere). Its
+`python3` is used wherever the tool environment doesn't bring its own. To check it works on a
+compute node:
+
+```bash
+sbatch --export=ALL,ENV_BACKEND=path scripts/test_python_env.slurm.sh
+cat test_python_env_*.out test_python_env_*.err   # ends with "ALL OK"
+```
+
+(`ENV_BACKEND=path` tests just the Python; drop it to test the tool environments too.)
+
+**Tool environments - micromamba is optional.** Jobs call `activate_env <name>` (`synteny`,
+`bioinfo`, ...), which uses, per environment, the first of these that is set up
+(`ENV_BACKEND=auto`; see `pipeline_config.example.sh`):
+
+1. **container** - `$CONTAINER_DIR/<name>.sif`, or a folder `$CONTAINER_DIR/<name>/` of images (one
+   per tool is fine, e.g. biocontainers). Their programs are put on `PATH` as apptainer/singularity
+   wrappers, with the project folder and the pipeline bound in (add other folders the tools must
+   read, e.g. databases, to `CONTAINER_BINDS`).
+2. **micromamba** - `MAMBA_EXE` and `MAMBA_ROOT_PREFIX` are set.
+3. **conda** - `conda` is on `PATH`.
+4. **path** - whatever is already on `PATH` (e.g. `module load` in your `~/.bashrc`).
+
+Each job's log says which one it used (`activate_env synteny: container`). Set `ENV_BACKEND=container`
+to make a missing image an error instead of a fall-back.
+
+To run everything from containers, fetch the images once (pinned versions, ~4 GB in all) and build
+MCHelper's, which has no published image:
+
+```bash
+bash containers/pull_containers.sh /path/to/containers   # then CONTAINER_DIR=/path/to/containers in pipeline_config.sh
+APPTAINER_TMPDIR=/a/big/disk apptainer build --fakeroot /path/to/containers/mchelper.sif containers/mchelper.def
+```
+
+| Environment | Image(s) |
+|---|---|
+| `synteny/` | biocontainers minimap2, skani, samtools, blast |
+| `bioinfo/` | biocontainers agat, samtools, seqkit |
+| `repeatmasker4.2.sif` | `dfam/tetools:2.00` (RepeatMasker 4.2.4 + Dfam 4.0) |
+| `te_annot.sif` | biocontainers te-aid (with R and BLAST+) |
+| `get_pangenes.sif` | biocontainers get_pangenes (used when `GET_PANGENES_ENV` is empty) |
+| `te_filter/` | biocontainers blast, cd-hit, seqkit (TE library Steps 2/4; replaces their `module load`s) |
+| `mchelper.sif` | built from [`containers/mchelper.def`](containers/mchelper.def) (used when `MCHELPER_PY` is empty) |
+
+A folder (`synteny/`) holds one image per tool; all of them are used together for that
+environment. Images are only used for the environments they exist for, so they can be added one at
+a time; the rest keep using micromamba or modules. Step 03 (funannotate), InterProScan and BUSCO
+still use the cluster's shared containers/modules.
 
 If a script fails with `Permission denied`, restore the executable bit on all scripts:
 
