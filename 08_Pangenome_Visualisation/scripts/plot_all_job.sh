@@ -31,7 +31,7 @@
 #                        and --overlap yes for 7b, no for 7a
 #   --overlap yes|no     also plot the unsupported overlapping genes; needs the tagged 7b GFFs (intersect=)  (default no)
 #   --contig-sizes FILE  step-01 table with genome_label, contig, length   (default contig_size_profile/contig_sizes.tsv)
-#   --entry-list FILE    InterPro IPR id -> name, downloaded there if missing (default /home/aludwig/hc-storage/interpro_entry.list)
+#   --entry-list FILE    InterPro IPR id -> name, downloaded there if missing (default INTERPRO_ENTRY_LIST from pipeline_config.sh)
 #   --out-dir DIR        output folder                                     (default pangenome_plots)
 #   --core-missing A  --softcore-missing B  --cloud-max C   how the categories are cut, in numbers of genomes
 #                        (default 0 1 2: core = all genomes, soft-core = missing from at most 1 genome, cloud = in at
@@ -51,7 +51,7 @@ set -uo pipefail
 PANGENES_DIR=""; MATRIX_SUBDIR=""; GFF_DIR=""; GFF_SUFFIX="_for_get_pangenes.gff"; LABEL=""; SET=""
 OVERLAP="no"
 CONTIG_SIZES="contig_size_profile/contig_sizes.tsv"
-ENTRY_LIST="/home/aludwig/hc-storage/interpro_entry.list"
+ENTRY_LIST=""
 OUT_DIR="pangenome_plots"
 CATEGORIES="Core,Cloud"; ALPHA="0.05"; MIN_TOTAL="5"; MIN_COUNT="3"; TOP="15"
 CORE_MISSING="0"; SOFTCORE_MISSING="1"; CLOUD_MAX="2"
@@ -96,12 +96,10 @@ fi
 # SKIP_ENV=1 skips the micromamba block (already inside an environment, or running locally).
 set +u
 module purge 2>/dev/null || true
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib + pandas + seaborn):
 if [[ -z "${SKIP_ENV:-}" ]]; then
-    export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-    export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-    eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-    micromamba activate synteny
+    activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 fi
 ### END ADAPT ###
 set -u
@@ -111,18 +109,8 @@ for mod in numpy scipy matplotlib pandas seaborn; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy, matplotlib, pandas and seaborn)" >&2; exit 1; }
 done
 
-# Locate the scripts folder. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-SCRIPTS=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/08_Pangenome_Visualisation/scripts" \
-    "08_Pangenome_Visualisation/scripts"
-do
-    [[ -f "$cand/plot_all.sh" ]] && { SCRIPTS="$(cd "$cand" && pwd)"; break; }
-done
-[[ -n "$SCRIPTS" ]] || { echo "ERROR: cannot find the 08 scripts folder (run from the project folder)" >&2; exit 1; }
+find_script PLOT_ALL 08_Pangenome_Visualisation/scripts/plot_all.sh
+SCRIPTS="$(cd "$(dirname "$PLOT_ALL")" && pwd)"
 mkdir -p "$OUT_DIR"
 
 # ── find the matrices ──────────────────────────────────────────────────────────────────────────
@@ -159,12 +147,15 @@ step "pan/core, occupancy, singletons, POCS" bash "$SCRIPTS/plot_all.sh" -i "$MA
 
 # Compute nodes may not reach the internet: download the list once on the login node,
 # otherwise the plot falls back to IPR ids.
-if [[ ! -f "$ENTRY_LIST" ]]; then
+[[ -n "$ENTRY_LIST" ]] || ENTRY_LIST="${INTERPRO_ENTRY_LIST:-}"
+if [[ -z "$ENTRY_LIST" ]]; then
+    echo "WARNING: no InterPro entry list set (INTERPRO_ENTRY_LIST in pipeline_config.sh); terms will be labelled by IPR id" >&2
+elif [[ ! -f "$ENTRY_LIST" ]]; then
     curl -sfL -o "$ENTRY_LIST" "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list" \
         || { echo "WARNING: could not download the InterPro entry list; terms will be labelled by IPR id" >&2; rm -f "$ENTRY_LIST"; }
 fi
 ENTRY_ARGS=()
-[[ -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
+[[ -n "$ENTRY_LIST" && -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
 step "domain enrichment" python3 "$SCRIPTS/plot_domain_enrichment.py" "${GENE_ARGS[@]}" \
     -o "$OUT_DIR/${LABEL}_domain_enrichment" \
     --categories "$CATEGORIES" --alpha "$ALPHA" --min-total "$MIN_TOTAL" --min-count "$MIN_COUNT" --top "$TOP" \

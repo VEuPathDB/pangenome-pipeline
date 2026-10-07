@@ -24,28 +24,37 @@ Expects, per genome, a directory named RM_<genome_id>/ (or R_<genome_id>/) under
 containing exactly one RepeatMasker .out file and one .tbl file. Genome length is read from
 the .tbl file's "total length" line.
 """
+
 import argparse
 import re
 from collections import defaultdict
 from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 
 # Validated categorical palette (dataviz skill reference palette, light mode).
 # Fixed order - never re-cycled/re-sorted per chart.
-CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100",
-               "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
+CATEGORICAL = ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4", "#008300", "#4a3aa7", "#e34948"]
 # Extended palette for the family-composition plot, which can have more
 # individually-shown categories than the 8-hue base palette covers. The
 # first 8 entries are identical to CATEGORICAL (same hues, same order) so a
 # family that also happens to be a top superfamily still reads consistently;
 # the next 8 extend it so up to 16 families can get a distinct color before
 # folding into "Other".
-EXTENDED_CATEGORICAL = CATEGORICAL + ["#8ecae6", "#bc6c25", "#6a4c93", "#606c38",
-                                       "#ffb703", "#457b9d", "#d62828", "#a8dadc"]
+EXTENDED_CATEGORICAL = CATEGORICAL + [
+    "#8ecae6",
+    "#bc6c25",
+    "#6a4c93",
+    "#606c38",
+    "#ffb703",
+    "#457b9d",
+    "#d62828",
+    "#a8dadc",
+]
 OTHER_COLOR = "#c3c2b7"  # neutral, recessive - for the folded "Other" bucket
 
 SURFACE = "#fcfcfb"
@@ -67,9 +76,9 @@ def find_genome_dirs(indir: Path):
         if not d.is_dir():
             continue
         if d.name.startswith("RM_"):
-            genome_id = d.name[len("RM_"):]
+            genome_id = d.name[len("RM_") :]
         elif d.name.startswith("R_"):
-            genome_id = d.name[len("R_"):]
+            genome_id = d.name[len("R_") :]
         else:
             genome_id = d.name
         out_files = list(d.glob("*.out"))
@@ -128,7 +137,7 @@ def contig_lengths(hits) -> dict:
     on that contig (any hit gives the same answer; using them all is just
     robustness against a malformed line). Contigs with zero RepeatMasker
     hits at all are invisible to the .out file and cannot be recovered here."""
-    lengths = {}
+    lengths: dict[str, int] = {}
     for seq, start, end, name, cls, seq_left, pct_div, rm_id in hits:
         length = end + seq_left
         if length > lengths.get(seq, 0):
@@ -140,7 +149,7 @@ def merge_bp(intervals_by_seq):
     """intervals_by_seq: dict seq -> list of (start,end), 1-based inclusive.
     Returns total non-redundant bp across all sequences."""
     total = 0
-    for seq, intervals in intervals_by_seq.items():
+    for intervals in intervals_by_seq.values():
         if not intervals:
             continue
         intervals = sorted(intervals)
@@ -221,7 +230,7 @@ def plot_bar(values: pd.Series, title: str, xlabel: str, dest: Path, color=CATEG
     generous floor meant for small genome sets."""
     values = values.sort_values()
     fig, ax = plt.subplots(figsize=(7, 0.28 * len(values) + 1.2))
-    ax.barh(values.index, values.values, color=color, height=0.65, zorder=3)
+    ax.barh(values.index, values.to_numpy(), color=color, height=0.65, zorder=3)
     style_axes(ax, horizontal=True)
     ax.ticklabel_format(style="plain", axis="x")
     ax.xaxis.set_major_formatter(lambda x, pos: f"{x:,.0f}")
@@ -232,8 +241,9 @@ def plot_bar(values: pd.Series, title: str, xlabel: str, dest: Path, color=CATEG
     plt.close(fig)
 
 
-def plot_scatter(df: pd.DataFrame, xcol: str, ycol: str, title: str,
-                  xlabel: str, ylabel: str, dest: Path, color=CATEGORICAL[0]):
+def plot_scatter(
+    df: pd.DataFrame, xcol: str, ycol: str, title: str, xlabel: str, ylabel: str, dest: Path, color=CATEGORICAL[0]
+):
     """One point per genome, labeled - for spotting a relationship between
     two per-genome metrics (e.g. does more fragmentation/divergence line up
     with less total TE detected?)."""
@@ -242,14 +252,19 @@ def plot_scatter(df: pd.DataFrame, xcol: str, ycol: str, title: str,
         return
     dest.parent.mkdir(parents=True, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8, 6.5))
-    ax.scatter(df[xcol], df[ycol], color=color, s=50, zorder=3,
-               edgecolor=SURFACE, linewidth=0.8)
+    ax.scatter(df[xcol], df[ycol], color=color, s=50, zorder=3, edgecolor=SURFACE, linewidth=0.8)
     # stagger the label offsets a little so points in a tight cluster don't
     # write over each other
     for i, (genome_id, row) in enumerate(df.sort_values(xcol).iterrows()):
         dy = 6 if i % 2 == 0 else -10
-        ax.annotate(genome_id, (row[xcol], row[ycol]), fontsize=7,
-                    color=INK_SECONDARY, xytext=(5, dy), textcoords="offset points")
+        ax.annotate(
+            str(genome_id),
+            (row[xcol], row[ycol]),
+            fontsize=7,
+            color=INK_SECONDARY,
+            xytext=(5, dy),
+            textcoords="offset points",
+        )
     style_axes(ax, horizontal=True)
     ax.yaxis.grid(True, color=GRIDLINE, linewidth=0.8, zorder=0)
     # let matplotlib pick the tick labels: these axes are narrow-range decimals
@@ -279,40 +294,55 @@ def plot_stacked_pct(df: pd.DataFrame, title: str, dest: Path, palette=CATEGORIC
     fig, ax = plt.subplots(figsize=(8, max(4, 0.45 * len(df) + 1.5)))
     left = pd.Series([0.0] * len(df), index=df.index)
     for cat in categories:
-        ax.barh(df.index, df[cat], left=left, label=cat,
-                color=colors[cat], height=0.6, zorder=3,
-                edgecolor=SURFACE, linewidth=1)
+        ax.barh(
+            df.index,
+            df[cat],
+            left=left,
+            label=cat,
+            color=colors[cat],
+            height=0.6,
+            zorder=3,
+            edgecolor=SURFACE,
+            linewidth=1,
+        )
         left = left + df[cat]
     style_axes(ax, horizontal=True)
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
     ax.set_xlabel("% of genome")
-    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False,
-              fontsize=8, labelcolor=INK_SECONDARY)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False, fontsize=8, labelcolor=INK_SECONDARY)
     fig.tight_layout()
     fig.savefig(dest, dpi=150)
     plt.close(fig)
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--indir", required=True,
-                     help="Directory containing RM_<genome_id>/ or R_<genome_id>/ subdirectories "
-                          "(each with one .out and one .tbl file)")
-    ap.add_argument("--outdir", required=True,
-                     help="Directory to write filtered .out files, summary "
-                          "TSVs, and plots")
-    ap.add_argument("--top-superfamilies", type=int, default=8,
-                     help="Number of superfamilies to show individually in "
-                          "the composition plot before folding the rest into "
-                          "'Other' (default: 8)")
-    ap.add_argument("--top-families", type=int, default=15,
-                     help="Number of families to show individually in the "
-                          "family composition plot before folding the rest "
-                          "into 'Other' (default: 15, capped at the size of "
-                          "the extended color palette so hues never repeat - "
-                          "the full, unfolded per-family data is always in "
-                          "family_summary.tsv)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--indir",
+        required=True,
+        help="Directory containing RM_<genome_id>/ or R_<genome_id>/ subdirectories "
+        "(each with one .out and one .tbl file)",
+    )
+    ap.add_argument("--outdir", required=True, help="Directory to write filtered .out files, summary TSVs, and plots")
+    ap.add_argument(
+        "--top-superfamilies",
+        type=int,
+        default=8,
+        help="Number of superfamilies to show individually in "
+        "the composition plot before folding the rest into "
+        "'Other' (default: 8)",
+    )
+    ap.add_argument(
+        "--top-families",
+        type=int,
+        default=15,
+        help="Number of families to show individually in the "
+        "family composition plot before folding the rest "
+        "into 'Other' (default: 15, capped at the size of "
+        "the extended color palette so hues never repeat - "
+        "the full, unfolded per-family data is always in "
+        "family_summary.tsv)",
+    )
     args = ap.parse_args()
 
     indir = Path(args.indir)
@@ -377,13 +407,15 @@ def main():
         for seq, intervals in overall_intervals.items():
             contig_bp = merge_bp({seq: intervals})
             contig_len = contig_lens.get(seq)
-            contig_rows.append({
-                "genome_id": genome_id,
-                "contig": seq,
-                "contig_length_bp": contig_len,
-                "TE_bp": contig_bp,
-                "TE_pct": 100.0 * contig_bp / contig_len if contig_len else None,
-            })
+            contig_rows.append(
+                {
+                    "genome_id": genome_id,
+                    "contig": seq,
+                    "contig_length_bp": contig_len,
+                    "TE_bp": contig_bp,
+                    "TE_pct": 100.0 * contig_bp / contig_len if contig_len else None,
+                }
+            )
         contig_df = pd.DataFrame(contig_rows).sort_values("contig_length_bp", ascending=False)
         contig_dir = outdir / "per_contig"
         contig_dir.mkdir(parents=True, exist_ok=True)
@@ -391,35 +423,41 @@ def main():
 
         total_te_bp = merge_bp(overall_intervals)
         total_te_pct = 100.0 * total_te_bp / genome_len if genome_len else 0.0
-        genome_rows.append({
-            "genome_id": genome_id,
-            "genome_length_bp": genome_len,
-            "total_TE_bp": total_te_bp,
-            "total_TE_pct": total_te_pct,
-            "num_TE_fragments": num_fragments,
-            "avg_fragment_length_bp": total_te_bp / num_fragments if num_fragments else None,
-            "mean_pct_divergence": mean_pct_divergence,
-        })
+        genome_rows.append(
+            {
+                "genome_id": genome_id,
+                "genome_length_bp": genome_len,
+                "total_TE_bp": total_te_bp,
+                "total_TE_pct": total_te_pct,
+                "num_TE_fragments": num_fragments,
+                "avg_fragment_length_bp": total_te_bp / num_fragments if num_fragments else None,
+                "mean_pct_divergence": mean_pct_divergence,
+            }
+        )
 
         for cls, intervals_by_seq in by_class_intervals.items():
             bp = merge_bp(intervals_by_seq)
-            superfamily_rows.append({
-                "genome_id": genome_id,
-                "superfamily": cls,
-                "bp": bp,
-                "pct_of_genome": 100.0 * bp / genome_len if genome_len else 0.0,
-            })
+            superfamily_rows.append(
+                {
+                    "genome_id": genome_id,
+                    "superfamily": cls,
+                    "bp": bp,
+                    "pct_of_genome": 100.0 * bp / genome_len if genome_len else 0.0,
+                }
+            )
 
         for name, intervals_by_seq in by_family_intervals.items():
             bp = merge_bp(intervals_by_seq)
             weight = family_div_weight[name]
-            family_rows.append({
-                "genome_id": genome_id,
-                "family": name,
-                "bp": bp,
-                "pct_of_genome": 100.0 * bp / genome_len if genome_len else 0.0,
-                "mean_pct_divergence": family_div_weighted[name] / weight if weight else None,
-            })
+            family_rows.append(
+                {
+                    "genome_id": genome_id,
+                    "family": name,
+                    "bp": bp,
+                    "pct_of_genome": 100.0 * bp / genome_len if genome_len else 0.0,
+                    "mean_pct_divergence": family_div_weighted[name] / weight if weight else None,
+                }
+            )
 
     genome_df = pd.DataFrame(genome_rows).set_index("genome_id").sort_index()
     superfamily_df = pd.DataFrame(superfamily_rows)
@@ -435,20 +473,35 @@ def main():
     # --- Plots ---------------------------------------------------------
     # bp values are shown in kb on the plots (avoids scientific notation on
     # the axis for whole-genome sizes); the underlying TSVs stay in bp.
-    plot_bar(genome_df["genome_length_bp"] / 1000.0, "Genome size (kb)", "kb",
-              plots_dir / "genome_size_bp.png", color=CATEGORICAL[2])
-    plot_bar(genome_df["total_TE_bp"] / 1000.0, "Total TE content (kb)", "kb",
-              plots_dir / "total_te_bp.png")
-    plot_bar(genome_df["total_TE_pct"], "Total TE content (% of genome)", "%",
-              plots_dir / "total_te_pct.png", color=CATEGORICAL[1])
+    plot_bar(
+        genome_df["genome_length_bp"] / 1000.0,
+        "Genome size (kb)",
+        "kb",
+        plots_dir / "genome_size_bp.png",
+        color=CATEGORICAL[2],
+    )
+    plot_bar(genome_df["total_TE_bp"] / 1000.0, "Total TE content (kb)", "kb", plots_dir / "total_te_bp.png")
+    plot_bar(
+        genome_df["total_TE_pct"],
+        "Total TE content (% of genome)",
+        "%",
+        plots_dir / "total_te_pct.png",
+        color=CATEGORICAL[1],
+    )
 
     # Tests whether divergence from the (single-strain-based) curated
     # library is under-detecting TEs in more divergent genomes: higher mean
     # divergence lining up with less total TE content would support that.
-    plot_scatter(genome_df, "mean_pct_divergence", "total_TE_pct",
-                  "Mean divergence from consensus vs. total TE content",
-                  "Mean % divergence from consensus", "Total TE (% of genome)",
-                  plots_dir / "divergence_vs_total_te.png", color=CATEGORICAL[4])
+    plot_scatter(
+        genome_df,
+        "mean_pct_divergence",
+        "total_TE_pct",
+        "Mean divergence from consensus vs. total TE content",
+        "Mean % divergence from consensus",
+        "Total TE (% of genome)",
+        plots_dir / "divergence_vs_total_te.png",
+        color=CATEGORICAL[4],
+    )
 
     superfamily_pivot = superfamily_df.pivot_table(
         index="genome_id", columns="superfamily", values="pct_of_genome", fill_value=0.0
@@ -458,34 +511,38 @@ def main():
     plot_cols = [c for c in folded_categories if c != "Other"]
     superfamily_plot_df = pd.DataFrame(index=superfamily_pivot.index)
     for c in plot_cols:
-        superfamily_plot_df[c] = superfamily_pivot[c] if c in superfamily_pivot else 0.0
+        superfamily_plot_df[c] = superfamily_pivot.get(c, 0.0)
     other_cols = [c for c in superfamily_pivot.columns if c not in plot_cols]
     if other_cols:
         superfamily_plot_df["Other"] = superfamily_pivot[other_cols].sum(axis=1)
     superfamily_plot_df.to_csv(outdir / "superfamily_composition_table.tsv", sep="\t")
-    plot_stacked_pct(superfamily_plot_df, "TE superfamily composition (% of genome)",
-                      plots_dir / "superfamily_composition.png")
-
-    family_pivot = family_df.pivot_table(
-        index="genome_id", columns="family", values="pct_of_genome", fill_value=0.0
+    plot_stacked_pct(
+        superfamily_plot_df, "TE superfamily composition (% of genome)", plots_dir / "superfamily_composition.png"
     )
+
+    family_pivot = family_df.pivot_table(index="genome_id", columns="family", values="pct_of_genome", fill_value=0.0)
     family_totals = family_pivot.sum(axis=0)
-    folded_fam_categories = fold_other(family_totals, args.top_families,
-                                        palette=EXTENDED_CATEGORICAL).index.tolist()
+    folded_fam_categories = fold_other(family_totals, args.top_families, palette=EXTENDED_CATEGORICAL).index.tolist()
     fam_plot_cols = [c for c in folded_fam_categories if c != "Other"]
     family_plot_df = pd.DataFrame(index=family_pivot.index)
     for c in fam_plot_cols:
-        family_plot_df[c] = family_pivot[c] if c in family_pivot else 0.0
+        family_plot_df[c] = family_pivot.get(c, 0.0)
     other_fam_cols = [c for c in family_pivot.columns if c not in fam_plot_cols]
     if other_fam_cols:
         family_plot_df["Other"] = family_pivot[other_fam_cols].sum(axis=1)
     family_plot_df.to_csv(outdir / "family_composition_table.tsv", sep="\t")
-    plot_stacked_pct(family_plot_df, "TE family composition (% of genome, top families)",
-                      plots_dir / "family_composition.png", palette=EXTENDED_CATEGORICAL)
+    plot_stacked_pct(
+        family_plot_df,
+        "TE family composition (% of genome, top families)",
+        plots_dir / "family_composition.png",
+        palette=EXTENDED_CATEGORICAL,
+    )
 
     print(f"\nPlots written to {plots_dir}/")
-    print(f"Composition tables (matching the plots) written to {outdir}/"
-          "superfamily_composition_table.tsv and family_composition_table.tsv")
+    print(
+        f"Composition tables (matching the plots) written to {outdir}/"
+        "superfamily_composition_table.tsv and family_composition_table.tsv"
+    )
 
 
 if __name__ == "__main__":

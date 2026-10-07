@@ -35,28 +35,15 @@ MIN_LEN=10000                           # contigs shorter than this (bp) count a
 
 set -euo pipefail
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there — fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/contig_size_profile.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/01_Genome_Selection_QC/scripts/contig_size_profile.py" \
-    "01_Genome_Selection_QC/scripts/contig_size_profile.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find contig_size_profile.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 01_Genome_Selection_QC/scripts/contig_size_profile.py
 
 [[ -d "$GENOMES" ]] || { echo "ERROR: genomes folder not found: $GENOMES (run from the project folder)" >&2; exit 1; }
 
 ### ADAPT ### — put samtools on the PATH (env stacking with the python env
 #              below isn't reliable across micromamba versions, so .fai
 #              generation and the python step use separate activations):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v samtools >/dev/null || { echo "ERROR: samtools not on PATH" >&2; exit 1; }
@@ -78,10 +65,7 @@ echo "$n genome(s) indexed"
 echo
 echo "=== 2/2: contig_size_profile.py ==="
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH:
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v python3 >/dev/null || { echo "ERROR: python3 not on PATH" >&2; exit 1; }

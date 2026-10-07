@@ -19,14 +19,17 @@ Writes <out-prefix>_pangenes.tsv (one row per pangene with at least one flagged 
 
 Standard library only.
 """
+
 import argparse
 import csv
 import os
 import re
 import sys
 from collections import Counter
+from pathlib import Path
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import ID_RE
 
 
 def parse_genes(path):
@@ -65,15 +68,18 @@ def main():
     ap.add_argument("--genes-matrix", required=True)
     ap.add_argument("--gff-dir", required=True)
     ap.add_argument("--gff-suffix", default="_final_annotation_tagged.gff")
-    ap.add_argument("--ignore-genomes", default="",
-                    help="comma-separated genomes left out of the pangene level (occupancy is recomputed without them), e.g. the reference, whose own genes cannot be flagged by ORF")
+    ap.add_argument(
+        "--ignore-genomes",
+        default="",
+        help="comma-separated genomes left out of the pangene level (occupancy is recomputed without them), e.g. the reference, whose own genes cannot be flagged by ORF",
+    )
     ap.add_argument("-o", "--out-prefix", required=True)
     args = ap.parse_args()
 
     with open(args.genes_matrix, newline="") as fh:
         rows = list(csv.reader(fh, delimiter="\t"))
     cols = [(i, g.replace("_for_get_pangenes", "")) for i, g in enumerate(rows[0]) if i > 0 and g.strip()]
-    ignore = {g for g in args.ignore_genomes.split(',') if g}
+    ignore = {g for g in args.ignore_genomes.split(",") if g}
     n_genomes = len([1 for _, g in cols if g not in ignore])
 
     genes = {}
@@ -106,8 +112,8 @@ def main():
                 c["genes"] += 1
                 c["biotype"] += d[0]
                 c["broken"] += d[2]
-                c["either"] += (d[0] or d[2])
-                c["no_orf_info"] += (not d[1])
+                c["either"] += d[0] or d[2]
+                c["no_orf_info"] += not d[1]
         if any(len(ids) > 1 for _, ids in members):
             n_multi += 1
             continue
@@ -121,7 +127,9 @@ def main():
         if status:
             clean.append((r[0], len(status), status))
 
-    print(f"{n_pangenes} pangenes; {len(clean)} with one gene per genome (used for the pangene level), {n_multi} left out\n")
+    print(
+        f"{n_pangenes} pangenes; {len(clean)} with one gene per genome (used for the pangene level), {n_multi} left out\n"
+    )
     print("GENE LEVEL - genes in pangenes, per genome")
     print(f"{'genome':11s}{'genes':>7s}{'biotype':>9s}{'broken ORF':>12s}{'either':>8s}{'no ORF info':>13s}")
     tot = Counter()
@@ -129,17 +137,23 @@ def main():
         c = per_genome[g]
         tot.update(c)
         print(f"{g:11s}{c['genes']:7d}{c['biotype']:9d}{c['broken']:12d}{c['either']:8d}{c['no_orf_info']:13d}")
-    print(f"{'ALL':11s}{tot['genes']:7d}{tot['biotype']:9d}{tot['broken']:12d}{tot['either']:8d}{tot['no_orf_info']:13d}"
-          f"   ({pct(tot['either'], tot['genes'])} of genes flagged; {pct(tot['no_orf_info'], tot['genes'])} have no ORF information)\n")
+    print(
+        f"{'ALL':11s}{tot['genes']:7d}{tot['biotype']:9d}{tot['broken']:12d}{tot['either']:8d}{tot['no_orf_info']:13d}"
+        f"   ({pct(tot['either'], tot['genes'])} of genes flagged; {pct(tot['no_orf_info'], tot['genes'])} have no ORF information)\n"
+    )
 
     flagged_rows = []
     for pg, occ, status in clean:
         flag = [g for g, d in status.items() if d[0] or d[2]]
         if flag:
-            flagged_rows.append((pg, occ, len(flag), sum(status[g][0] for g in flag), sum(status[g][2] for g in flag), ",".join(flag)))
+            flagged_rows.append(
+                (pg, occ, len(flag), sum(status[g][0] for g in flag), sum(status[g][2] for g in flag), ",".join(flag))
+            )
     with open(args.out_prefix + "_pangenes.tsv", "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
-        w.writerow(["pangene", "occupancy", "genomes_flagged", "flagged_by_biotype", "flagged_by_broken_orf", "genomes"])
+        w.writerow(
+            ["pangene", "occupancy", "genomes_flagged", "flagged_by_biotype", "flagged_by_broken_orf", "genomes"]
+        )
         w.writerows(flagged_rows)
 
     n_clean = len(clean)
@@ -154,7 +168,10 @@ def main():
             return "Cloud"
         return "Shell"
 
-    print(f"PANGENE LEVEL - {n_clean} pangenes with one gene per genome" + (f" (ignoring {', '.join(sorted(ignore))})" if ignore else ""))
+    print(
+        f"PANGENE LEVEL - {n_clean} pangenes with one gene per genome"
+        + (f" (ignoring {', '.join(sorted(ignore))})" if ignore else "")
+    )
     print(f"  with at least one flagged gene: {n_flag} ({pct(n_flag, n_clean)})\n")
     print(f"  {'category':10s}{'pangenes':>10s}{'with flagged':>14s}{'%':>8s}")
     for cat in ("Core", "Soft-core", "Shell", "Cloud"):
@@ -177,13 +194,20 @@ def main():
             bins["2+ genomes, at least half of them"] += 1
         else:
             bins["2+ genomes, less than half of them"] += 1
-    for name in ("present in 1 genome only (flagged there = 100%)", "all genomes carrying the pangene (2+)",
-                 "2+ genomes, at least half of them", "2+ genomes, less than half of them", "only 1 of the 2+ genomes"):
+    for name in (
+        "present in 1 genome only (flagged there = 100%)",
+        "all genomes carrying the pangene (2+)",
+        "2+ genomes, at least half of them",
+        "2+ genomes, less than half of them",
+        "only 1 of the 2+ genomes",
+    ):
         print(f"     {name:52s}{bins[name]:6d}  ({pct(bins[name], n_flag)})")
     multi_occ = [x for x in flagged_rows if x[1] >= 2]
     if multi_occ:
         fr = sorted(x[2] / x[1] for x in multi_occ)
-        print(f"     among the {len(multi_occ)} flagged pangenes present in 2+ genomes: median share flagged {fr[len(fr) // 2]:.2f}")
+        print(
+            f"     among the {len(multi_occ)} flagged pangenes present in 2+ genomes: median share flagged {fr[len(fr) // 2]:.2f}"
+        )
     print("\n  Core pangenes (present in every genome considered) by number of genomes flagged:")
     core = Counter(x[2] for x in flagged_rows if x[1] == n_genomes)
     for k in sorted(core):

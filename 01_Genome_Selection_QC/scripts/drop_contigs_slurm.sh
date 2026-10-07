@@ -32,8 +32,7 @@ LIST="01_Genome_Selection_QC/drop_contigs.txt"
 set -eo pipefail
 
 ### ADAPT ### — put python3 on the PATH:
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
-module load python/3.11.9
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 set -u

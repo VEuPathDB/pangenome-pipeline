@@ -19,15 +19,13 @@ PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"   # get_pangenes output folder (
 GFF_DIR="for_get_pangenes_7b"                     # the GFFs given to get_pangenes (link_for_get_pangenes_7b.slurm.sh's OUT_DIR)
 GFF_SUFFIX="_for_get_pangenes.gff"                # <genome><suffix> inside GFF_DIR
 OUT_DIR="pangenome_plots"
-LABEL="Toxo7b"                                    # prefix of every output file
+LABEL="${LABEL:?set LABEL (prefix of every output file, e.g. Toxo7b) here or with sbatch --export=ALL,LABEL=...}"
 
 set +u
 module purge
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
@@ -36,18 +34,7 @@ for mod in numpy scipy matplotlib; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy and matplotlib)" >&2; exit 1; }
 done
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/plot_occupancy_properties.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/08_Pangenome_Visualisation/scripts/plot_occupancy_properties.py" \
-    "08_Pangenome_Visualisation/scripts/plot_occupancy_properties.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find plot_occupancy_properties.py (run from the project folder)" >&2; exit 1; }
+find_script PY 08_Pangenome_Visualisation/scripts/plot_occupancy_properties.py
 mkdir -p "$OUT_DIR"
 
 # get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.

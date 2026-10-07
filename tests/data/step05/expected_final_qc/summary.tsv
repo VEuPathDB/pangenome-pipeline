@@ -1,0 +1,4 @@
+strain	n_original	n_final	n_extra_copy	n_extra_copy_valid_orf	n_extra_copy_invalid_orf	n_overlap_pairs	n_minor	n_substantial	n_contained	n_same_strand_overlap	n_opposite_strand_overlap	n_genes_in_overlap
+REF	3	3	0	0	0	1	0	0	1	1	0	2
+S2	4	4	1	0	1	0	0	0	0	0	0	0
+S3	7	7	0	0	0	2	1	0	1	2	0	4

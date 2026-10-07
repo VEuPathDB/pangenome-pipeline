@@ -24,26 +24,13 @@ TOP_FAMILIES=15                  # families shown individually before folding in
 
 set -euo pipefail
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there — fall back to the standard layout relative
-# to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/summarize_te_content.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/02_TE_annotation_Clean_Up/scripts/summarize_te_content.py" \
-    "02_TE_annotation_Clean_Up/scripts/summarize_te_content.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find summarize_te_content.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 02_TE_annotation_Clean_Up/scripts/summarize_te_content.py
 
 ### ADAPT ### — put a python3 with pandas + matplotlib on the PATH
 #              (e.g. the 'synteny' env from step 01 already has matplotlib;
 #               `micromamba install -c conda-forge pandas matplotlib` otherwise):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v python3 >/dev/null || { echo "ERROR: python3 not on PATH" >&2; exit 1; }

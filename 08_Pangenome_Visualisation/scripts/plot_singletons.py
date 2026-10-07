@@ -7,15 +7,16 @@ Writes <out-prefix>.png/.svg and <out-prefix>.tsv (genome, singletons).
 
 Input: rows = clusters, columns = genomes, cell > 0 = cluster present in that genome.
 """
+
 import argparse
 import csv
 import sys
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-
 from plot_pancore import read_presence
 
 SINGLETON_COLOR = "#CC79A7"

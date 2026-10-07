@@ -11,7 +11,13 @@
 
 set -euo pipefail
 
-SHARED="${FUNANNOTATE_SHARED:-/mnt/hc-storage/groups/veupathdb_annotation/eb_tools/funannotate}"
+# Step 03 jobs are submitted from inside 03_denovo_Genome_Annotation/ (see its README), so look
+# for the pipeline's lib/ upwards from there; PIPELINE_DIR overrides.
+_pd="${PIPELINE_DIR:-${SLURM_SUBMIT_DIR:-$PWD}}"
+while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done
+source "$_pd/lib/slurm_common.sh" || { echo "ERROR: lib/slurm_common.sh not found above ${SLURM_SUBMIT_DIR:-$PWD} - set PIPELINE_DIR" >&2; exit 1; }
+require_config FUNANNOTATE_SHARED
+SHARED="$FUNANNOTATE_SHARED"   # shared funannotate install, set in pipeline_config.sh
 GENOME_IN="funannotate/GENOME.sorted.fna"
 TE_LIB="curated_TE_library.fa"
 OUTDIR="funannotate/repeatmask"

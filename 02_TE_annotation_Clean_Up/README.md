@@ -90,12 +90,13 @@ differs:
   (`dfam-tetools-latest.sif`).
 - **BLAST+ / SeqKit / CD-HIT** — loaded as cluster modules in `load_filtering_environment`
   (`ncbi-blast/2.12.0`, `seqkit/2.9.0`, `cd-hit`).
-- **MCHelper** — run inside a micromamba env named `mchelper`
-  (`MAMBA_ROOT_PREFIX`/`MAMBA_EXE`, set in `load_mchelper_environment`), pointed to by
-  `MCHELPER_PY`. Download it from its repository: <https://github.com/GonzalezLab/MCHelper>,
-  then point `MCHELPER_PY` at your own install.
-- **BUSCO lineage** — `BUSCO_LINEAGE`, a path to a downloaded lineage dataset; species-specific,
-  must be set for your own species.
+- **MCHelper** — run inside a micromamba env (`ENV_MCHELPER`, `mchelper` by default), pointed to
+  by `MCHELPER_PY`. Download it from its repository: <https://github.com/GonzalezLab/MCHelper>,
+  then set `MCHELPER_PY` to your own install. The micromamba paths, `MCHELPER_PY`,
+  `REPBASE_NT_FASTA` and `TE_PEP_FASTA` are set in the project's `pipeline_config.sh` (see the
+  [main README](../README.md#getting-the-pipeline-into-a-project)).
+- **BUSCO lineage** — `BUSCO_LINEAGE` in `pipeline_config.sh`, a path to a downloaded lineage
+  dataset; species-specific, must be set for your own species.
 
 Run `slurm/check_dependencies.sh` first — it checks every one of these against your edited
 `config.sh` before the pipeline itself runs anything.
@@ -171,8 +172,9 @@ TE-Aid against the genome it was recovered from (candidate headers are
 `<genome_id>|<candidate_id>`, so the wrapper knows which assembly in `genomes/` to pass to
 `-g`).
 
-**Dependencies:** [TE-Aid](https://github.com/clemgoub/TE-Aid/) itself (`TEAID` below points to
-your own clone/install), R, NCBI BLAST+ and hmmer — micromamba env `te_annot`.
+**Dependencies:** [TE-Aid](https://github.com/clemgoub/TE-Aid/) itself (`TE_AID` in
+`pipeline_config.sh` points to your own clone/install), R, NCBI BLAST+ and hmmer — micromamba env
+`te_annot` (`ENV_TE_ANNOT`).
 
 Adapt at the top of the script:
 
@@ -187,7 +189,6 @@ Adapt at the top of the script:
   one**. Each pair writes its own `OUTDIR`, so you can run the script once per file without
   overwriting anything.
 - `GENOMES` / `GENOME_SUFFIX` — the step-01 assemblies folder (default `genomes` / `.fna`).
-- `TEAID` — path to the TE-Aid executable.
 - the `### ADAPT ###` block — put R, NCBI BLAST+ and hmmer on the PATH (the `te_annot` env).
 - the `#SBATCH` lines.
 

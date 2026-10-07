@@ -1,0 +1,82 @@
+[project]
+name = "pangenome-pipeline"
+version = "0.0.1"
+description = "Python environment and tooling for the helper scripts used in the pangenome analysis SLURM pipeline."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "matplotlib",
+  "numpy",
+  "pandas",
+  "scipy",
+  "seaborn",
+]
+
+[dependency-groups]
+dev = [
+  "coverage",
+  "isort",
+  "mypy",
+  "nox",
+  "pandas-stubs",
+  "pytest",
+  "pytest-cov",
+  "pytest-pretty",
+  "ruff",
+  "tombi",
+  "uv",
+]
+
+[tool.coverage.run]
+omit = [
+  "tests/*",
+  "noxfile.py",
+  "results/*",
+]
+
+[tool.isort]
+profile = "black"
+line_length = 120
+known_first_party = ["pangenome_common"]
+combine_as_imports = true
+skip = [
+  ".venv",
+  ".nox",
+  "results",
+]
+
+# Relaxed to start with: none of the scripts carry type hints yet, so strict settings
+# would bury real problems. Tighten these as the refactor adds annotations.
+[tool.mypy]
+mypy_path = "lib"
+ignore_missing_imports = true
+check_untyped_defs = false
+no_implicit_optional = true
+strict_optional = true
+warn_unused_ignores = true
+exclude = [
+  "\\.venv",
+  "\\.nox",
+  "noxfile\\.py",
+  "tests/",
+  "results/",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 120
+exclude = [
+  ".venv",
+  ".nox",
+  "README.md",
+  "results",
+]
+
+[tool.ruff.lint.isort]
+combine-as-imports = true
+known-first-party = ["pangenome_common"]
+
+[tool.uv]
+package = false

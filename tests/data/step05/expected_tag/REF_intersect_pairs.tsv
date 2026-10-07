@@ -1,0 +1,3 @@
+gene_id	intersect	partner_id	overlap_bp
+geneB	with_other_no_domain	geneX	401
+geneX	with_main	geneB	401

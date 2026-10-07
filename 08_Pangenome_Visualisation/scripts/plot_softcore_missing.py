@@ -16,15 +16,16 @@ reference line) and <out-prefix>.tsv (genome, softcore_missing, softcore_total, 
 
 Input: rows = clusters, columns = genomes, cell > 0 = cluster present in that genome.
 """
+
 import argparse
 import csv
 import sys
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-
 from plot_occupancy import categorize
 from plot_pancore import read_presence
 
@@ -33,16 +34,27 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-i", "--matrix", required=True, help="pangene_matrix.tr.tab (rows = clusters, columns = genomes)")
     ap.add_argument("-o", "--out-prefix", required=True, help="output prefix (writes .png/.svg/.tsv)")
-    ap.add_argument("--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)")
-    ap.add_argument("--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)")
-    ap.add_argument("--cloud-max", type=int, default=2, help="cloud = present in at most this many genomes (default 2, unused here but kept for the same category cut as the other plots)")
+    ap.add_argument(
+        "--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)"
+    )
+    ap.add_argument(
+        "--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)"
+    )
+    ap.add_argument(
+        "--cloud-max",
+        type=int,
+        default=2,
+        help="cloud = present in at most this many genomes (default 2, unused here but kept for the same category cut as the other plots)",
+    )
     ap.add_argument("--title", default="", help="plot title (none by default)")
     args = ap.parse_args()
 
     genomes, pres = read_presence(args.matrix)
     n = len(genomes)
     occupancy = pres.sum(axis=1)
-    cats = np.array([categorize(int(k), n, args.core_missing, args.softcore_missing, args.cloud_max) for k in occupancy])
+    cats = np.array(
+        [categorize(int(k), n, args.core_missing, args.softcore_missing, args.cloud_max) for k in occupancy]
+    )
     softcore_mask = cats == "Soft-core"
     n_softcore = int(softcore_mask.sum())
     print(f"{pres.shape[0]} clusters x {n} genomes, {n_softcore} soft-core", file=sys.stderr)

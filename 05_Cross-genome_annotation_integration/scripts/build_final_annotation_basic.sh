@@ -33,27 +33,14 @@ MIN_IDENTITY="0.9"                         # minimum Liftoff sequence identity f
 
 set +u
 module purge
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (change the env name if your
 ### cluster's AGAT environment isn't called this):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-# Locate the script. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-BUILD_SCRIPT=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/build_final_annotation.sh" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/05_Cross-genome_annotation_integration/scripts/build_final_annotation.sh" \
-    "05_Cross-genome_annotation_integration/scripts/build_final_annotation.sh"
-do
-    [[ -f "$cand" ]] && { BUILD_SCRIPT="$cand"; break; }
-done
-[[ -n "$BUILD_SCRIPT" ]] || { echo "ERROR: cannot find build_final_annotation.sh (run from the project folder)" >&2; exit 1; }
+find_script BUILD_SCRIPT 05_Cross-genome_annotation_integration/scripts/build_final_annotation.sh
 
 # As a SLURM array, task N builds only the Nth genome of ORDER.
 TARGET_ARGS=()

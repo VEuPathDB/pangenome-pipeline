@@ -89,111 +89,35 @@ Usage:
 
 import argparse
 import os
-import re
 import sys
 from collections import defaultdict
-from urllib.parse import unquote_plus
+from pathlib import Path
 
-ID_RE = re.compile(r"ID=([^;]+)")
-PARENT_RE = re.compile(r"Parent=([^;]+)")
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.io import read_strains
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from annotation_common import (
+    CHILD_FEATURE_TYPES,
+    ID_RE,
+    add_original_id_attr,
+    assign_new_ids,
+    classify_minor_position,
+    find_cds_overlaps,
+    parse_gff,
+    replace_attr_value,
+)
 
 # A description this generic counts as no evidence at all - same as having no description.
 GENERIC_DESCRIPTIONS = {
-    "hypothetical protein", "hypothetical protein, conserved", "conserved hypothetical protein",
-    "unspecified product", "unknown function", "unnamed protein product", "",
+    "hypothetical protein",
+    "hypothetical protein, conserved",
+    "conserved hypothetical protein",
+    "unspecified product",
+    "unknown function",
+    "unnamed protein product",
+    "",
 }
-
-# Feature types that only ever appear nested under a level-1 gene feature, never as an
-# independent top-level entity - used to recognize "a new gene-level block just started"
-# in the output-writing pass below, without having to enumerate every naming convention
-# an annotation might use for its non-protein-coding gene types (NCBI's "gene", FungiDB's
-# "ncRNA_gene", etc.) - anything not in this set is treated as a new top-level block.
-CHILD_FEATURE_TYPES = {
-    "mRNA", "CDS", "exon", "five_prime_UTR", "three_prime_UTR",
-    "ncRNA", "tRNA", "rRNA", "snRNA", "snoRNA", "pseudogenic_transcript",
-}
-
-
-def read_strains(value):
-    if os.path.isfile(value):
-        with open(value) as fh:
-            return [l.strip() for l in fh if l.strip() and not l.startswith("#")]
-    return [s.strip() for s in value.split(",") if s.strip()]
-
-
-def parse_gff(path):
-    """Gene-level records, mRNA->gene links, and per-mRNA CDS segments/domain flags."""
-    genes = {}
-    mrna_to_gene = {}
-    cds_by_mrna = defaultdict(list)
-    mrna_has_domain = defaultdict(bool)
-
-    with open(path) as fh:
-        raw_lines = fh.readlines()
-
-    for line in raw_lines:
-        if line.startswith("#") or not line.strip():
-            continue
-        fields = line.rstrip("\n").split("\t")
-        if len(fields) < 9:
-            continue
-        seqname, source, feature, start, end, score, strand = fields[:7]
-        attrs = fields[8]
-        m = ID_RE.search(attrs)
-        feat_id = m.group(1) if m else None
-
-        if feature == "protein_coding_gene" and feat_id:
-            desc_m = DESCRIPTION_RE.search(attrs) or PRODUCT_RE.search(attrs)
-            description = unquote_plus(desc_m.group(1).strip().lower()) if desc_m else ""
-            genes[feat_id] = {
-                "id": feat_id, "seqname": seqname, "source": source,
-                "start": int(start), "end": int(end), "strand": strand,
-                "extra_copy_number": _int_attr(attrs, "extra_copy_number"),
-                "valid_ORF": _valid_orf(attrs),
-                "coverage": _float_attr(attrs, "coverage"),
-                "description": description,
-            }
-        elif feature == "mRNA" and feat_id:
-            parent = PARENT_RE.search(attrs)
-            if parent:
-                mrna_to_gene[feat_id] = parent.group(1)
-
-    for line in raw_lines:
-        if line.startswith("#") or not line.strip():
-            continue
-        fields = line.rstrip("\n").split("\t")
-        if len(fields) < 9:
-            continue
-        feature, start, end, attrs = fields[2], fields[3], fields[4], fields[8]
-        if feature != "CDS":
-            continue
-        parent = PARENT_RE.search(attrs)
-        if not parent:
-            continue
-        mrna_id = parent.group(1)
-        if mrna_to_gene.get(mrna_id) not in genes:
-            continue
-        cds_by_mrna[mrna_id].append((int(start), int(end)))
-        if "InterPro:" in attrs or "PFAM:" in attrs or "Pfam:" in attrs:
-            mrna_has_domain[mrna_id] = True
-
-    for gene_id, gene in genes.items():
-        gene_mrnas = [m for m, g in mrna_to_gene.items() if g == gene_id]
-        best_mrna, best_bp = None, -1
-        for mrna_id in gene_mrnas:
-            segs = cds_by_mrna.get(mrna_id, [])
-            bp = sum(e - s + 1 for s, e in segs)
-            if bp > best_bp:
-                best_bp, best_mrna = bp, mrna_id
-        # sorted left-to-right by genomic position - needed by classify_minor_position below,
-        # which walks segments outermost-to-innermost.
-        gene["cds_segments"] = sorted(cds_by_mrna.get(best_mrna, []))
-        gene["cds_bp"] = best_bp if best_bp > 0 else 0
-        gene["has_domain"] = any(mrna_has_domain.get(m, False) for m in gene_mrnas)
-
-    return genes
 
 
 def has_evidence(gene, require_domain_only):
@@ -202,75 +126,6 @@ def has_evidence(gene, require_domain_only):
     if require_domain_only:
         return False
     return gene["description"] not in GENERIC_DESCRIPTIONS
-
-
-def _int_attr(attrs, key):
-    m = re.search(rf"{key}=(\d+)", attrs)
-    return int(m.group(1)) if m else None
-
-
-def _float_attr(attrs, key):
-    m = re.search(rf"{key}=([\d.]+)", attrs)
-    return float(m.group(1)) if m else None
-
-
-def _valid_orf(attrs):
-    if "valid_ORF=True" in attrs:
-        return True
-    if "valid_ORF=False" in attrs:
-        return False
-    m = re.search(r"valid_ORFs=(\d+)", attrs)
-    if m:
-        return int(m.group(1)) >= 1
-    return None
-
-
-def segments_overlap_bp(segs1, segs2):
-    total = 0
-    for s1, e1 in segs1:
-        for s2, e2 in segs2:
-            lo, hi = max(s1, s2), min(e1, e2)
-            if hi >= lo:
-                total += hi - lo + 1
-    return total
-
-
-def find_cds_overlaps(genes, min_overlap_bp):
-    """Sweep-line scan for CDS-to-CDS overlapping gene pairs. Pairs whose overlap is under
-    min_overlap_bp are dropped here already - not a real overlap, see module docstring."""
-    by_seq = defaultdict(list)
-    for gene in genes.values():
-        by_seq[gene["seqname"]].append(gene)
-
-    pairs = []
-    for seqname, seq_genes in by_seq.items():
-        seq_genes.sort(key=lambda g: g["start"])
-        active = []
-        for gene in seq_genes:
-            active = [a for a in active if a["end"] >= gene["start"]]
-            for other in active:
-                ov_bp = segments_overlap_bp(other["cds_segments"], gene["cds_segments"])
-                if ov_bp >= min_overlap_bp:
-                    pairs.append((other["id"], gene["id"], ov_bp))
-            active.append(gene)
-    return pairs
-
-
-def classify_minor_position(bigger_gene, smaller_cds_segments):
-    """Where a minor overlap sits on the bigger gene's CDS: "flank" (only touches its first or
-    last CDS segment - the two gene models plausibly disagree only at the boundary, both genes
-    likely real), "inside" (touches an internal segment - more likely the smaller gene is a
-    spurious call sitting in what's actually an intron), or "single_exon" (bigger gene has only
-    one CDS segment total, flank/inside doesn't apply)."""
-    segs = bigger_gene["cds_segments"]
-    if len(segs) <= 1:
-        return "single_exon"
-    outer = {segs[0], segs[-1]}
-    overlapped = {s for s in segs for ss, se in smaller_cds_segments
-                  if max(s[0], ss) <= min(s[1], se)}
-    if not overlapped:
-        return "inside"  # shouldn't happen (ov_bp>0 implies some segment matched) - fall through safely
-    return "flank" if overlapped <= outer else "inside"
 
 
 def is_qualifying_overlap(g1, g2, ov_bp):
@@ -288,16 +143,6 @@ def is_qualifying_overlap(g1, g2, ov_bp):
     return True, pct
 
 
-def assign_new_ids(genes, kept_ids, strain_index, id_prefix):
-    ordered = sorted(kept_ids, key=lambda gid: (genes[gid]["seqname"], genes[gid]["start"]))
-    width = max(5, len(str(len(ordered))))
-    return {gid: f"{id_prefix}{strain_index}g{i:0{width}d}" for i, gid in enumerate(ordered, start=1)}
-
-
-def add_original_id_attr(attrs, old_id):
-    return attrs.rstrip(";") + f";original_ID={old_id}"
-
-
 def panel_check(gene_id, opponent_id, pct, present_in, collides_in, min_overlap_genomes, note):
     """Applied to a gene that locally lost an evidence comparison (or, in the neither-has-
     evidence case, to each side independently) before actually dropping it. Returns a reason
@@ -306,11 +151,11 @@ def panel_check(gene_id, opponent_id, pct, present_in, collides_in, min_overlap_
     n_present = len(present_in.get(gene_id, ()))
     n_collide = len(collides_in.get(gene_id, ()))
     if n_present <= 2:
-        return f"overlaps {opponent_id} ({round(100*pct,1)}% of its own CDS); {note}present in only {n_present} genome(s) panel-wide"
+        return f"overlaps {opponent_id} ({round(100 * pct, 1)}% of its own CDS); {note}present in only {n_present} genome(s) panel-wide"
     if n_collide <= 1:
         return None
     if n_collide >= min_overlap_genomes:
-        return f"overlaps {opponent_id} ({round(100*pct,1)}% of its own CDS); {note}present in {n_present} genomes, overlapping something in {n_collide} of them"
+        return f"overlaps {opponent_id} ({round(100 * pct, 1)}% of its own CDS); {note}present in {n_present} genomes, overlapping something in {n_collide} of them"
     return None
 
 
@@ -336,9 +181,15 @@ def resolve_overlaps_globally(genes_by_strain, args, present_in, n_good_transfer
                     continue  # uncertain - keep both
                 if other["id"] in verdict:
                     continue
-                reason = panel_check(other["id"], ref_gene["id"], pct, present_in, collides_in,
-                                      args.min_overlap_genomes,
-                                      f"no evidence, overlaps the reference ('{args.reference_source_tag}') gene {ref_gene['id']}; ")
+                reason = panel_check(
+                    other["id"],
+                    ref_gene["id"],
+                    pct,
+                    present_in,
+                    collides_in,
+                    args.min_overlap_genomes,
+                    f"no evidence, overlaps the reference ('{args.reference_source_tag}') gene {ref_gene['id']}; ",
+                )
                 if reason:
                     verdict[other["id"]] = reason
                 continue
@@ -350,9 +201,15 @@ def resolve_overlaps_globally(genes_by_strain, args, present_in, n_good_transfer
                 winner, loser = (g1, g2) if g1_ev else (g2, g1)
                 if loser["id"] in verdict:
                     continue
-                reason = panel_check(loser["id"], winner["id"], pct, present_in, collides_in,
-                                      args.min_overlap_genomes,
-                                      f"no evidence, {winner['id']} has evidence; ")
+                reason = panel_check(
+                    loser["id"],
+                    winner["id"],
+                    pct,
+                    present_in,
+                    collides_in,
+                    args.min_overlap_genomes,
+                    f"no evidence, {winner['id']} has evidence; ",
+                )
                 if reason:
                     verdict[loser["id"]] = reason
                 continue
@@ -374,7 +231,7 @@ def resolve_overlaps_globally(genes_by_strain, args, present_in, n_good_transfer
                 winner, loser = (g1, g2) if g1["cds_bp"] >= g2["cds_bp"] else (g2, g1)
                 metric = f"tied on good_<genome> transfers panel-wide ({gt1}), kept the longer CDS"
             verdict[loser["id"]] = (
-                f"overlaps {winner['id']} ({round(100*pct,1)}% of its own CDS); neither has evidence, "
+                f"overlaps {winner['id']} ({round(100 * pct, 1)}% of its own CDS); neither has evidence, "
                 f"{winner['id']} more supported panel-wide ({metric})"
             )
     return verdict
@@ -404,7 +261,7 @@ def write_filtered_gff(gff_path, out_path, genes, kept_ids, id_mapping):
                     if current_gene_kept:
                         new_id = id_mapping[gene_id]
                         attrs = add_original_id_attr(attrs, gene_id)
-                        attrs = attrs.replace(f"ID={gene_id}", f"ID={new_id}", 1)
+                        attrs = replace_attr_value(attrs, "ID", gene_id, new_id)
                         fields[2] = "gene"  # get_pangenes only clusters feature type "gene"
                         fields[8] = attrs
                         out_fh.write("\t".join(fields) + "\n")
@@ -418,29 +275,63 @@ def write_filtered_gff(gff_path, out_path, genes, kept_ids, id_mapping):
                     if feature == "pseudogenic_transcript":
                         fields[2] = "transcript"  # get_pangenes' expected child type
                     if current_gene_id in id_mapping and feature in ("mRNA", "pseudogenic_transcript"):
-                        attrs = attrs.replace(f"Parent={current_gene_id}", f"Parent={id_mapping[current_gene_id]}", 1)
+                        attrs = replace_attr_value(attrs, "Parent", current_gene_id, id_mapping[current_gene_id])
                     fields[8] = attrs
                     out_fh.write("\t".join(fields) + "\n")
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--strains", required=True, help="Comma-separated genome names or a file with one per line - first one must be the reference, same as the rest of this pipeline's ORDER")
-    parser.add_argument("--final-dir", required=True, help="Directory with <strain>_final_annotation.gff (this pipeline's raw output, before filtering)")
+    parser.add_argument(
+        "--strains",
+        required=True,
+        help="Comma-separated genome names or a file with one per line - first one must be the reference, same as the rest of this pipeline's ORDER",
+    )
+    parser.add_argument(
+        "--final-dir",
+        required=True,
+        help="Directory with <strain>_final_annotation.gff (this pipeline's raw output, before filtering)",
+    )
     parser.add_argument("--out-dir", default="./filtered_annotation", help="Where to write the filtered GFFs + reports")
-    parser.add_argument("--min-overlap-bp", type=int, default=20,
-                         help="CDS-to-CDS overlaps under this many bp are ignored entirely - boundary-rounding noise, not treated as a real overlap (default: 20)")
-    parser.add_argument("--min-overlap-genomes", type=int, default=2,
-                         help="For a gene present in >2 genomes panel-wide: it needs a qualifying overlap in at least this many of them to count as a real, recurring conflict rather than an isolated Liftoff boundary glitch (default: 2)")
-    parser.add_argument("--require-domain-only", action="store_true",
-                         help="Only a protein domain counts as evidence - ignore description text entirely (default: off, a specific description also counts)")
-    parser.add_argument("--reference-source-tag", default="main",
-                         help="The source tag marking the reference-derived tier in this pipeline's output (default: 'main')")
-    parser.add_argument("--extra-copy-require-valid-orf", action=argparse.BooleanOptionalAction, default=True,
-                         help="Drop an extra-copy gene (extra_copy_number > 0) unless it has a valid ORF (default: on; use --no-extra-copy-require-valid-orf to keep every extra copy regardless of ORF)")
-    parser.add_argument("--min-rescued-coverage", type=float, default=0.5,
-                         help="Every rescued_<genome> gene (this pipeline's lowest-confidence Liftoff tier - it never had to pass a coverage/identity bar to get in) below this Liftoff coverage is dropped outright, regardless of ORF/evidence/overlap status (default: 0.5)")
-    parser.add_argument("--id-prefix", default="Afu", help="Prefix for renamed gene IDs (default: 'Afu', this project's own convention - change for other species)")
+    parser.add_argument(
+        "--min-overlap-bp",
+        type=int,
+        default=20,
+        help="CDS-to-CDS overlaps under this many bp are ignored entirely - boundary-rounding noise, not treated as a real overlap (default: 20)",
+    )
+    parser.add_argument(
+        "--min-overlap-genomes",
+        type=int,
+        default=2,
+        help="For a gene present in >2 genomes panel-wide: it needs a qualifying overlap in at least this many of them to count as a real, recurring conflict rather than an isolated Liftoff boundary glitch (default: 2)",
+    )
+    parser.add_argument(
+        "--require-domain-only",
+        action="store_true",
+        help="Only a protein domain counts as evidence - ignore description text entirely (default: off, a specific description also counts)",
+    )
+    parser.add_argument(
+        "--reference-source-tag",
+        default="main",
+        help="The source tag marking the reference-derived tier in this pipeline's output (default: 'main')",
+    )
+    parser.add_argument(
+        "--extra-copy-require-valid-orf",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Drop an extra-copy gene (extra_copy_number > 0) unless it has a valid ORF (default: on; use --no-extra-copy-require-valid-orf to keep every extra copy regardless of ORF)",
+    )
+    parser.add_argument(
+        "--min-rescued-coverage",
+        type=float,
+        default=0.5,
+        help="Every rescued_<genome> gene (this pipeline's lowest-confidence Liftoff tier - it never had to pass a coverage/identity bar to get in) below this Liftoff coverage is dropped outright, regardless of ORF/evidence/overlap status (default: 0.5)",
+    )
+    parser.add_argument(
+        "--id-prefix",
+        default="Afu",
+        help="Prefix for renamed gene IDs (default: 'Afu', this project's own convention - change for other species)",
+    )
     args = parser.parse_args()
 
     strains = read_strains(args.strains)
@@ -457,7 +348,9 @@ def main():
             present_in[gid].add(s)
             if g["source"].startswith("good_"):
                 n_good_transfers[gid] += 1
-    print(f"Panel-wide presence built from {len(strains)} genomes: {len(present_in)} distinct gene IDs", file=sys.stderr)
+    print(
+        f"Panel-wide presence built from {len(strains)} genomes: {len(present_in)} distinct gene IDs", file=sys.stderr
+    )
 
     # First CDS-overlap scan of every genome, to know - panel-wide - how many genomes each gene
     # has a *qualifying* overlap in (minor+flank doesn't count, see module docstring).
@@ -474,10 +367,15 @@ def main():
             collides_in[gid1].add(s)
             collides_in[gid2].add(s)
         qualifying_by_strain[s] = qualifying
-    print(f"Overlap scan: {sum(len(v) for v in qualifying_by_strain.values())} qualifying pairs across the panel", file=sys.stderr)
+    print(
+        f"Overlap scan: {sum(len(v) for v in qualifying_by_strain.values())} qualifying pairs across the panel",
+        file=sys.stderr,
+    )
 
     # --- Step 1: resolve overlaps globally - one verdict per gene ID, panel-wide ---
-    verdict = resolve_overlaps_globally(genes_by_strain, args, present_in, n_good_transfers, collides_in, qualifying_by_strain)
+    verdict = resolve_overlaps_globally(
+        genes_by_strain, args, present_in, n_good_transfers, collides_in, qualifying_by_strain
+    )
     print(f"Overlap resolution: {len(verdict)} genes dropped panel-wide", file=sys.stderr)
 
     # --- Steps 2-3: extra copies, then rescued-coverage floor - only among overlap survivors ---
@@ -494,7 +392,9 @@ def main():
             if gid in verdict or (s, gid) in local_verdict or not g["source"].startswith("rescued_"):
                 continue
             if g["coverage"] is not None and g["coverage"] < args.min_rescued_coverage:
-                local_verdict[(s, gid)] = f"rescued transfer, Liftoff coverage {g['coverage']:.2f} < {args.min_rescued_coverage}"
+                local_verdict[(s, gid)] = (
+                    f"rescued transfer, Liftoff coverage {g['coverage']:.2f} < {args.min_rescued_coverage}"
+                )
 
     def reason_for(s, gid):
         return verdict.get(gid) or local_verdict.get((s, gid))
@@ -519,8 +419,11 @@ def main():
 
         n_total = len(genes)
         n_removed = sum(1 for gid in genes if reason_for(s, gid))
-        print(f"  {s}: {n_total} protein-coding genes -> {n_total - n_removed} kept, "
-              f"{n_removed} removed ({round(100*n_removed/n_total,1) if n_total else 0}%) -> {out_path}", file=sys.stderr)
+        print(
+            f"  {s}: {n_total} protein-coding genes -> {n_total - n_removed} kept, "
+            f"{n_removed} removed ({round(100 * n_removed / n_total, 1) if n_total else 0}%) -> {out_path}",
+            file=sys.stderr,
+        )
         summary_rows.append((s, n_total, n_total - n_removed, n_removed))
 
     with open(os.path.join(args.out_dir, "filter_summary.tsv"), "w") as fh:

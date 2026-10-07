@@ -1,0 +1,23 @@
+##gff-version 3
+chr1	main	protein_coding_gene	1000	3000	.	+	.	ID=geneA;description=heat%20shock%20protein;valid_ORFs=1
+chr1	main	mRNA	1000	3000	.	+	.	ID=geneA-T1;Parent=geneA
+chr1	main	CDS	1000	1500	.	+	.	ID=geneA-T1-CDS1;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	CDS	2500	3000	.	+	.	ID=geneA-T1-CDS2;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	protein_coding_gene	5000	6000	.	+	.	ID=geneB;description=hypothetical protein;valid_ORFs=1
+chr1	main	mRNA	5000	6000	.	+	.	ID=geneB-T1;Parent=geneB
+chr1	main	CDS	5000	6000	.	+	.	ID=geneB-T1-CDS1;Parent=geneB-T1
+chr1	S3	protein_coding_gene	2970	3200	.	+	.	ID=geneG;description=kinase
+chr1	S3	mRNA	2970	3200	.	+	.	ID=geneG-T1;Parent=geneG
+chr1	S3	CDS	2970	3200	.	+	.	ID=geneG-T1-CDS1;Parent=geneG-T1
+chr1	rescued_S2	protein_coding_gene	10000	10500	.	+	.	ID=geneR;coverage=0.30;valid_ORF=True
+chr1	rescued_S2	mRNA	10000	10500	.	+	.	ID=geneR-T1;Parent=geneR
+chr1	rescued_S2	CDS	10000	10500	.	+	.	ID=geneR-T1-CDS1;Parent=geneR-T1
+chr1	good_S2	protein_coding_gene	11000	11600	.	+	.	ID=geneH;description=hypothetical protein;valid_ORF=True
+chr1	good_S2	mRNA	11000	11600	.	+	.	ID=geneH-T1;Parent=geneH
+chr1	good_S2	CDS	11000	11600	.	+	.	ID=geneH-T1-CDS1;Parent=geneH-T1
+chr1	S3	protein_coding_gene	11100	11500	.	+	.	ID=geneI
+chr1	S3	mRNA	11100	11500	.	+	.	ID=geneI-T1;Parent=geneI
+chr1	S3	CDS	11100	11500	.	+	.	ID=geneI-T1-CDS1;Parent=geneI-T1
+chr1	S3	protein_coding_gene	12000	12300	.	+	.	ID=geneF;description=transporter
+chr1	S3	pseudogenic_transcript	12000	12300	.	+	.	ID=geneF-T1;Parent=geneF
+chr1	S3	CDS	12000	12300	.	+	.	ID=geneF-T1-CDS1;Parent=geneF-T1

@@ -35,11 +35,9 @@ set -euo pipefail
 [[ -d "$GENOMES" ]]   || { echo "ERROR: genomes folder not found: $GENOMES" >&2; exit 1; }
 mkdir -p "$OUTDIR"
 
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put AGAT (agat_sp_extract_sequences.pl) on the PATH:
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v agat_sp_extract_sequences.pl >/dev/null \

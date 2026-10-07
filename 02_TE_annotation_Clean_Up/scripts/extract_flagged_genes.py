@@ -26,16 +26,24 @@ te_gene_overlap.py (needs its genome_label and gene_id columns to locate
 each gene's source GFF and record), and --gff-indir to contain those same
 GFF files (genome_label.gff or .gff3).
 """
+
 from __future__ import annotations
 
 import argparse
 import sys
+from functools import partial
 from pathlib import Path
 
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from te_gene_overlap import parse_attributes, strip_prefix, GENE_FTYPE_TO_BIOTYPE
+from te_gene_overlap import GENE_FTYPE_TO_BIOTYPE, parse_attributes, strip_prefix
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import find_gff as _find_gff
+
+# <genome_label>.gff/.gff3, falling back to a case-insensitive match for naming-convention mismatches.
+find_gff = partial(_find_gff, exts=(".gff", ".gff3"), case_insensitive=True)
 
 # The set of gene-level feature types (GFF3 column 3) recognised here must be
 # the SAME set te_gene_overlap.py recognises when it builds gene_te_overlap.tsv
@@ -49,20 +57,6 @@ GENE_FTYPES = set(GENE_FTYPE_TO_BIOTYPE)
 
 FEATURE_TYPES_WITH_PARENT_GENE = {"mRNA", "tRNA", "rRNA"}
 FEATURE_TYPES_WITH_PARENT_RNA = {"exon", "CDS"}
-
-
-def find_gff(gff_indir: Path, genome_label: str) -> Path | None:
-    for ext in (".gff", ".gff3"):
-        candidate = gff_indir / f"{genome_label}{ext}"
-        if candidate.exists():
-            return candidate
-    # case-insensitive fallback (genome_label is te_gene_overlap.py's gff_path.stem,
-    # so this only matters if the filesystem/GFF filename casing disagree)
-    lower = f"{genome_label}".lower()
-    for f in gff_indir.glob("*.gff*"):
-        if f.stem.lower() == lower:
-            return f
-    return None
 
 
 ALWAYS_KEEP_HEADER_PREFIXES = ("##gff-version", "#!")
@@ -155,26 +149,27 @@ def extract_gene_records(gff_path: Path, target_gene_ids: set) -> tuple:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--gene-table", required=True,
-                     help="gene_te_overlap.tsv produced by te_gene_overlap.py")
-    ap.add_argument("--gff-indir", required=True,
-                     help="Directory with the source GFF3 files (genome_label.gff/.gff3)")
-    ap.add_argument("--outdir", required=True,
-                     help="Directory to write the flagged-genes summary TSV and per-genome GFF extracts")
-    ap.add_argument("--min-pct", type=float, default=20.0,
-                     help="Minimum TE_overlap_pct, inclusive (default: 20)")
-    ap.add_argument("--max-pct", type=float, default=80.0,
-                     help="Maximum TE_overlap_pct, exclusive (default: 80)")
-    ap.add_argument("--min-div", type=float, default=None,
-                     help="Optional minimum TE_divergence_pct, inclusive - on top of "
-                          "--min-pct/--max-pct")
-    ap.add_argument("--max-div", type=float, default=None,
-                     help="Optional maximum TE_divergence_pct, exclusive")
-    ap.add_argument("--out-prefix", default="flagged_genes",
-                     help="Basename for the summary TSV (<prefix>.tsv) and per-genome GFF "
-                          "(<genome_label>.<prefix>.gff) - default: flagged_genes")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gene-table", required=True, help="gene_te_overlap.tsv produced by te_gene_overlap.py")
+    ap.add_argument("--gff-indir", required=True, help="Directory with the source GFF3 files (genome_label.gff/.gff3)")
+    ap.add_argument(
+        "--outdir", required=True, help="Directory to write the flagged-genes summary TSV and per-genome GFF extracts"
+    )
+    ap.add_argument("--min-pct", type=float, default=20.0, help="Minimum TE_overlap_pct, inclusive (default: 20)")
+    ap.add_argument("--max-pct", type=float, default=80.0, help="Maximum TE_overlap_pct, exclusive (default: 80)")
+    ap.add_argument(
+        "--min-div",
+        type=float,
+        default=None,
+        help="Optional minimum TE_divergence_pct, inclusive - on top of --min-pct/--max-pct",
+    )
+    ap.add_argument("--max-div", type=float, default=None, help="Optional maximum TE_divergence_pct, exclusive")
+    ap.add_argument(
+        "--out-prefix",
+        default="flagged_genes",
+        help="Basename for the summary TSV (<prefix>.tsv) and per-genome GFF "
+        "(<genome_label>.<prefix>.gff) - default: flagged_genes",
+    )
     args = ap.parse_args()
 
     gff_indir = Path(args.gff_indir)
@@ -194,8 +189,10 @@ def main():
     sub = df[mask].sort_values(["genome_label", "TE_overlap_pct"], ascending=[True, False])
 
     if sub.empty:
-        raise SystemExit(f"No protein_coding/pseudogene genes with {args.min_pct}% <= "
-                          f"TE_overlap_pct < {args.max_pct}% found in {args.gene_table}")
+        raise SystemExit(
+            f"No protein_coding/pseudogene genes with {args.min_pct}% <= "
+            f"TE_overlap_pct < {args.max_pct}% found in {args.gene_table}"
+        )
 
     summary_path = outdir / f"{args.out_prefix}.tsv"
     sub.to_csv(summary_path, sep="\t", index=False)
@@ -207,15 +204,18 @@ def main():
         gff_path = find_gff(gff_indir, genome_label)
         target_ids = set(group["gene_id"])
         if gff_path is None:
-            print(f"WARNING: no GFF found for genome_label {genome_label!r} in {gff_indir} "
-                  f"- skipping {len(group)} genes")
+            print(
+                f"WARNING: no GFF found for genome_label {genome_label!r} in {gff_indir} - skipping {len(group)} genes"
+            )
             missing_pairs.extend((genome_label, gid) for gid in target_ids)
             continue
         out_lines, found_ids = extract_gene_records(gff_path, target_ids)
         missing_here = target_ids - found_ids
         if missing_here:
-            print(f"WARNING: {len(missing_here)} of {len(target_ids)} gene(s) not found in "
-                  f"{gff_path.name} for {genome_label!r}: {sorted(missing_here)}")
+            print(
+                f"WARNING: {len(missing_here)} of {len(target_ids)} gene(s) not found in "
+                f"{gff_path.name} for {genome_label!r}: {sorted(missing_here)}"
+            )
             missing_pairs.extend((genome_label, gid) for gid in missing_here)
         dest = outdir / f"{genome_label}.{args.out_prefix}.gff"
         dest.write_text("".join(out_lines))
@@ -223,8 +223,10 @@ def main():
         n_written += 1
 
     if missing_pairs:
-        print(f"\nWARNING: {len(missing_pairs)} requested gene(s) across all genomes have "
-              f"NO record in their output GFF (see the WARNINGs above for why):")
+        print(
+            f"\nWARNING: {len(missing_pairs)} requested gene(s) across all genomes have "
+            f"NO record in their output GFF (see the WARNINGs above for why):"
+        )
         for genome_label, gene_id in sorted(missing_pairs):
             print(f"  {genome_label}\t{gene_id}")
 

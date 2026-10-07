@@ -24,26 +24,27 @@ Writes <out-prefix>.png/.svg and <out-prefix>.tsv (all tests).
 
 Needs numpy, scipy, matplotlib.
 """
+
 import argparse
 import csv
 import glob
 import os
-import re
 import sys
 import urllib.request
+from pathlib import Path
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import fisher_exact, false_discovery_control
+from plot_occupancy import ORDER, categorize
+from scipy.stats import false_discovery_control, fisher_exact
 
-from plot_occupancy import categorize, ORDER
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DBXREF_RE, ID_RE, PARENT_RE
 
 ENTRY_LIST_URL = "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list"
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 
 
 def gene_domains(gff_dir):
@@ -98,7 +99,7 @@ def load_entry_names(path, out_prefix):
             try:
                 print(f"Downloading {ENTRY_LIST_URL}", file=sys.stderr)
                 urllib.request.urlretrieve(ENTRY_LIST_URL, path)
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 - any download failure falls back to IPR ids
                 print(f"WARNING: could not download entry.list ({e}); using IPR ids as labels", file=sys.stderr)
                 return {}
     names = {}
@@ -116,14 +117,30 @@ def main():
     ap.add_argument("--gff-dir", required=True)
     ap.add_argument("--entry-list", default="")
     ap.add_argument("-o", "--out-prefix", required=True)
-    ap.add_argument("--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)")
-    ap.add_argument("--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)")
+    ap.add_argument(
+        "--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)"
+    )
+    ap.add_argument(
+        "--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)"
+    )
     ap.add_argument("--cloud-max", type=int, default=2, help="cloud = present in at most this many genomes (default 2)")
     ap.add_argument("--alpha", type=float, default=0.05, help="adjusted p-value cutoff (default 0.05)")
-    ap.add_argument("--min-total", type=int, default=5, help="entries carried by fewer clusters than this in the whole universe are not tested (default 5)")
-    ap.add_argument("--min-count", type=int, default=3, help="only entries carried by at least this many clusters of the category are drawn (default 3)")
+    ap.add_argument(
+        "--min-total",
+        type=int,
+        default=5,
+        help="entries carried by fewer clusters than this in the whole universe are not tested (default 5)",
+    )
+    ap.add_argument(
+        "--min-count",
+        type=int,
+        default=3,
+        help="only entries carried by at least this many clusters of the category are drawn (default 3)",
+    )
     ap.add_argument("--top", type=int, default=15, help="max entries shown per category (default 15)")
-    ap.add_argument("--categories", default="Core,Cloud", help="comma-separated categories to test and plot (default Core,Cloud)")
+    ap.add_argument(
+        "--categories", default="Core,Cloud", help="comma-separated categories to test and plot (default Core,Cloud)"
+    )
     ap.add_argument("--title", default="")
     args = ap.parse_args()
 
@@ -132,7 +149,7 @@ def main():
     if bad:
         sys.exit(f"ERROR: unknown categories {bad}; choose from {ORDER}")
 
-    wanted.sort(key=ORDER.index, reverse=True)   # Cloud first (left), Core last (right), like the occupancy plot
+    wanted.sort(key=ORDER.index, reverse=True)  # Cloud first (left), Core last (right), like the occupancy plot
     clusters, n_genomes = read_clusters(args.genes_matrix)
     domains = gene_domains(args.gff_dir)
     print(f"{len(clusters)} clusters, {n_genomes} genomes, {len(domains)} genes with InterPro entries", file=sys.stderr)
@@ -162,7 +179,10 @@ def main():
 
     rows = []
     n_tested = sum(1 for K in total.values() if K >= args.min_total)
-    print(f"{len(total)} InterPro entries in the universe; {n_tested} carried by at least {args.min_total} clusters are tested", file=sys.stderr)
+    print(
+        f"{len(total)} InterPro entries in the universe; {n_tested} carried by at least {args.min_total} clusters are tested",
+        file=sys.stderr,
+    )
     for cat in wanted:
         n = n_cat[cat]
         for t, k in per_cat[cat].items():
@@ -180,8 +200,19 @@ def main():
     names = load_entry_names(args.entry_list, args.out_prefix)
     with open(args.out_prefix + ".tsv", "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
-        w.writerow(["category", "interpro", "name", "clusters_with_entry_in_category", "clusters_in_category",
-                    "gene_ratio", "clusters_with_entry_total", "p", "p_adjusted"])
+        w.writerow(
+            [
+                "category",
+                "interpro",
+                "name",
+                "clusters_with_entry_in_category",
+                "clusters_in_category",
+                "gene_ratio",
+                "clusters_with_entry_total",
+                "p",
+                "p_adjusted",
+            ]
+        )
         for r in sorted(rows, key=lambda r: (r[0], r[7])):
             w.writerow([r[0], r[1], names.get(r[1], ""), r[2], r[3], f"{r[4]:.5f}", r[5], f"{r[6]:.3g}", f"{r[7]:.3g}"])
 
@@ -189,9 +220,11 @@ def main():
     for cat in wanted:
         sig = [r for r in rows if r[0] == cat and r[7] < args.alpha and r[2] >= args.min_count]
         sig.sort(key=lambda r: r[7])
-        shown += sig[:args.top]
+        shown += sig[: args.top]
     if not shown:
-        sys.exit(f"No entry passes adjusted p < {args.alpha} and >= {args.min_count} clusters; see {args.out_prefix}.tsv")
+        sys.exit(
+            f"No entry passes adjusted p < {args.alpha} and >= {args.min_count} clusters; see {args.out_prefix}.tsv"
+        )
 
     labels = {}
     for r in shown:
@@ -207,8 +240,14 @@ def main():
     ratios = np.array([r[4] for r in shown])
     sizes = 30 + 250 * (ratios / ratios.max())
     fig, ax = plt.subplots(figsize=(8.5, 0.28 * len(seen) + 2.5))
-    sc = ax.scatter([xpos[r[0]] for r in shown], [ypos[r[1]] for r in shown], s=sizes,
-                    c=[r[7] for r in shown], cmap="turbo", edgecolors="none")
+    sc = ax.scatter(
+        [xpos[r[0]] for r in shown],
+        [ypos[r[1]] for r in shown],
+        s=sizes,
+        c=[r[7] for r in shown],
+        cmap="turbo",
+        edgecolors="none",
+    )
     ax.set_yticks(list(ypos.values()))
     ax.set_yticklabels([labels[t] for t in ypos])
     ax.set_xticks(list(xpos.values()))

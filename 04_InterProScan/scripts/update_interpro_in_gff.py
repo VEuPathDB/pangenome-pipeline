@@ -28,18 +28,20 @@ Usage:
         --lookup interpro/interpro_lookup/AF293_interpro.tsv \\
         --out gff_with_interpro/AF293.gff3
 """
+
 import argparse
 import re
 import sys
+from pathlib import Path
 
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DBXREF_RE, PARENT_RE
 
 
 def load_lookup(path):
     table = {}
     with open(path) as fh:
-        header = fh.readline()
+        fh.readline()  # skip the header row
         for line in fh:
             fields = line.rstrip("\n").split("\t")
             if len(fields) < 3:
@@ -51,8 +53,7 @@ def load_lookup(path):
 
 def strip_old_domain_xrefs(dbxref_value):
     """Remove InterPro:/PFAM: entries (any case) from a Dbxref= value, keep the rest."""
-    kept = [tok for tok in dbxref_value.split(",")
-            if not tok.strip().lower().startswith(("interpro:", "pfam:"))]
+    kept = [tok for tok in dbxref_value.split(",") if not tok.strip().lower().startswith(("interpro:", "pfam:"))]
     return kept
 
 
@@ -131,11 +132,13 @@ def main():
         out_fh.writelines(out_lines)
 
     pct = 100 * n_matched / n_cds if n_cds else 0
-    print(f"[{args.gff}] {n_cds} CDS line(s): {n_had_old} had old InterPro/PFAM evidence "
-          f"stripped, {n_matched} ({pct:.1f}%) got fresh evidence -> {args.out}", file=sys.stderr)
+    print(
+        f"[{args.gff}] {n_cds} CDS line(s): {n_had_old} had old InterPro/PFAM evidence "
+        f"stripped, {n_matched} ({pct:.1f}%) got fresh evidence -> {args.out}",
+        file=sys.stderr,
+    )
     if n_no_mrna_id:
-        print(f"  NOTE: {n_no_mrna_id} CDS line(s) had no Parent= - left untouched.",
-              file=sys.stderr)
+        print(f"  NOTE: {n_no_mrna_id} CDS line(s) had no Parent= - left untouched.", file=sys.stderr)
 
 
 if __name__ == "__main__":

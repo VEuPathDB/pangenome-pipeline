@@ -22,12 +22,10 @@ LIB="curated_TE_library.fa"           # curated TE library FASTA (in this folder
 
 set -euo pipefail
 
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put RepeatMasker on the PATH (must be configured with a Dfam
 #              library; see the README if `famdb.py … FamDB data directory not found`):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate repeatmasker4.2
+activate_env "$ENV_REPEATMASKER"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v RepeatMasker >/dev/null || { echo "ERROR: RepeatMasker not on PATH" >&2; exit 1; }

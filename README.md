@@ -76,8 +76,11 @@ on, so its step folders sit directly under it, alongside your own `genomes/`,
 `gff_originals/`, and `genome_order.txt`:
 
 ```bash
-git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
+git clone git@github.com:adriludwig/pangenome-pipeline.git <project>/   # SSH key on your GitHub account
 ```
+
+(GitHub doesn't accept account passwords over HTTPS: use the SSH address above, or the
+`https://github.com/...` one with a personal access token as the password.)
 
 ```
 <project>/
@@ -97,16 +100,144 @@ git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 │   └── scripts/
 ├── 08_Pangenome_Visualisation/
 │   └── scripts/
+├── lib/pangenome_common/       Python helpers shared by the step scripts (keep it with them)
+├── species_specific/           one-off scripts for a single species (Afum/, Tgondii/)
 ├── genome_order.txt            the genome list (generated in step 01)
 ├── genomes/                    <basename>.fna    – assemblies
 └── gff_originals/              <basename>.gff3   – each genome's own annotation
 ```
 
-`genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01. 
+`genomes/`, `gff_originals/`, `genome_order.txt` are yours to create in step 01.
 
-Every script has an `### ADAPT ###` block
-(cluster module names / conda-env paths / container paths) and, occasionally, a project-specific variable at the top of the script (e.g.
-which genome is the reference).
+**Folders - once per project.** Some jobs write their SLURM logs into a sub-folder
+(`logs/slurm/`, `expanded_annotation/logs/`, `pangenome_plots/logs/`, ...). SLURM opens the log
+before the job starts and doesn't create the folder, so a job whose log folder is missing fails
+and leaves no log. One command makes them all, plus `genomes/` and `gff_originals/` (safe to
+re-run; nothing that exists is touched):
+
+```bash
+cd <project>
+bash setup_project.sh
+```
+
+**Cluster settings - once per project.** Where the tool environments, the tool installs and the
+databases live on your cluster is set in one file, `pipeline_config.sh` at the project root. It is
+not part of the repository; start from the template:
+
+```bash
+cp pipeline_config.example.sh pipeline_config.sh   # then fill in the paths you need
+```
+
+Every job script loads it through [`lib/slurm_common.sh`](lib/slurm_common.sh), so submit jobs from
+the project folder. A job stops with a message naming any setting it needs that is still empty.
+Any setting can also be given for a single job, e.g. `sbatch --export=ALL,LABEL=Toxo7a ...`.
+
+What stays in each script: the `#SBATCH` lines, the `### ADAPT ###` block (cluster module names;
+the environment it activates is named in `pipeline_config.sh`), and the run's own settings at the
+top of the script (input folders, thresholds, and species-specific values such as `SPECIES`,
+`LABEL`, `ID_PREFIX` or the organelle contigs, which have no default and must be set). The
+`#SBATCH` partition/account can be overridden for every job without editing the scripts:
+`export SBATCH_PARTITION=<partition> SBATCH_ACCOUNT=<account>` before submitting.
+
+**Python - once per project.** The pipeline's own Python scripts (pandas, matplotlib, numpy,
+scipy, seaborn) run from a virtual environment pinned to [`uv.lock`](uv.lock), so every cluster
+gets the same package versions. [uv](https://docs.astral.sh/uv/) is a single program that needs
+no root and no conda:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # installs uv into ~/.local/bin
+source ~/.bashrc                                   # or open a new shell; check: uv --version
+
+cd <project>
+uv sync --frozen --no-dev                          # creates .venv/ from uv.lock (downloads Python 3.11 if needed)
+```
+
+uv keeps the Python it downloads under `~/.local/share/uv/`. If the compute nodes can't see your
+home folder, or it's small, put uv's files on shared storage before `uv sync` (and add these lines
+to your `~/.bashrc`):
+
+```bash
+export UV_PYTHON_INSTALL_DIR=$HOME/hc-storage/.uv_python
+export UV_CACHE_DIR=$HOME/hc-storage/.uv_cache
+```
+
+Jobs find `.venv/` themselves (`PIPELINE_VENV` in `pipeline_config.sh` points elsewhere). Its
+`python3` is used wherever the tool environment doesn't bring its own. To check it works on a
+compute node:
+
+```bash
+sbatch --export=ALL,ENV_BACKEND=path scripts/test_python_env.slurm.sh
+cat test_python_env_*.out test_python_env_*.err   # ends with "ALL OK"
+```
+
+(`ENV_BACKEND=path` tests just the Python; drop it to test the tool environments too.)
+
+**Tool environments - micromamba is optional.** Jobs call `activate_env <name>` (`synteny`,
+`bioinfo`, ...), which uses, per environment, the first of these that is set up
+(`ENV_BACKEND=auto`; see `pipeline_config.example.sh`):
+
+1. **container** - `$CONTAINER_DIR/<name>.sif`, or a folder `$CONTAINER_DIR/<name>/` of images (one
+   per tool is fine, e.g. biocontainers). Their programs are put on `PATH` as apptainer/singularity
+   wrappers, with the project folder and the pipeline bound in (add other folders the tools must
+   read, e.g. databases, to `CONTAINER_BINDS`).
+2. **micromamba** - `MAMBA_EXE` and `MAMBA_ROOT_PREFIX` are set.
+3. **conda** - `conda` is on `PATH`.
+4. **path** - whatever is already on `PATH` (e.g. `module load` in your `~/.bashrc`).
+
+Each job's log says which one it used (`activate_env synteny: container`). Set `ENV_BACKEND=container`
+to make a missing image an error instead of a fall-back.
+
+**Getting the containers.** The images are Apptainer `.sif` files. All but one are downloaded
+from public registries (quay.io/biocontainers and Docker Hub) at the versions pinned in
+[`containers/pull_containers.sh`](containers/pull_containers.sh); MCHelper has no published image,
+so it is built from [`containers/mchelper.def`](containers/mchelper.def). One copy can serve the
+whole group - put it on storage the compute nodes can see (e.g. under hc-storage, not `/tmp`):
+
+```bash
+module load apptainer                                   # if apptainer/singularity isn't already on PATH
+bash containers/pull_containers.sh /path/to/containers  # ~4 GB; skips images already there, so safe to re-run
+APPTAINER_TMPDIR=/a/big/disk apptainer build --fakeroot /path/to/containers/mchelper.sif containers/mchelper.def   # ~1.7 GB, 30+ min
+```
+
+This needs internet access, so run it on a login node or any Linux machine with apptainer and
+copy the folder over with its sub-folders as they are (`rsync -av containers_dir/ cluster:/path/to/containers/`).
+Building `mchelper.sif` needs `--fakeroot` (or root); if the cluster allows neither, build it
+elsewhere and copy it. Then point the pipeline at the folder in `pipeline_config.sh`:
+
+```bash
+CONTAINER_DIR=/path/to/containers
+CONTAINER_BINDS=/mnt/hc-storage      # folders outside the project the tools read: databases, genome symlink targets, ...
+```
+
+and leave `GET_PANGENES_ENV`, `TE_AID` and `MCHELPER_PY` empty, or those jobs keep using the old
+installs. The folder must look like this (`activate_env NAME` looks for `NAME.sif` or `NAME/*.sif`
+directly under `CONTAINER_DIR`, no deeper):
+
+```
+/path/to/containers/
+├── synteny/     minimap2.sif skani.sif samtools.sif blast.sif
+├── bioinfo/     agat.sif samtools.sif seqkit.sif
+├── te_filter/   blast.sif cd-hit.sif seqkit.sif
+├── repeatmasker4.2.sif
+├── te_annot.sif
+├── get_pangenes.sif
+└── mchelper.sif
+```
+
+| Environment | Image(s) |
+|---|---|
+| `synteny/` | biocontainers minimap2, skani, samtools, blast |
+| `bioinfo/` | biocontainers agat, samtools, seqkit |
+| `repeatmasker4.2.sif` | `dfam/tetools:2.00` (RepeatMasker 4.2.4 + Dfam 4.0) |
+| `te_annot.sif` | biocontainers te-aid (with R and BLAST+) |
+| `get_pangenes.sif` | biocontainers get_pangenes (used when `GET_PANGENES_ENV` is empty) |
+| `te_filter/` | biocontainers blast, cd-hit, seqkit (TE library Steps 2/4; replaces their `module load`s) |
+| `mchelper.sif` | built from [`containers/mchelper.def`](containers/mchelper.def) (used when `MCHELPER_PY` is empty) |
+
+A folder (`synteny/`) holds one image per tool; all of them are used together for that
+environment. Images are only used for the environments they exist for, so they can be added one at
+a time; the rest keep using micromamba or modules. Step 03 (funannotate), InterProScan and BUSCO
+still use the cluster's shared containers/modules.
 
 If a script fails with `Permission denied`, restore the executable bit on all scripts:
 

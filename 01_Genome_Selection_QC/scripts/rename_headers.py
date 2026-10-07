@@ -30,6 +30,14 @@ import argparse
 import os
 import re
 import sys
+from functools import partial
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import find_gff as _find_gff, gff_seqids
+
+# Also accepts gzipped GFFs, unlike most steps.
+find_gff = partial(_find_gff, exts=(".gff3", ".gff", ".gff3.gz", ".gff.gz"))
 
 FASTA_EXTS = (".fna", ".fasta", ".fa")
 ACC_RE = re.compile(r"^(GC[AF]_\d+\.\d+)")
@@ -39,7 +47,7 @@ def stem_and_ext(path):
     base = os.path.basename(path)
     for ext in FASTA_EXTS:
         if base.lower().endswith(ext):
-            return base[: -len(ext)], base[-len(ext):]
+            return base[: -len(ext)], base[-len(ext) :]
     root, ext = os.path.splitext(base)
     return root, ext
 
@@ -56,7 +64,7 @@ def trim_headers(in_path, out_path):
     seen = set()
     dupes = set()
     ids = []
-    outfile = open(out_path, "w") if out_path is not None else None
+    outfile = open(out_path, "w") if out_path is not None else None  # noqa: SIM115 - closed in the finally below
     try:
         with open(in_path) as infile:
             for line in infile:
@@ -82,42 +90,26 @@ def trim_headers(in_path, out_path):
                 os.remove(out_path)
             except OSError:
                 pass
-        sys.exit(f"ERROR: {in_path}: headers collide after trimming to first token: "
-                 f"{sorted(dupes)[:10]} - fix the source assembly.")
+        sys.exit(
+            f"ERROR: {in_path}: headers collide after trimming to first token: "
+            f"{sorted(dupes)[:10]} - fix the source assembly."
+        )
     return n_seqs, ids
 
 
-def gff_seqids(gff_path):
-    ids = set()
-    with open(gff_path) as fh:
-        for line in fh:
-            if line.startswith("#") or not line.strip():
-                continue
-            ids.add(line.split("\t", 1)[0])
-    return ids
-
-
-def find_gff(gff_dir, name):
-    for ext in (".gff3", ".gff", ".gff3.gz", ".gff.gz"):
-        cand = os.path.join(gff_dir, name + ext)
-        if os.path.isfile(cand):
-            return cand
-    return None
-
-
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("inputs", nargs="+", help="FASTA file(s): .fna / .fasta / .fa")
-    ap.add_argument("--in-place", action="store_true",
-                    help="edit the files where they are")
-    ap.add_argument("--outdir", metavar="DIR",
-                    help="write trimmed copies here instead (keeps the originals)")
-    ap.add_argument("--to-ext", choices=FASTA_EXTS,
-                    help="force every output to this extension (default: keep the input's)")
-    ap.add_argument("--check-gff", metavar="DIR",
-                    help="don't edit - just report any sequence ID missing from "
-                         "DIR/<basename>.gff3 column 1")
+    ap.add_argument("--in-place", action="store_true", help="edit the files where they are")
+    ap.add_argument("--outdir", metavar="DIR", help="write trimmed copies here instead (keeps the originals)")
+    ap.add_argument(
+        "--to-ext", choices=FASTA_EXTS, help="force every output to this extension (default: keep the input's)"
+    )
+    ap.add_argument(
+        "--check-gff",
+        metavar="DIR",
+        help="don't edit - just report any sequence ID missing from DIR/<basename>.gff3 column 1",
+    )
     args = ap.parse_args()
 
     check_only = bool(args.check_gff) and not args.in_place and not args.outdir
@@ -127,7 +119,7 @@ def main():
         sys.exit("ERROR: give --in-place, --outdir, or --check-gff.")
 
     # Resolve output names up front and catch collisions before touching anything.
-    plan = []          # (in_path, stem, ext, out_ext, base)
+    plan = []  # (in_path, stem, ext, out_ext, base)
     errors = []
     for in_path in args.inputs:
         if not os.path.isfile(in_path):
@@ -171,15 +163,16 @@ def main():
         if args.check_gff:
             gff = find_gff(args.check_gff, base) or find_gff(args.check_gff, stem)
             if not gff:
-                print(f"  check-gff: no GFF for '{base}' in {args.check_gff} - skipped",
-                      file=sys.stderr)
+                print(f"  check-gff: no GFF for '{base}' in {args.check_gff} - skipped", file=sys.stderr)
             else:
                 missing = [i for i in ids if i not in gff_seqids(gff)]
                 if missing:
                     problems += 1
-                    print(f"  WARNING: {len(missing)}/{len(ids)} trimmed IDs are not in "
-                          f"{os.path.basename(gff)} col 1 (first: {missing[:5]})",
-                          file=sys.stderr)
+                    print(
+                        f"  WARNING: {len(missing)}/{len(ids)} trimmed IDs are not in "
+                        f"{os.path.basename(gff)} col 1 (first: {missing[:5]})",
+                        file=sys.stderr,
+                    )
                 else:
                     print(f"  check-gff: OK - all {len(ids)} IDs in {os.path.basename(gff)}")
 

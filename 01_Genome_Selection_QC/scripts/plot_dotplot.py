@@ -11,29 +11,20 @@ Red segment   = reverse strand (inversion)
 Only alignments >= --min-aln bp are drawn, so large-scale rearrangements stand out
 instead of drowning in short hits.
 """
+
 import argparse
 import sys
 from collections import defaultdict
 
 import matplotlib
+
 matplotlib.use("Agg")
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 
-
-def read_paf(path, min_aln):
-    rows = []
-    with open(path) as fh:
-        for line in fh:
-            f = line.rstrip("\n").split("\t")
-            if len(f) < 12:
-                continue
-            aln = int(f[10])
-            if aln < min_aln:
-                continue
-            rows.append(dict(
-                q=f[0], qlen=int(f[1]), qs=int(f[2]), qe=int(f[3]), strand=f[4],
-                t=f[5], tlen=int(f[6]), ts=int(f[7]), te=int(f[8])))
-    return rows
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.io import read_paf
 
 
 def main():
@@ -62,7 +53,7 @@ def main():
     # Y axis: query contigs, placed after the reference sequence they align to
     # most, then by mean position on it
     qlen = {r["q"]: r["qlen"] for r in rows}
-    aligned = defaultdict(lambda: defaultdict(float))   # q -> t -> bp
+    aligned = defaultdict(lambda: defaultdict(float))  # q -> t -> bp
     pos_sum = defaultdict(lambda: defaultdict(float))
     pos_n = defaultdict(lambda: defaultdict(int))
     for r in rows:
@@ -108,8 +99,7 @@ def main():
     ax.set_yticklabels(big_q, fontsize=7)
     ax.set_xlabel(a.ref_name)
     ax.set_ylabel(a.query_name)
-    ax.set_title(f"{a.query_name}  vs  {a.ref_name}     "
-                 f"(blue = same strand, red = inversion; alns >= {a.min_aln} bp)")
+    ax.set_title(f"{a.query_name}  vs  {a.ref_name}     (blue = same strand, red = inversion; alns >= {a.min_aln} bp)")
     fig.tight_layout()
     fig.savefig(a.out, dpi=150)
     print(f"wrote {a.out}  ({len(rows)} alignments, {len(q_order)} query contigs)")

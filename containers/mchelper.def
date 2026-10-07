@@ -1,0 +1,76 @@
+# MCHelper (https://github.com/GonzalezLab/MCHelper) with its databases, for step 02's TE library
+# (Step3_run_mchelper.slurm.sh). Translated from MCHelper's own Dockerfile (dfam/tetools + apt/pip
+# dependencies), with the db/ setup from its README done at build time.
+#
+# Build (no root needed with --fakeroot; ~2 GB, takes a while for the Pfam download):
+#
+#     apptainer build --fakeroot "$CONTAINER_DIR/mchelper.sif" containers/mchelper.def
+#
+# The build unpacks ~5 GB in a temporary folder (default /tmp, often small): if it fails with
+# "Disk quota exceeded" / "No space left", point it at a bigger disk with APPTAINER_TMPDIR=/path.
+#
+# If the cluster can't build, build it on a Linux machine with apptainer and copy the .sif over.
+# activate_env "$ENV_MCHELPER" then finds it and puts `mchelper` (and the image's tools) on PATH.
+#
+# Pfam35.0.hmm comes from URGI, which sometimes asks for a "not a bot" check. If the download fails
+# the build still finishes, and db/Pfam35.0.hmm points at /pfam/Pfam35.0.hmm instead: download it by
+# hand and bind its folder in pipeline_config.sh, e.g. CONTAINER_BINDS="/path/to/pfam_dir:/pfam".
+
+Bootstrap: docker
+From: dfam/tetools:1.94
+
+%arguments
+    MCHELPER_COMMIT=67353d698d3155081285d1f613edf08560d475d6
+
+%post
+    set -eu
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update
+    apt-get install -y --no-install-recommends \
+        git unzip wget ca-certificates python3-pip \
+        python3-pandas python3-opencv python3-psutil python3-sklearn python3-matplotlib python3-scipy \
+        r-base hmmer emboss poppler-utils
+    # Keep Debian's numpy: cialign would otherwise pull numpy 2, which breaks Debian's pandas/sklearn.
+    # pip's temporary files go inside the image being built, not the host's (often small) /tmp.
+    export TMPDIR=/var/tmp/pip && mkdir -p "$TMPDIR"
+    python3 -c 'import numpy; print("numpy==" + numpy.__version__)' > "$TMPDIR/constraints.txt"
+    pip install --break-system-packages --no-cache-dir -c "$TMPDIR/constraints.txt" pdf2image biopython cialign
+    apt-get clean && rm -rf /var/lib/apt/lists/* "$TMPDIR"
+
+    git clone https://github.com/GonzalezLab/MCHelper /opt/mchelper
+    cd /opt/mchelper
+    git checkout {{ MCHELPER_COMMIT }}
+    rm -rf .git Test_dir benchmarking_scripts
+
+    cd db
+    unzip -q '*.zip' && rm -f ./*.zip
+    PATH="$PATH:/opt/rmblast/bin:/opt/ncbi-blast/bin" makeblastdb -in allDatabases.clustered_rename.fa -dbtype nucl
+    if wget -q https://urgi.versailles.inrae.fr/download/repet/profiles/ProfilesBankForREPET_Pfam35.0_GypsyDB.hmm.tar.gz \
+        && tar xzf ProfilesBankForREPET_Pfam35.0_GypsyDB.hmm.tar.gz \
+        && head -c 6 ProfilesBankForREPET_Pfam35.0_GypsyDB.hmm | grep -q HMMER; then
+        mv ProfilesBankForREPET_Pfam35.0_GypsyDB.hmm Pfam35.0.hmm
+    else
+        echo "WARNING: Pfam35.0.hmm download failed - bind it at /pfam/Pfam35.0.hmm (see the header)" >&2
+        rm -f ProfilesBankForREPET_Pfam35.0_GypsyDB.hmm*
+        ln -s /pfam/Pfam35.0.hmm Pfam35.0.hmm
+    fi
+    rm -f ./*.tar.gz
+    chmod -R a+rX /opt/mchelper
+
+    # The entry point the pipeline calls; activate_env exposes what's in /usr/local/bin.
+    printf '#!/bin/sh\nexec python3 /opt/mchelper/MCHelper.py "$@"\n' > /usr/local/bin/mchelper
+    chmod +x /usr/local/bin/mchelper
+
+%environment
+    export PATH="$PATH:/opt/cd-hit:/opt/mafft/bin"
+
+%test
+    python3 -c "import Bio, cv2, pandas, pdf2image, psutil, sklearn"
+    for t in blastn makeblastdb cd-hit-est mafft hmmsearch Rscript CIAlign getorf; do
+        command -v "$t" >/dev/null || { echo "missing: $t" >&2; exit 1; }
+    done
+    mchelper --help >/dev/null
+
+%labels
+    Description MCHelper and its databases, for the pangenome pipeline's step 02 TE library
+    MCHelper.commit 67353d698d3155081285d1f613edf08560d475d6

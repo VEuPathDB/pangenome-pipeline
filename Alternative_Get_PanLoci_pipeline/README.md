@@ -117,14 +117,15 @@ The repository contains two script directories tailored for different environmen
   - [`scripts/step1_prepare_seed_transfers.py`](scripts/step1_prepare_seed_transfers.py): Step 1 Python script (seed coordinate extraction and `halLiftover`).
   - [`scripts/step2_validate_transfers.py`](scripts/step2_validate_transfers.py): Step 2 Python script (`minimap2` DNA validation).
   - [`scripts/step3_build_panlocus_catalogue.py`](scripts/step3_build_panlocus_catalogue.py): Step 3 Python script (sequential catalogue expansion and PAV matrix generation).
+  - [`scripts/panloci_common.py`](scripts/panloci_common.py): helpers the three step scripts share (samples.tsv, GFF/FASTA reading, halLiftover merging). Copy it into `RUN_DIR` with them.
 
 - **`scripts_no_slurm/` (Direct Bash / Non-SLURM Servers & Workstations)**:
   - [`scripts_no_slurm/step0_run_cactus_pangenome.sh`](scripts_no_slurm/step0_run_cactus_pangenome.sh): Direct Bash script to construct the Cactus HAL alignment.
   - [`scripts_no_slurm/run_get_panloci.sh`](scripts_no_slurm/run_get_panloci.sh): Direct Bash orchestrator running Steps 1, 2, and 3 sequentially.
-  - [`scripts_no_slurm/step1_prepare_seed_transfers.py`](scripts_no_slurm/step1_prepare_seed_transfers.py), [`scripts_no_slurm/step2_validate_transfers.py`](scripts_no_slurm/step2_validate_transfers.py), [`scripts_no_slurm/step3_build_panlocus_catalogue.py`](scripts_no_slurm/step3_build_panlocus_catalogue.py): Core Python scripts.
+  - The Step 1–3 Python scripts are not duplicated here: use the ones in [`scripts/`](scripts/) (copy them and `panloci_common.py` into `RUN_DIR`, as for the SLURM version).
   - [`scripts_no_slurm/README_get_panloci.md`](scripts_no_slurm/README_get_panloci.md): Dedicated guide for non-SLURM execution.
 
-Both versions share the exact same underlying logic, command-line arguments, and output structures.
+Both versions run the exact same Python scripts (from `scripts/`), with the same command-line arguments and output structures.
 
 ## Inputs
 
@@ -440,8 +441,6 @@ Script:
 
 ```text
 scripts/step1_prepare_seed_transfers.py
-# or
-scripts_no_slurm/step1_prepare_seed_transfers.py
 ```
 
 Purpose:
@@ -541,8 +540,6 @@ Script:
 
 ```text
 scripts/step2_validate_transfers.py
-# or
-scripts_no_slurm/step2_validate_transfers.py
 ```
 
 Purpose:
@@ -656,8 +653,6 @@ Script:
 
 ```text
 scripts/step3_build_panlocus_catalogue.py
-# or
-scripts_no_slurm/step3_build_panlocus_catalogue.py
 ```
 
 Purpose:

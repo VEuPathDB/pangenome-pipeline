@@ -17,9 +17,9 @@ set -euo pipefail
 # Edit these for your run.
 PANGENES_OUT_DIR="for_get_pangenes_7b_pangenes"                             # get_pangenes output folder (holds the *2neigh_algMmap_ subfolder)
 GFF_DIR="for_get_pangenes_7b"                                             # the GFFs given to get_pangenes (link_for_get_pangenes_7b.slurm.sh's OUT_DIR)
-ENTRY_LIST="/home/aludwig/hc-storage/interpro_entry.list"                # InterPro IPR id -> name, shared by all projects; downloaded here if missing
+ENTRY_LIST=""                                                             # InterPro IPR id -> name; empty = INTERPRO_ENTRY_LIST from pipeline_config.sh
 OUT_DIR="pangenome_plots"
-LABEL="Toxo7b"                                                            # prefix of every output file
+LABEL="${LABEL:?set LABEL (prefix of every output file, e.g. Toxo7b) here or with sbatch --export=ALL,LABEL=...}"
 CATEGORIES="Core,Cloud"                                                   # comma-separated: Core, Soft-core, Shell, Cloud
 ALPHA="0.05"                                                              # adjusted p-value cutoff
 MIN_TOTAL="5"                                                             # entries carried by fewer clusters in the whole universe are not tested
@@ -28,11 +28,9 @@ TOP="15"                                                                  # max 
 
 set +u
 module purge
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + numpy + scipy + matplotlib):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
@@ -41,18 +39,7 @@ for mod in numpy scipy matplotlib; do
         || { echo "ERROR: the activated env has no python module '$mod' (needs numpy, scipy and matplotlib)" >&2; exit 1; }
 done
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/plot_domain_enrichment.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py" \
-    "08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find plot_domain_enrichment.py (run from the project folder)" >&2; exit 1; }
+find_script PY 08_Pangenome_Visualisation/scripts/plot_domain_enrichment.py
 mkdir -p "$OUT_DIR"
 
 # get_pangenes writes pangene_matrix_genes.tr.tab inside <genome>_..._2neigh_algMmap_/ under its output folder.
@@ -67,12 +54,15 @@ GENES_MATRIX="${MATRICES[0]}"
 
 # Compute nodes may not reach the internet: download the list once on the login node (the curl below),
 # otherwise the plot falls back to IPR ids.
-if [[ ! -f "$ENTRY_LIST" ]]; then
+[[ -n "$ENTRY_LIST" ]] || ENTRY_LIST="${INTERPRO_ENTRY_LIST:-}"
+if [[ -z "$ENTRY_LIST" ]]; then
+    echo "WARNING: no InterPro entry list set (INTERPRO_ENTRY_LIST in pipeline_config.sh); terms will be labelled by IPR id" >&2
+elif [[ ! -f "$ENTRY_LIST" ]]; then
     curl -sfL -o "$ENTRY_LIST" "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list" \
         || { echo "WARNING: could not download the InterPro entry list; terms will be labelled by IPR id" >&2; rm -f "$ENTRY_LIST"; }
 fi
 ENTRY_ARGS=()
-[[ -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
+[[ -n "$ENTRY_LIST" && -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
 
 python3 "$PY" \
   --genes-matrix "$GENES_MATRIX" --gff-dir "$GFF_DIR" \

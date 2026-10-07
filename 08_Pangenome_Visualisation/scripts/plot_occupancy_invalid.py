@@ -31,21 +31,35 @@ Writes <out-prefix>.png/.svg and <out-prefix>.tsv (occupancy, category, pangenes
 
 Needs numpy, matplotlib.
 """
+
 import argparse
 import csv
 import os
 import re
 import sys
+from pathlib import Path
 from urllib.parse import unquote_plus
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
+from plot_occupancy import COLORS, ORDER, categorize
 
-from plot_occupancy import categorize, COLORS, ORDER
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DESCRIPTION_RE, ID_RE, INTERSECT_RE, PARENT_RE, PRODUCT_RE
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+# Same list as filter_final_annotation.py: a description this generic counts as no evidence.
+GENERIC_DESCRIPTIONS = {
+    "hypothetical protein",
+    "hypothetical protein, conserved",
+    "conserved hypothetical protein",
+    "unspecified product",
+    "unknown function",
+    "unnamed protein product",
+    "",
+}
 
 
 def gene_status(path):
@@ -75,17 +89,6 @@ def gene_status(path):
     return out
 
 
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
-# Same list as filter_final_annotation.py: a description this generic counts as no evidence.
-GENERIC_DESCRIPTIONS = {
-    "hypothetical protein", "hypothetical protein, conserved", "conserved hypothetical protein",
-    "unspecified product", "unknown function", "unnamed protein product", "",
-}
-
-
 def gene_status_overlap(path):
     """gene ID -> True (not main, no domain, no specific description, overlaps another gene) or False; untagged genes are left out."""
     genes, mrna_gene, with_domain = {}, {}, set()
@@ -99,7 +102,7 @@ def gene_status_overlap(path):
             i = ID_RE.search(f[8])
             if f[2] == "gene" and i:
                 m = INTERSECT_RE.search(f[8])
-                if m:   # genes without the tag (e.g. non-coding RNA genes typed gene) are not judged
+                if m:  # genes without the tag (e.g. non-coding RNA genes typed gene) are not judged
                     d = DESCRIPTION_RE.search(f[8]) or PRODUCT_RE.search(f[8])
                     specific = (unquote_plus(d.group(1).strip().lower()) if d else "") not in GENERIC_DESCRIPTIONS
                     genes[i.group(1)] = (f[1] != "main", m.group(1) != "NA", specific)
@@ -114,8 +117,10 @@ def gene_status_overlap(path):
     if not genes:
         sys.exit(f"ERROR: no gene with an intersect= tag in {path}; --mark overlap needs the tagged (7b) GFFs")
     domain_genes = {mrna_gene.get(m, m) for m in with_domain}
-    return {g: (not_main and overlaps and not specific and g not in domain_genes)
-            for g, (not_main, overlaps, specific) in genes.items()}
+    return {
+        g: (not_main and overlaps and not specific and g not in domain_genes)
+        for g, (not_main, overlaps, specific) in genes.items()
+    }
 
 
 def main():
@@ -124,17 +129,36 @@ def main():
     ap.add_argument("--gff-dir", required=True)
     ap.add_argument("--gff-suffix", default="_for_get_pangenes.gff")
     ap.add_argument("-o", "--out-prefix", required=True)
-    ap.add_argument("--min-share", type=float, default=0.5,
-                    help="a pangene is mostly invalid when MORE than this share of its judged genes are invalid (default 0.5)")
-    ap.add_argument("--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)")
-    ap.add_argument("--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)")
+    ap.add_argument(
+        "--min-share",
+        type=float,
+        default=0.5,
+        help="a pangene is mostly invalid when MORE than this share of its judged genes are invalid (default 0.5)",
+    )
+    ap.add_argument(
+        "--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)"
+    )
+    ap.add_argument(
+        "--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)"
+    )
     ap.add_argument("--cloud-max", type=int, default=2, help="cloud = present in at most this many genomes (default 2)")
-    ap.add_argument("--style", choices=["counts", "percent", "invalid", "share"], default="counts",
-                    help="counts = bar height is the number of pangenes; percent = every bar goes 0-100 and shows the share that is mostly invalid; invalid = only the mostly invalid pangenes, counted per occupancy; share = one stacked bar per category, split by the share of invalid genes of each pangene")
-    ap.add_argument("--single-copy", action="store_true",
-                    help="only pangenes with exactly one gene in every genome they are present in (leaves out the multi-gene pangenes)")
-    ap.add_argument("--mark", choices=["orf", "overlap"], default="orf",
-                    help="orf = pseudogene-like genes (broken ORF or pseudogene biotype); overlap = not main, no domain and overlapping another gene (tagged 7b GFFs)")
+    ap.add_argument(
+        "--style",
+        choices=["counts", "percent", "invalid", "share"],
+        default="counts",
+        help="counts = bar height is the number of pangenes; percent = every bar goes 0-100 and shows the share that is mostly invalid; invalid = only the mostly invalid pangenes, counted per occupancy; share = one stacked bar per category, split by the share of invalid genes of each pangene",
+    )
+    ap.add_argument(
+        "--single-copy",
+        action="store_true",
+        help="only pangenes with exactly one gene in every genome they are present in (leaves out the multi-gene pangenes)",
+    )
+    ap.add_argument(
+        "--mark",
+        choices=["orf", "overlap"],
+        default="orf",
+        help="orf = pseudogene-like genes (broken ORF or pseudogene biotype); overlap = not main, no domain and overlapping another gene (tagged 7b GFFs)",
+    )
     ap.add_argument("--title", default="")
     args = ap.parse_args()
     if args.mark == "overlap":
@@ -182,8 +206,11 @@ def main():
         total[occ] += 1
         bad[occ] += mostly
         per_pangene.append((r[0], occ, len(genes), len(judged), sum(judged), share, mostly))
-    print(f"{total.sum()} pangenes judged; {skipped} left out (no gene could be judged)"
-          + (f"; {n_multi} left out (more than one gene in a genome)" if args.single_copy else ""), file=sys.stderr)
+    print(
+        f"{total.sum()} pangenes judged; {skipped} left out (no gene could be judged)"
+        + (f"; {n_multi} left out (more than one gene in a genome)" if args.single_copy else ""),
+        file=sys.stderr,
+    )
 
     ks = np.arange(1, n + 1)
     cats = [categorize(k, n, args.core_missing, args.softcore_missing, args.cloud_max) for k in ks]
@@ -194,7 +221,9 @@ def main():
             w.writerow([k, c, int(total[k]), int(bad[k])])
     with open(args.out_prefix + "_pangenes.tsv", "w", newline="") as fh:
         w = csv.writer(fh, delimiter="\t")
-        w.writerow(["pangene", "occupancy", "genes", "genes_judged", "genes_invalid", "share_invalid", "mostly_invalid"])
+        w.writerow(
+            ["pangene", "occupancy", "genes", "genes_judged", "genes_invalid", "share_invalid", "mostly_invalid"]
+        )
         for p in per_pangene:
             w.writerow([p[0], p[1], p[2], p[3], p[4], f"{p[5]:.2f}", int(p[6])])
 
@@ -209,12 +238,14 @@ def main():
         cat_of = {k: c for k, c in zip(ks, cats)}
         pc = np.array([cat_of[p[1]] for p in per_pangene])
         sh = np.array([p[5] for p in per_pangene])
-        classes = [(lambda x: x == 0, f"0% (all genes {good_gene})"),
-                   (lambda x: (x > 0) & (x <= 0.5), "up to 50%"),
-                   (lambda x: (x > 0.5) & (x < 1), "more than 50%, not all"),
-                   (lambda x: x == 1, f"100% (all genes {bad_gene})")]
+        classes = [
+            (lambda x: x == 0, f"0% (all genes {good_gene})"),
+            (lambda x: (x > 0) & (x <= 0.5), "up to 50%"),
+            (lambda x: (x > 0.5) & (x < 1), "more than 50%, not all"),
+            (lambda x: x == 1, f"100% (all genes {bad_gene})"),
+        ]
         shades = ["#e8e8e8", "#fdd0a2", "#f16913", "#7f2704"]
-        show = [c for c in reversed(ORDER) if (pc == c).any()]   # Cloud left, Core right
+        show = [c for c in reversed(ORDER) if (pc == c).any()]  # Cloud left, Core right
         fig, ax = plt.subplots(figsize=(7.5, 5.2))
         bottom = np.zeros(len(show))
         for (fn, name), col in zip(classes, shades):
@@ -222,15 +253,27 @@ def main():
             ax.bar(range(len(show)), share, bottom=bottom, color=col, width=0.7, label=name, edgecolor="white", lw=0.5)
             for x, (v, b) in enumerate(zip(share, bottom)):
                 if v >= 3:
-                    ax.text(x, b + v / 2, f"{v:.0f}%", ha="center", va="center", fontsize=8,
-                            color="white" if col in shades[2:] else "black")
+                    ax.text(
+                        x,
+                        b + v / 2,
+                        f"{v:.0f}%",
+                        ha="center",
+                        va="center",
+                        fontsize=8,
+                        color="white" if col in shades[2:] else "black",
+                    )
             bottom += share
         ax.set_xticks(range(len(show)))
         ax.set_xticklabels([f"{c}\n(n={int((pc == c).sum())})" for c in show])
         ax.set_ylabel("Percentage of pangenes", fontsize=12)
         ax.set_ylim(0, 100)
         ax.spines[["top", "right"]].set_visible(False)
-        ax.legend(title=f"{bad_gene.capitalize()} genes in the pangene", loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False)
+        ax.legend(
+            title=f"{bad_gene.capitalize()} genes in the pangene",
+            loc="center left",
+            bbox_to_anchor=(1.01, 0.5),
+            frameon=False,
+        )
         fig.tight_layout()
         for ext in ("png", "svg"):
             fig.savefig(f"{args.out_prefix}.{ext}", dpi=200, bbox_inches="tight")
@@ -245,7 +288,12 @@ def main():
             ax.text(k, bad[k], f"{bad[k]}", ha="center", va="bottom", fontsize=8)
         ax.set_ylim(0, bad.max() * 1.08)
         ax.set_xticks(ks)
-        ax.set_ylabel(f"Number of pangenes mostly {bad_gene}" if args.mark == "overlap" else f"Number of pangenes with mostly {what}", fontsize=12)
+        ax.set_ylabel(
+            f"Number of pangenes mostly {bad_gene}"
+            if args.mark == "overlap"
+            else f"Number of pangenes with mostly {what}",
+            fontsize=12,
+        )
     elif args.style == "percent":
         share = 100 * bad[1:] / np.maximum(total[1:], 1)
         ax.bar(ks, share, width=0.8, color=colors)
@@ -255,7 +303,10 @@ def main():
         ax.set_ylim(0, 100)
         ax.set_xticks(ks)
         ax.set_xticks(ks)
-        ax.set_ylabel(f"Pangenes mostly {bad_gene} (%)" if args.mark == "overlap" else f"Pangenes with mostly {what} (%)", fontsize=12)
+        ax.set_ylabel(
+            f"Pangenes mostly {bad_gene} (%)" if args.mark == "overlap" else f"Pangenes with mostly {what} (%)",
+            fontsize=12,
+        )
     else:
         ax.bar(ks, total[1:] - bad[1:], width=0.8, color=colors)
         ax.bar(ks, bad[1:], bottom=total[1:] - bad[1:], width=0.8, color=colors, hatch="////", edgecolor="white", lw=0)
@@ -273,8 +324,7 @@ def main():
     if args.style == "counts":
         handles.append(plt.Rectangle((0, 0), 1, 1, facecolor="0.6", hatch="////", edgecolor="white", lw=0))
         labels.append(f"> {args.min_share * 100:.0f}% {bad_gene} genes")
-    ax.legend(handles, labels,
-              loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False)
+    ax.legend(handles, labels, loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False)
     if args.title:
         ax.set_title(args.title, loc="left", fontsize=14)
     fig.tight_layout()

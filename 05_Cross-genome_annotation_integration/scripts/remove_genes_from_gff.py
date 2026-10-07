@@ -24,28 +24,14 @@ else happens for it.
 
 import argparse
 import os
-import re
 import shutil
 import sys
 from collections import defaultdict
+from pathlib import Path
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-
-
-def read_list(value):
-    if os.path.isfile(value):
-        with open(value) as fh:
-            return [l.split()[0] for l in fh if l.strip() and not l.startswith("#")]
-    return [g.strip() for g in value.split(",") if g.strip()]
-
-
-def find_gff(gff_dir, genome):
-    for ext in ("gff3", "gff"):
-        path = os.path.join(gff_dir, f"{genome}.{ext}")
-        if os.path.isfile(path):
-            return path
-    return None
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import ID_RE, PARENT_RE, find_gff
+from pangenome_common.io import read_id_list
 
 
 def read_kill_list(path):
@@ -140,7 +126,11 @@ def remove_genes(gff_path, out_path, gene_ids):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--genomes", required=True, help="Comma-separated genome names or a file with one per line (e.g. genome_order.txt)")
+    parser.add_argument(
+        "--genomes",
+        required=True,
+        help="Comma-separated genome names or a file with one per line (e.g. genome_order.txt)",
+    )
     parser.add_argument("--gff-dir", required=True, help="Directory with each genome's <genome>.gff3 or <genome>.gff")
     parser.add_argument("--kill-list", required=True, help="TSV, no header: genome<TAB>gene_id")
     parser.add_argument("--out-dir", required=True, help="Where to write the curated GFFs (must not be --gff-dir)")
@@ -149,13 +139,17 @@ def main():
     if os.path.abspath(args.out_dir) == os.path.abspath(args.gff_dir):
         sys.exit("ERROR: --out-dir must be different from --gff-dir - the input GFFs are never edited in place")
 
-    genomes = read_list(args.genomes)
+    genomes = read_id_list(args.genomes)
     if not os.path.isdir(args.gff_dir):
-        sys.exit(f"ERROR: --gff-dir {args.gff_dir!r} does not exist - did the previous step run, and are you in the project folder?")
+        sys.exit(
+            f"ERROR: --gff-dir {args.gff_dir!r} does not exist - did the previous step run, and are you in the project folder?"
+        )
     missing = [g for g in genomes if find_gff(args.gff_dir, g) is None]
     if missing:
-        sys.exit(f"ERROR: no GFF ({args.gff_dir}/<genome>.gff3 or .gff) for {len(missing)} of {len(genomes)} genome(s): "
-                 f"{', '.join(missing)}. Nothing was written - a genome silently missing here would be missing from everything after it.")
+        sys.exit(
+            f"ERROR: no GFF ({args.gff_dir}/<genome>.gff3 or .gff) for {len(missing)} of {len(genomes)} genome(s): "
+            f"{', '.join(missing)}. Nothing was written - a genome silently missing here would be missing from everything after it."
+        )
     kills = read_kill_list(args.kill_list)
     unknown = sorted(set(kills) - set(genomes))
     if unknown:
@@ -174,16 +168,20 @@ def main():
         report, not_found, n_removed = remove_genes(gff_path, out_path, kills[genome])
         for gid, ftype, n_lines in report:
             report_rows.append((genome, gid, ftype, n_lines))
-        print(f"[{genome}] removed {len(report)} gene(s), {n_removed} GFF line(s) in total -> {out_path}", file=sys.stderr)
+        print(
+            f"[{genome}] removed {len(report)} gene(s), {n_removed} GFF line(s) in total -> {out_path}", file=sys.stderr
+        )
         for gid, ftype, n_lines in report:
             print(f"    {gid} ({ftype}): {n_lines} line(s)", file=sys.stderr)
         for gid in not_found:
-            print(f"    WARNING: {gid} not found in {gff_path} - nothing removed for it (typo, or wrong genome?)", file=sys.stderr)
+            print(
+                f"    WARNING: {gid} not found in {gff_path} - nothing removed for it (typo, or wrong genome?)",
+                file=sys.stderr,
+            )
 
     with open(os.path.join(args.out_dir, "removed_genes_report.tsv"), "w") as fh:
         fh.write("genome\tgene_id\tfeature_type\tn_gff_lines_removed\n")
-        for row in report_rows:
-            fh.write("\t".join(str(x) for x in row) + "\n")
+        fh.writelines("\t".join(str(x) for x in row) + "\n" for row in report_rows)
 
     print(f"\nDone - curated GFFs + removed_genes_report.tsv in {args.out_dir}", file=sys.stderr)
 

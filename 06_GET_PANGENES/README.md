@@ -43,8 +43,8 @@ filename the way `get_pangenes` expects, then run `get_pangenes` itself.
 |---|---|---|
 | get_pangenes (with its bundled Perl/Python and bedtools) | Step 2 | micromamba env (`get_pangenes` here), see [Installing get_pangenes](#installing-get_pangenes) |
 
-The Step 2 scripts read the environment's `bin/` directory from `GET_PANGENES_ENV` at the top of
-each script - edit that line to point to your own.
+The Step 2 scripts read the environment's `bin/` directory from `GET_PANGENES_ENV`, set in the
+project's `pipeline_config.sh` (see the [main README](../README.md#getting-the-pipeline-into-a-project)).
 
 ## Steps
 
@@ -66,6 +66,8 @@ This step just symlinks both into place (no file is copied), one job, instant.
 so nothing stops you running `get_pangenes` on both and comparing the two pangene calls:
 [`scripts/link_for_get_pangenes_7a.slurm.sh`](scripts/link_for_get_pangenes_7a.slurm.sh) ·
 [`scripts/link_for_get_pangenes_7b.slurm.sh`](scripts/link_for_get_pangenes_7b.slurm.sh).
+Each wrapper only holds its own `#SBATCH` header and settings; the linking itself is shared, in
+[`scripts/get_pangenes_common.sh`](scripts/get_pangenes_common.sh) (sourced, not submitted).
 
 #### What you need before starting
 
@@ -108,6 +110,8 @@ Input: each genome's `<genome>_for_get_pangenes.gff` + matching `.fna`, from ste
 Same split as step 1 - each variant reads its own `INPUT_DIR` and never touches the other's:
 [`scripts/run_get_pangenes_7a_job.sh`](scripts/run_get_pangenes_7a_job.sh) ·
 [`scripts/run_get_pangenes_7b_job.sh`](scripts/run_get_pangenes_7b_job.sh).
+As in step 1, the get_pangenes call itself lives in
+[`scripts/get_pangenes_common.sh`](scripts/get_pangenes_common.sh).
 
 #### Dependencies
 
@@ -125,11 +129,11 @@ Same split as step 1 - each variant reads its own `INPUT_DIR` and never touches 
 #### Running it
 
 **Edit the settings at the top of whichever script matches what you're running** (same
-variables in both, pre-filled with each approach's own `INPUT_DIR`):
+variables in both, pre-filled with each approach's own `INPUT_DIR`; `GET_PANGENES_ENV` comes from
+`pipeline_config.sh`):
 
 | Variable | Meaning |
 |---|---|
-| `GET_PANGENES_ENV` | `bin/` directory of the micromamba environment from the install step above |
 | `INPUT_DIR` | Directory with every genome's `<genome>_for_get_pangenes.gff` (+ matching `.fna`) - `./for_get_pangenes_7a`/`_7b` by default |
 | `N_CPUS` | Should match `--cpus-per-task` in the `#SBATCH` header above it |
 | `TAXA_THRESHOLD` | `get_pangenes`' `-t` - minimum number of genomes a pangene cluster must appear in to be reported at all; `0` reports everything, including genome-private (singleton) clusters |

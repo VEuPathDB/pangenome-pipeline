@@ -609,8 +609,8 @@ carries hits on contigs that were dropped afterwards — which would add mitocho
 haplotig TE to the per-genome totals and make `summarize_te_content.py` divide by the
 pre-drop genome length.
 
-Scripts: [`scripts/fix_repeatmasker_after_contig_drop.slurm.sh`](02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh)
-· [`scripts/fix_repeatmasker_after_contig_drop.py`](02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py)
+Scripts: [`species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh`](../../species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh)
+· [`species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py`](../../species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py)
 (what it calls). For every `RM_<genome_id>/` (matched to its genome by the folder name / the
 `.out` file name) it drops from `.out` / `.gff` the lines on the contigs listed for that
 genome in the manifest, corrects the `.tbl` `total length:` (old total minus the removed
@@ -621,7 +621,7 @@ entry (e.g. A1160) are just copied through. The wrapper defaults to
 project folder:
 
 ```bash
-sbatch 02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh
+sbatch species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh
 ```
 
 (`DROP_LIST=""` + `GENOMES="genomes"` in the wrapper is the alternative — removes *any*

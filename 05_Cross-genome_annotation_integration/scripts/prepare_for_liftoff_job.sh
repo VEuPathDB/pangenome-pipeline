@@ -24,24 +24,13 @@ OUT_DIR="gff_for_liftoff"                          # where the prepared GFFs (+ 
 
 set +u
 module purge
-### ADAPT ### — put python3 on the PATH (standard library only, nothing else needed):
-export LD_LIBRARY_PATH="${LD_LIBRARY_PATH:-}"
-module load python/3.11.9
+### ADAPT ### — put python3 on the PATH:
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/prepare_for_liftoff.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff.py" \
-    "05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find prepare_for_liftoff.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff.py
 
 
 python3 "$PY" \

@@ -81,24 +81,37 @@ import csv
 import os
 import re
 import sys
-from urllib.parse import unquote
 from collections import defaultdict
+from functools import partial
+from pathlib import Path
+from urllib.parse import unquote
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import (
+    DESCRIPTION_RE,
+    GENE_BIOTYPE_RE,
+    ID_RE,
+    PARENT_RE,
+    PRODUCT_RE,
+    biotype_category as _biotype_category,
+    find_gff,
+)
+from pangenome_common.intervals import segments_overlap_bp
+
+# This script reports other RNA genes as "ncRNA_other".
+biotype_category = partial(_biotype_category, other_rna_label="ncRNA_other")
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
     from matplotlib.ticker import MaxNLocator
 except ImportError:
     sys.exit("ERROR: this script needs matplotlib - install it with 'pip install matplotlib'")
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-GENE_BIOTYPE_RE = re.compile(r"(?:^|;)gene_biotype=([^;]+)")
 BIOTYPE_RE = re.compile(r"(?:^|;)biotype=([^;]+)")
 EBI_BIOTYPE_RE = re.compile(r"(?:^|;)ebi_biotype=([^;]+)")  # VEuPathDB/FungiDB-style
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
 
 # Gene-level feature types whose category is obvious from the type name alone - no need to
 # look at attributes or children. "gene" is deliberately not here: it's used by too many
@@ -116,45 +129,10 @@ FEATURE_TYPE_TO_CATEGORY = {
     "scrna_gene": "ncRNA_other",
 }
 
-# gene_biotype=/biotype= attribute values (NCBI/GenBank and Ensembl-style conventions).
-BIOTYPE_VALUE_TO_CATEGORY = {
-    "protein_coding": "protein_coding",
-    "mrna": "protein_coding",
-    "pseudogene": "pseudogene",
-    "trna": "tRNA",
-    "rrna": "rRNA",
-    "ncrna": "ncRNA_other",
-    "lncrna": "ncRNA_other",
-    "lnc_rna": "ncRNA_other",
-    "snrna": "ncRNA_other",
-    "snorna": "ncRNA_other",
-    "mirna": "ncRNA_other",
-    "misc_rna": "ncRNA_other",
-}
-
 # When neither the feature type nor a biotype attribute gives an answer, this is the order
 # children types are checked in - CDS first, since a CDS child is definitive regardless of
 # whatever else is nested under the same gene.
 NCRNA_DESCENDANT_TYPES = {"ncrna", "lnc_rna", "lncrna", "snrna", "snorna", "mirna", "misc_rna"}
-
-
-
-def biotype_category(value):
-    """Category for a gene_biotype=/biotype= value: exact matches first, then the same idea for the
-    many variants other sources use (processed_pseudogene, Mt_tRNA, rRNA_pseudogene, sRNA, ...).
-    Anything else (e.g. IG_C_gene) is left unrecognized."""
-    v = value.strip().strip('"').lower()
-    if v in BIOTYPE_VALUE_TO_CATEGORY:
-        return BIOTYPE_VALUE_TO_CATEGORY[v]
-    if "pseudogene" in v:
-        return "pseudogene"
-    if "trna" in v:
-        return "tRNA"
-    if "rrna" in v:
-        return "rRNA"
-    if "rna" in v:
-        return "ncRNA_other"
-    return None
 
 
 CATEGORIES = ["protein_coding", "pseudogene", "tRNA", "rRNA", "ncRNA_other", "unclassified"]
@@ -167,14 +145,6 @@ def read_genomes(value):
     return [g.strip() for g in value.split(",") if g.strip()]
 
 
-def find_gff(gff_dir, genome):
-    for ext in ("gff3", "gff"):
-        path = os.path.join(gff_dir, f"{genome}.{ext}")
-        if os.path.isfile(path):
-            return path
-    return None
-
-
 def has_domain_evidence(attrs):
     return "InterPro:" in attrs or "PFAM:" in attrs or "Pfam:" in attrs
 
@@ -182,9 +152,9 @@ def has_domain_evidence(attrs):
 def parse_gff(path):
     """One pass to record every feature; a second walk (via the Parent graph built here)
     to classify each gene-level feature and collect its CDS segments/domain evidence."""
-    id_to_feature = {}       # id -> dict(type, start, end, strand, seqname, attrs)
+    id_to_feature = {}  # id -> dict(type, start, end, strand, seqname, attrs)
     children_by_parent = defaultdict(list)
-    gene_ids = []             # gene-level features, in file order
+    gene_ids = []  # gene-level features, in file order
 
     with open(path) as fh:
         for line in fh:
@@ -201,8 +171,12 @@ def parse_gff(path):
 
             if feat_id:
                 id_to_feature[feat_id] = {
-                    "type": ftype, "start": int(start), "end": int(end),
-                    "strand": strand, "seqname": seqname, "attrs": attrs,
+                    "type": ftype,
+                    "start": int(start),
+                    "end": int(end),
+                    "strand": strand,
+                    "seqname": seqname,
+                    "attrs": attrs,
                 }
                 if "gene" in ftype.lower():
                     gene_ids.append(feat_id)
@@ -315,26 +289,25 @@ def parse_gff(path):
             core_start, core_end = feat["start"], feat["end"]
 
         attribute_table[(feat["type"], source)] += 1
-        genes.append({
-            "id": gene_id, "feature_type": feat["type"], "category": category, "source": source,
-            "has_domain": domain_hit if category == "protein_coding" else None,
-            "description": description,
-            "seqname": feat["seqname"], "start": feat["start"], "end": feat["end"],
-            "core_start": core_start, "core_end": core_end,
-            "strand": feat["strand"], "cds_segments": coding_segments,
-        })
+        genes.append(
+            {
+                "id": gene_id,
+                "feature_type": feat["type"],
+                "category": category,
+                "source": source,
+                "has_domain": domain_hit if category == "protein_coding" else None,
+                "description": description,
+                "seqname": feat["seqname"],
+                "start": feat["start"],
+                "end": feat["end"],
+                "core_start": core_start,
+                "core_end": core_end,
+                "strand": feat["strand"],
+                "cds_segments": coding_segments,
+            }
+        )
 
     return genes, attribute_table
-
-
-def segments_overlap_bp(segs1, segs2):
-    total = 0
-    for s1, e1 in segs1:
-        for s2, e2 in segs2:
-            lo, hi = max(s1, s2), min(e1, e2)
-            if hi >= lo:
-                total += hi - lo + 1
-    return total
 
 
 def cds_bp(gene):
@@ -361,7 +334,7 @@ def overlap_severity(overlap_bp, gene_a, gene_b):
 
 
 def find_overlaps(genes, start_key, end_key):
-    """Sweep-line scan (same approach as check_overlapping_genes.py) restricted to
+    """Sweep-line scan (same approach as filter_final_annotation.py's find_cds_overlaps) restricted to
     protein-coding and pseudogene genes - overlap between two non-coding RNA genes, or between
     a non-coding gene and a coding one, isn't the same-locus-consistency problem this pipeline
     cares about here. `start_key`/`end_key` pick which span to sweep on:
@@ -383,20 +356,30 @@ def find_overlaps(genes, start_key, end_key):
             active = [a for a in active if a[end_key] >= gene[start_key]]
             for other in active:
                 ov_bp = segments_overlap_bp(other["cds_segments"], gene["cds_segments"])
-                overlaps.append({
-                    "gene_a": other, "gene_b": gene, "overlap_bp": ov_bp,
-                    "same_strand": other["strand"] == gene["strand"],
-                    "cds_overlap": ov_bp > 0,
-                    "severity": overlap_severity(ov_bp, other, gene) if ov_bp > 0 else None,
-                })
+                overlaps.append(
+                    {
+                        "gene_a": other,
+                        "gene_b": gene,
+                        "overlap_bp": ov_bp,
+                        "same_strand": other["strand"] == gene["strand"],
+                        "cds_overlap": ov_bp > 0,
+                        "severity": overlap_severity(ov_bp, other, gene) if ov_bp > 0 else None,
+                    }
+                )
             active.append(gene)
     return overlaps
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--genomes", required=True, help="Comma-separated genome names or a file with one per line (e.g. genome_order.txt)")
-    parser.add_argument("--gff-dir", required=True, help="Directory with each genome's own <genome>.gff3 or <genome>.gff")
+    parser.add_argument(
+        "--genomes",
+        required=True,
+        help="Comma-separated genome names or a file with one per line (e.g. genome_order.txt)",
+    )
+    parser.add_argument(
+        "--gff-dir", required=True, help="Directory with each genome's own <genome>.gff3 or <genome>.gff"
+    )
     parser.add_argument("--out-dir", default="./annotation_check", help="Where to write the tables and plots")
     args = parser.parse_args()
 
@@ -409,27 +392,53 @@ def main():
     for genome in genomes:
         gff_path = find_gff(args.gff_dir, genome)
         if gff_path is None:
-            print(f"WARNING: no GFF found for {genome} in {args.gff_dir} (tried .gff3, .gff) - skipping", file=sys.stderr)
+            print(
+                f"WARNING: no GFF found for {genome} in {args.gff_dir} (tried .gff3, .gff) - skipping", file=sys.stderr
+            )
             continue
 
         print(f"[{genome}] loading {gff_path}...", file=sys.stderr)
         genes, attribute_table = parse_gff(gff_path)
         if not genes:
-            print(f"WARNING: [{genome}] 0 gene-level features found - this script only "
-                  f"recognizes a feature type as gene-level if its name contains \"gene\" "
-                  f"(gene, protein_coding_gene, pseudogene, tRNA_gene, ...); if this genome's "
-                  f"GFF uses something else, this genome will be reported as all-zero below",
-                  file=sys.stderr)
+            print(
+                f"WARNING: [{genome}] 0 gene-level features found - this script only "
+                f'recognizes a feature type as gene-level if its name contains "gene" '
+                f"(gene, protein_coding_gene, pseudogene, tRNA_gene, ...); if this genome's "
+                f"GFF uses something else, this genome will be reported as all-zero below",
+                file=sys.stderr,
+            )
         for (ftype, source), n in attribute_table.items():
             combined_attribute_table[(genome, ftype, source)] += n
 
         with open(os.path.join(args.out_dir, f"{genome}_gene_classification.tsv"), "w", newline="") as fh:
             writer = csv.writer(fh, delimiter="\t")
-            writer.writerow(["gene_id", "feature_type", "category", "classified_by", "has_domain", "seqname", "start", "end", "strand"])
+            writer.writerow(
+                [
+                    "gene_id",
+                    "feature_type",
+                    "category",
+                    "classified_by",
+                    "has_domain",
+                    "seqname",
+                    "start",
+                    "end",
+                    "strand",
+                ]
+            )
             for g in genes:
-                writer.writerow([g["id"], g["feature_type"], g["category"], g["source"],
-                                  "" if g["has_domain"] is None else g["has_domain"],
-                                  g["seqname"], g["start"], g["end"], g["strand"]])
+                writer.writerow(
+                    [
+                        g["id"],
+                        g["feature_type"],
+                        g["category"],
+                        g["source"],
+                        "" if g["has_domain"] is None else g["has_domain"],
+                        g["seqname"],
+                        g["start"],
+                        g["end"],
+                        g["strand"],
+                    ]
+                )
 
         counts = {cat: 0 for cat in CATEGORIES}
         pc_with_domain = pc_without_domain = 0
@@ -443,19 +452,26 @@ def main():
 
         n_unclassified = counts["unclassified"]
         if n_unclassified:
-            print(f"WARNING: [{genome}] {n_unclassified} gene(s) could not be classified - "
-                  f"see feature_attribute_table.tsv", file=sys.stderr)
+            print(
+                f"WARNING: [{genome}] {n_unclassified} gene(s) could not be classified - "
+                f"see feature_attribute_table.tsv",
+                file=sys.stderr,
+            )
 
-        biotype_rows.append({
-            "genome": genome,
-            "protein_coding": counts["protein_coding"],
-            "protein_coding_with_domain": pc_with_domain,
-            "protein_coding_without_domain": pc_without_domain,
-            "pseudogene": counts["pseudogene"],
-            "tRNA": counts["tRNA"], "rRNA": counts["rRNA"],
-            "ncRNA_other": counts["ncRNA_other"], "unclassified": counts["unclassified"],
-            "total_genes": len(genes),
-        })
+        biotype_rows.append(
+            {
+                "genome": genome,
+                "protein_coding": counts["protein_coding"],
+                "protein_coding_with_domain": pc_with_domain,
+                "protein_coding_without_domain": pc_without_domain,
+                "pseudogene": counts["pseudogene"],
+                "tRNA": counts["tRNA"],
+                "rRNA": counts["rRNA"],
+                "ncRNA_other": counts["ncRNA_other"],
+                "unclassified": counts["unclassified"],
+                "total_genes": len(genes),
+            }
+        )
 
         gene_overlaps = find_overlaps(genes, "start", "end")
         same_gene = sum(1 for ov in gene_overlaps if ov["same_strand"])
@@ -472,27 +488,42 @@ def main():
             if ov["severity"] is not None:
                 severity_counts[ov["severity"]] += 1
                 a, b = ov["gene_a"], ov["gene_b"]
-                pair_rows.append({
-                    "genome": genome, "seqname": a["seqname"],
-                    "same_strand": ov["same_strand"],
-                    "gene1_id": a["id"], "gene1_description": a["description"],
-                    "gene1_start": a["start"], "gene1_end": a["end"], "gene1_cds_bp": cds_bp(a),
-                    "gene1_has_domain": "" if a["has_domain"] is None else a["has_domain"],
-                    "gene2_id": b["id"], "gene2_description": b["description"],
-                    "gene2_start": b["start"], "gene2_end": b["end"], "gene2_cds_bp": cds_bp(b),
-                    "gene2_has_domain": "" if b["has_domain"] is None else b["has_domain"],
-                    "overlap_bp": ov["overlap_bp"], "severity": ov["severity"],
-                })
+                pair_rows.append(
+                    {
+                        "genome": genome,
+                        "seqname": a["seqname"],
+                        "same_strand": ov["same_strand"],
+                        "gene1_id": a["id"],
+                        "gene1_description": a["description"],
+                        "gene1_start": a["start"],
+                        "gene1_end": a["end"],
+                        "gene1_cds_bp": cds_bp(a),
+                        "gene1_has_domain": "" if a["has_domain"] is None else a["has_domain"],
+                        "gene2_id": b["id"],
+                        "gene2_description": b["description"],
+                        "gene2_start": b["start"],
+                        "gene2_end": b["end"],
+                        "gene2_cds_bp": cds_bp(b),
+                        "gene2_has_domain": "" if b["has_domain"] is None else b["has_domain"],
+                        "overlap_bp": ov["overlap_bp"],
+                        "severity": ov["severity"],
+                    }
+                )
 
-        overlap_rows.append({
-            "genome": genome,
-            "same_strand_gene_overlap": same_gene, "opposite_strand_gene_overlap": opp_gene,
-            "same_strand_core_overlap": same_core, "opposite_strand_core_overlap": opp_core,
-            "same_strand_cds_overlap": same_cds, "opposite_strand_cds_overlap": opp_cds,
-            "cds_overlap_minor": severity_counts["minor"],
-            "cds_overlap_substantial": severity_counts["substantial"],
-            "cds_overlap_contained": severity_counts["contained"],
-        })
+        overlap_rows.append(
+            {
+                "genome": genome,
+                "same_strand_gene_overlap": same_gene,
+                "opposite_strand_gene_overlap": opp_gene,
+                "same_strand_core_overlap": same_core,
+                "opposite_strand_core_overlap": opp_core,
+                "same_strand_cds_overlap": same_cds,
+                "opposite_strand_cds_overlap": opp_cds,
+                "cds_overlap_minor": severity_counts["minor"],
+                "cds_overlap_substantial": severity_counts["substantial"],
+                "cds_overlap_contained": severity_counts["contained"],
+            }
+        )
 
     if not biotype_rows:
         sys.exit("ERROR: no genome had a GFF to analyze - nothing done")
@@ -508,9 +539,25 @@ def main():
         writer.writerows(overlap_rows)
 
     with open(os.path.join(args.out_dir, "cds_overlapping_pairs.tsv"), "w", newline="") as fh:
-        fieldnames = ["genome", "seqname", "same_strand", "severity", "overlap_bp",
-                      "gene1_id", "gene1_description", "gene1_start", "gene1_end", "gene1_cds_bp", "gene1_has_domain",
-                      "gene2_id", "gene2_description", "gene2_start", "gene2_end", "gene2_cds_bp", "gene2_has_domain"]
+        fieldnames = [
+            "genome",
+            "seqname",
+            "same_strand",
+            "severity",
+            "overlap_bp",
+            "gene1_id",
+            "gene1_description",
+            "gene1_start",
+            "gene1_end",
+            "gene1_cds_bp",
+            "gene1_has_domain",
+            "gene2_id",
+            "gene2_description",
+            "gene2_start",
+            "gene2_end",
+            "gene2_cds_bp",
+            "gene2_has_domain",
+        ]
         writer = csv.DictWriter(fh, fieldnames=fieldnames, delimiter="\t")
         writer.writeheader()
         writer.writerows(pair_rows)
@@ -560,8 +607,12 @@ def main():
     # --- Plot 2: full gene biotype breakdown ---
     fig, ax = plt.subplots(figsize=figsize)
     breakdown_colors = {
-        "protein_coding": "#3B7DD8", "pseudogene": "#C0392B", "tRNA": "#F2B035",
-        "rRNA": "#B379E0", "ncRNA_other": "#1ABC9C", "unclassified": "#7A5195",
+        "protein_coding": "#3B7DD8",
+        "pseudogene": "#C0392B",
+        "tRNA": "#F2B035",
+        "rRNA": "#B379E0",
+        "ncRNA_other": "#1ABC9C",
+        "unclassified": "#7A5195",
     }
     bottoms = [0] * len(analyzed_genomes)
     for cat in CATEGORIES:

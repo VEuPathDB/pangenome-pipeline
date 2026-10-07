@@ -23,26 +23,13 @@ OUT_DIR="final_annotation_qc_plots"          # where to write the plots and summ
 
 set +u
 module purge
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put micromamba on the PATH, then activate the env (needs Python 3 + matplotlib):
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 set -u
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there - fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/plot_final_annotation_qc.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc.py" \
-    "05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find plot_final_annotation_qc.py (run from the project folder)" >&2; exit 1; }
+find_script PY 05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc.py
 
 python3 "$PY" \
   --strains "$STRAINS" --final-dir "$FINAL_DIR" \

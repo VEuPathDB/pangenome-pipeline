@@ -1,0 +1,2 @@
+strain	gene_id	description	seqname	start	end	strand	source	extra_copy_number	copy_num_ID	valid_ORF	liftoff_coverage	liftoff_sequence_ID
+S2	geneE		chr1	9000	9600	+	good_S3	1		False	1.0	

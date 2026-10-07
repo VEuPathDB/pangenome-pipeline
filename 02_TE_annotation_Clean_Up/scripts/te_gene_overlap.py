@@ -50,24 +50,71 @@ GFF file "X.gff"). A genome_id that still can't be matched unambiguously is
 skipped with a warning - use --genome-map (a 2-column TSV of
 genome_id<TAB>gff_path) to resolve those explicitly.
 """
+
 import argparse
 import bisect
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
-from urllib.parse import unquote
 
 import matplotlib
+
 matplotlib.use("Agg")
+import sys
+
 import matplotlib.pyplot as plt
 import pandas as pd
-
 from summarize_te_content import (
-    parse_out, REMOVE_CLASSES, find_genome_dirs,
-    style_axes, CATEGORICAL, SURFACE, INK_PRIMARY, INK_SECONDARY, GRIDLINE,
+    CATEGORICAL,
+    INK_PRIMARY,
+    INK_SECONDARY,
+    REMOVE_CLASSES,
+    SURFACE,
+    find_genome_dirs,
+    parse_out,
+    style_axes,
+)
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import (  # GENE_FTYPE_TO_BIOTYPE, parse_attributes: re-exported to sibling scripts
+    GENE_FTYPE_TO_BIOTYPE,
+    gene_description,
+    gff_seqids,
+    infer_biotype,
+    parse_attributes,
 )
 
 THRESHOLDS = [1, 5, 10, 20, 50, 80, 90, 100]
+
+ACC_RE = re.compile(r"GC[AF]_\d+\.\d+")
+
+MIN_OVERLAP_BP = 50  # a raw TE overlap below this many bp is treated as no overlap at all
+EDGE_FRAC = 0.15  # first/last 15% of the spliced transcript counts as an "edge" zone
+MIN_LEN_FOR_POSITION = 150  # bp; below this, 5'/3'/internal isn't a meaningful distinction
+EDGE_DOMINANCE_FRAC = 0.7  # >=70% of a gene's overlap bp sitting in one zone -> that zone "dominates"
+
+OVERLAP_POSITION_LABELS = {
+    "5_prime": "5_prime (edge, near start)",
+    "3_prime": "3_prime (edge, near end)",
+    "internal": "internal (away from both ends)",
+    "mixed": "mixed (no single zone ≥ 70% of the overlap)",
+    "short_transcript": f"short_transcript (<{MIN_LEN_FOR_POSITION} bp, not classified)",
+}
+OVERLAP_POSITION_COLORS = {
+    "5_prime": CATEGORICAL[1],
+    "3_prime": CATEGORICAL[7],
+    "internal": CATEGORICAL[0],
+    "mixed": CATEGORICAL[3],
+    "short_transcript": "#c3c2b7",
+}
+
+OVERLAP_PCT_BINS = [(0, 5), (5, 10), (10, 15), (15, 20), (20, 30), (30, 40), (40, 50), (50, 65), (65, 80)]
+
+FRAGMENT_SIZE_BINS = [(0, 80), (80, 300), (300, 1000), (1000, 3000), (3000, float("inf"))]
+FRAGMENT_SIZE_LABELS = ["<80 bp", "80-300 bp", "300-1,000 bp", "1,000-3,000 bp", ">=3,000 bp"]
+FRAGMENT_SIZE_COLORS = [CATEGORICAL[7], CATEGORICAL[1], CATEGORICAL[3], CATEGORICAL[0], CATEGORICAL[2]]
+
+FRAGMENT_PCT_BINS = [(0, 20), (20, 80), (80, 100.0001)]
 
 
 def index_gff_dir(gff_indir: Path) -> dict:
@@ -90,22 +137,9 @@ def load_genome_map(path) -> dict:
     return mapping
 
 
-ACC_RE = re.compile(r"GC[AF]_\d+\.\d+")
-
-
-def gff_seqids(path: Path) -> set:
-    """Every column-1 seqid in a GFF (cheap: split on the first tab)."""
-    ids = set()
-    with path.open() as fh:
-        for line in fh:
-            if line.startswith("#") or not line.strip():
-                continue
-            ids.add(line.split("\t", 1)[0])
-    return ids
-
-
-def find_gff_for_genome(genome_id: str, gff_by_stem: dict, genome_map: dict,
-                        te_contigs: set = None, seqid_cache: dict = None):
+def find_gff_for_genome(
+    genome_id: str, gff_by_stem: dict, genome_map: dict, te_contigs: set | None = None, seqid_cache: dict | None = None
+):
     """Match a RepeatMasker genome_id (its R_<genome_id>/ directory name) to a
     GFF file, without assuming any naming convention. Tried in order:
     (1) an explicit --genome-map entry;
@@ -127,8 +161,7 @@ def find_gff_for_genome(genome_id: str, gff_by_stem: dict, genome_map: dict,
     if gl in lower:
         return gff_by_stem[lower[gl]]
 
-    candidates = [stem for stem in gff_by_stem
-                  if gl.startswith(stem.lower()) or stem.lower().startswith(gl)]
+    candidates = [stem for stem in gff_by_stem if gl.startswith(stem.lower()) or stem.lower().startswith(gl)]
     if len(candidates) == 1:
         return gff_by_stem[candidates[0]]
     if len(candidates) > 1:
@@ -236,8 +269,8 @@ def build_te_tracks(out_path: Path):
     kept = [h for h in hits if h[4].lower() not in REMOVE_CLASSES]
 
     by_contig = defaultdict(list)
-    by_contig_class = defaultdict(lambda: defaultdict(list))
-    by_contig_name = defaultdict(lambda: defaultdict(list))
+    by_contig_class: defaultdict[str, defaultdict[str, list]] = defaultdict(lambda: defaultdict(list))
+    by_contig_name: defaultdict[str, defaultdict[str, list]] = defaultdict(lambda: defaultdict(list))
     for seq, start, end, name, cls, seq_left, pct_div, rm_id in kept:
         by_contig[seq].append((start, end))
         by_contig_class[seq][cls].append((start, end))
@@ -288,8 +321,7 @@ def build_element_spans(kept_hits):
             rec[4] += pct_div * frag_len
             rec[5] += frag_len
     return {
-        seq: sorted((lo, hi, cls, name, div_num / div_den)
-                    for lo, hi, cls, name, div_num, div_den in spans.values())
+        seq: sorted((lo, hi, cls, name, div_num / div_den) for lo, hi, cls, name, div_num, div_den in spans.values())
         for seq, spans in raw.items()
     }
 
@@ -315,67 +347,6 @@ def overlapping_elements(element_list, query_intervals):
     return results
 
 
-def parse_attributes(attr_str: str) -> dict:
-    attrs = {}
-    for kv in attr_str.split(";"):
-        if "=" in kv:
-            k, v = kv.split("=", 1)
-            attrs[k] = v
-    return attrs
-
-
-# Free-text description, checked in this order - NCBI puts "product" on the
-# mRNA/CDS rather than the gene; VEuPathDB (FungiDB, ...) puts "description"
-# directly on the gene; "Note" and "Name" are the common fallbacks when
-# neither of those is set.
-DESCRIPTION_ATTR_KEYS = ("description", "product", "Note", "note", "Name")
-
-
-def gene_description(attrs: dict) -> str:
-    for key in DESCRIPTION_ATTR_KEYS:
-        v = attrs.get(key)
-        if v:
-            return unquote(v)
-    return ""
-
-
-# Gene-level feature types (GFF3 column 3) mapped to the biotype they imply
-# when the record carries no gene_biotype/biotype/gene_type attribute at all.
-# NCBI's annotwriter always sets gene_biotype=... explicitly on a plain
-# "gene" feature, so that attribute wins when present (see infer_biotype).
-# Sources that instead encode biotype in the feature type itself - VEuPathDB
-# (FungiDB, PlasmoDB, ...) and Ensembl-style GFF3 both do this - are the ones
-# this table is for: a bare "gene" with no biotype attribute is, by GFF3
-# convention, protein-coding; RNA genes get their own explicit type.
-GENE_FTYPE_TO_BIOTYPE = {
-    "gene": "protein_coding",
-    "protein_coding_gene": "protein_coding",
-    "pseudogene": "pseudogene",
-    "tRNA_gene": "tRNA",
-    "rRNA_gene": "rRNA",
-    "ncRNA_gene": "ncRNA",
-    "snoRNA_gene": "snoRNA",
-    "snRNA_gene": "snRNA",
-    "miRNA_gene": "miRNA",
-}
-BIOTYPE_ATTR_KEYS = ("gene_biotype", "biotype", "gene_type")
-
-
-def infer_biotype(ftype: str, attrs: dict) -> str:
-    """gene_biotype if the record has one under any of the common attribute
-    names (gene_biotype: NCBI/RefSeq; biotype: Ensembl-style;
-    gene_type: GENCODE) - whichever source's GFF this is, that explicit
-    label is authoritative. Otherwise fall back to what the feature type
-    itself implies (GENE_FTYPE_TO_BIOTYPE) - needed for GFF3 without any
-    biotype attribute, like VEuPathDB's (see the module docstring note on
-    genome_id "AF293"/"A1160"/"A1163": their GFFs are FungiDB exports with a
-    bare "gene" type and no gene_biotype attribute at all)."""
-    for key in BIOTYPE_ATTR_KEYS:
-        if key in attrs:
-            return attrs[key]
-    return GENE_FTYPE_TO_BIOTYPE.get(ftype, "NA")
-
-
 def parse_gff(gff_path: Path):
     """Single pass: gene/pseudogene -> metadata (incl. gene_biotype and, when
     present, a free-text description), RNA feature -> parent gene (plus its
@@ -396,7 +367,7 @@ def parse_gff(gff_path: Path):
             fields = line.rstrip("\n").split("\t")
             if len(fields) < 9:
                 continue
-            seqid, source, ftype, start, end, score, strand, phase, attr_str = fields
+            seqid, _source, ftype, start, end, _score, strand, _phase, attr_str = fields
 
             if ftype in GENE_FTYPE_TO_BIOTYPE:
                 attrs = parse_attributes(attr_str)
@@ -443,13 +414,7 @@ def aggregate_by_gene(rna_to_gene: dict, feature_by_rna: dict) -> dict:
 
 
 def strip_prefix(feature_id: str, prefix: str) -> str:
-    return feature_id[len(prefix):] if feature_id.startswith(prefix) else feature_id
-
-
-MIN_OVERLAP_BP = 50  # a raw TE overlap below this many bp is treated as no overlap at all
-EDGE_FRAC = 0.15  # first/last 15% of the spliced transcript counts as an "edge" zone
-MIN_LEN_FOR_POSITION = 150  # bp; below this, 5'/3'/internal isn't a meaningful distinction
-EDGE_DOMINANCE_FRAC = 0.7  # >=70% of a gene's overlap bp sitting in one zone -> that zone "dominates"
+    return feature_id.removeprefix(prefix)
 
 
 def classify_overlap_position(merged: list, strand: str, track, overlap_bp: int, transcript_bp: int):
@@ -494,8 +459,7 @@ def classify_overlap_position(merged: list, strand: str, track, overlap_bp: int,
             else:
                 sp_s, sp_e = offset + (ov_s - g_s), offset + (ov_e - g_s)
             ov5_bp += max(0, min(sp_e, edge_bp - 1) - sp_s + 1) if sp_s < edge_bp else 0
-            ov3_bp += (max(0, sp_e - max(sp_s, three_prime_zone_start) + 1)
-                       if sp_e >= three_prime_zone_start else 0)
+            ov3_bp += max(0, sp_e - max(sp_s, three_prime_zone_start) + 1) if sp_e >= three_prime_zone_start else 0
         offset += length
 
     ov_internal_bp = overlap_bp - ov5_bp - ov3_bp
@@ -510,9 +474,20 @@ def classify_overlap_position(merged: list, strand: str, track, overlap_bp: int,
     return label, ov5_bp, ov3_bp, ov_internal_bp
 
 
-def compute_gene_rows(genome_id: str, genome_label: str, gene_meta, rna_to_gene,
-                       rna_description, cds_by_rna, exon_by_rna, te_all, te_by_class,
-                       te_by_name, element_spans, min_overlap_bp=MIN_OVERLAP_BP):
+def compute_gene_rows(
+    genome_id: str,
+    genome_label: str,
+    gene_meta,
+    rna_to_gene,
+    rna_description,
+    cds_by_rna,
+    exon_by_rna,
+    te_all,
+    te_by_class,
+    te_by_name,
+    element_spans,
+    min_overlap_bp=MIN_OVERLAP_BP,
+):
     """Returns (gene_rows, transcript_rows, skipped_biotypes). gene_rows is
     one row per gene: protein_coding genes use the CDS union as their span;
     pseudogenes use CDS union if present, else exon union, else the gene's
@@ -548,7 +523,7 @@ def compute_gene_rows(genome_id: str, genome_label: str, gene_meta, rna_to_gene,
 
     rows = []
     transcript_rows = []
-    skipped_biotypes = Counter()
+    skipped_biotypes: Counter[str] = Counter()
     for gene_id, meta in gene_meta.items():
         biotype = meta["gene_biotype"]
         if biotype == "protein_coding":
@@ -560,8 +535,7 @@ def compute_gene_rows(genome_id: str, genome_label: str, gene_meta, rna_to_gene,
             # sometimes still gets one), else its exons, else - if it has no
             # transcript-level features at all, common for a bare pseudogene
             # record - fall back to the gene's own genomic span.
-            raw_intervals = (cds_by_gene.get(gene_id) or exon_by_gene.get(gene_id)
-                              or [(meta["start"], meta["end"])])
+            raw_intervals = cds_by_gene.get(gene_id) or exon_by_gene.get(gene_id) or [(meta["start"], meta["end"])]
         else:
             skipped_biotypes[biotype] += 1
             continue
@@ -582,7 +556,7 @@ def compute_gene_rows(genome_id: str, genome_label: str, gene_meta, rna_to_gene,
 
         dominant_class, dominant_class_bp = "", 0
         dominant_name, dominant_name_bp = "", 0
-        overlap_position, ov5_bp, ov3_bp, ov_internal_bp = "", None, None, None
+        overlap_position = ""
         max_fragment_bp, max_fragment_name, max_fragment_overlap_bp = 0, "", 0
         dominant_overlap_bp, dominant_overlap_div = 0, None
         n_te_fragments = 0
@@ -596,8 +570,9 @@ def compute_gene_rows(genome_id: str, genome_label: str, gene_meta, rna_to_gene,
                 if bp > dominant_name_bp:
                     dominant_name_bp, dominant_name = bp, name
             if category == "protein_coding":
-                overlap_position, ov5_bp, ov3_bp, ov_internal_bp = classify_overlap_position(
-                    merged, meta["strand"], track, overlap_bp, transcript_bp)
+                overlap_position, _ov5_bp, _ov3_bp, _ov_internal_bp = classify_overlap_position(
+                    merged, meta["strand"], track, overlap_bp, transcript_bp
+                )
 
             elements = overlapping_elements(element_spans.get(contig, []), merged)
             n_te_fragments = len(elements)
@@ -629,37 +604,35 @@ def compute_gene_rows(genome_id: str, genome_label: str, gene_meta, rna_to_gene,
                 if rna_id in rna_description:
                     description = rna_description[rna_id]
                     break
-        rows.append({
-            "genome_id": genome_id,
-            "genome_label": genome_label,
-            "gene_id": strip_prefix(gene_id, "gene-"),
-            "gene_description": description,
-            "gene_category": category,
-            "gene_biotype": biotype,
-            "contig": contig,
-            "start": meta["start"],
-            "end": meta["end"],
-            "strand": meta["strand"],
-            "n_transcripts": n_transcripts,
-            "transcript_bp": transcript_bp,
-            "TE_overlap_bp": overlap_bp,
-            "TE_overlap_pct": overlap_pct,
-            "TE_divergence_pct": dominant_overlap_div,
-            "dominant_TE_class": dominant_class,
-            "dominant_TE_class_pct_of_overlap": (
-                100.0 * dominant_class_bp / overlap_bp if overlap_bp else 0.0
-            ),
-            "dominant_TE_name": dominant_name,
-            "dominant_TE_name_pct_of_overlap": (
-                100.0 * dominant_name_bp / overlap_bp if overlap_bp else 0.0
-            ),
-            "TE_overlap_position": overlap_position,
-            "check_gene_model": overlap_position in ("5_prime", "3_prime"),
-            "n_TE_fragments_overlapping": n_te_fragments,
-            "TE_fragment_max_bp": max_fragment_bp,
-            "TE_fragment_max_bp_name": max_fragment_name,
-            "TE_fragment_max_bp_overlap_bp": max_fragment_overlap_bp,
-        })
+        rows.append(
+            {
+                "genome_id": genome_id,
+                "genome_label": genome_label,
+                "gene_id": strip_prefix(gene_id, "gene-"),
+                "gene_description": description,
+                "gene_category": category,
+                "gene_biotype": biotype,
+                "contig": contig,
+                "start": meta["start"],
+                "end": meta["end"],
+                "strand": meta["strand"],
+                "n_transcripts": n_transcripts,
+                "transcript_bp": transcript_bp,
+                "TE_overlap_bp": overlap_bp,
+                "TE_overlap_pct": overlap_pct,
+                "TE_divergence_pct": dominant_overlap_div,
+                "dominant_TE_class": dominant_class,
+                "dominant_TE_class_pct_of_overlap": (100.0 * dominant_class_bp / overlap_bp if overlap_bp else 0.0),
+                "dominant_TE_name": dominant_name,
+                "dominant_TE_name_pct_of_overlap": (100.0 * dominant_name_bp / overlap_bp if overlap_bp else 0.0),
+                "TE_overlap_position": overlap_position,
+                "check_gene_model": overlap_position in ("5_prime", "3_prime"),
+                "n_TE_fragments_overlapping": n_te_fragments,
+                "TE_fragment_max_bp": max_fragment_bp,
+                "TE_fragment_max_bp_name": max_fragment_name,
+                "TE_fragment_max_bp_overlap_bp": max_fragment_overlap_bp,
+            }
+        )
 
         if category == "protein_coding" and n_transcripts > 1 and overlap_bp > 0:
             for rna_id in gene_to_rnas[gene_id]:
@@ -671,17 +644,19 @@ def compute_gene_rows(genome_id: str, genome_label: str, gene_meta, rna_to_gene,
                 if tx_bp == 0:
                     continue
                 tx_overlap_bp = track.overlap_bp(tx_merged) if track else 0
-                transcript_rows.append({
-                    "genome_id": genome_id,
-                    "genome_label": genome_label,
-                    "gene_id": strip_prefix(gene_id, "gene-"),
-                    "transcript_id": strip_prefix(rna_id, "rna-"),
-                    "n_transcripts": n_transcripts,
-                    "gene_TE_overlap_pct": overlap_pct,
-                    "transcript_bp": tx_bp,
-                    "transcript_TE_overlap_bp": tx_overlap_bp,
-                    "transcript_TE_overlap_pct": 100.0 * tx_overlap_bp / tx_bp,
-                })
+                transcript_rows.append(
+                    {
+                        "genome_id": genome_id,
+                        "genome_label": genome_label,
+                        "gene_id": strip_prefix(gene_id, "gene-"),
+                        "transcript_id": strip_prefix(rna_id, "rna-"),
+                        "n_transcripts": n_transcripts,
+                        "gene_TE_overlap_pct": overlap_pct,
+                        "transcript_bp": tx_bp,
+                        "transcript_TE_overlap_bp": tx_overlap_bp,
+                        "transcript_TE_overlap_pct": 100.0 * tx_overlap_bp / tx_bp,
+                    }
+                )
 
     return rows, transcript_rows, skipped_biotypes
 
@@ -691,6 +666,7 @@ def threshold_table(df: pd.DataFrame, thresholds=THRESHOLDS) -> pd.DataFrame:
     band column - the exact count of genes in the proposed "inspect" zone
     (20% <= overlap < 80%), which the cumulative columns alone don't give
     directly (>=20% also includes every gene that's >=80%)."""
+
     def band_20_80(sub):
         return int(((sub["TE_overlap_pct"] >= 20) & (sub["TE_overlap_pct"] < 80)).sum())
 
@@ -712,8 +688,7 @@ def threshold_table(df: pd.DataFrame, thresholds=THRESHOLDS) -> pd.DataFrame:
 def annotate_n(ax, n):
     """Small 'n = <count>' label centered at the top of the plot, so a
     reader never has to guess how many genes/points a plot summarizes."""
-    ax.text(0.5, 0.95, f"n = {n:,}", transform=ax.transAxes, ha="center", va="top",
-            fontsize=9, color=INK_SECONDARY)
+    ax.text(0.5, 0.95, f"n = {n:,}", transform=ax.transAxes, ha="center", va="top", fontsize=9, color=INK_SECONDARY)
 
 
 def plot_hist(values, title, dest: Path, bins=50, log_y=False, color=CATEGORICAL[0]):
@@ -740,13 +715,11 @@ def plot_hist_by_genome(df: pd.DataFrame, title: str, dest: Path, bins=20, log_y
     # heights are directly comparable across genomes instead of each panel
     # auto-scaling to its own max (which would visually flatten a genome
     # with few TE-overlapping genes to look the same as one with many).
-    fig, axes = plt.subplots(nrows, ncols, figsize=(4.6 * ncols, 3.2 * nrows),
-                              sharex=True, sharey=True)
+    fig, axes = plt.subplots(nrows, ncols, figsize=(4.6 * ncols, 3.2 * nrows), sharex=True, sharey=True)
     axes = axes.flatten()
     for ax, genome_label in zip(axes, genomes):
         vals = df.loc[df["genome_label"] == genome_label, "TE_overlap_pct"]
-        counts, bin_edges, patches = ax.hist(vals, bins=bins, range=(0, 100),
-                                              color=CATEGORICAL[0], zorder=3)
+        counts, bin_edges, patches = ax.hist(vals, bins=bins, range=(0, 100), color=CATEGORICAL[0], zorder=3)
         if log_y:
             ax.set_yscale("log")
         style_axes(ax)
@@ -760,16 +733,22 @@ def plot_hist_by_genome(df: pd.DataFrame, title: str, dest: Path, bins=20, log_y
             if count > 0 and edge >= 50:
                 # offset in points (not data units) so the gap above the bar
                 # stays constant regardless of the panel's y-scale
-                ax.annotate(f"{int(count)}",
-                            xy=(patch.get_x() + patch.get_width() / 2, count),
-                            xytext=(0, 5), textcoords="offset points",
-                            rotation=45, ha="left", va="bottom", fontsize=8,
-                            color=INK_SECONDARY)
+                ax.annotate(
+                    f"{int(count)}",
+                    xy=(patch.get_x() + patch.get_width() / 2, count),
+                    xytext=(0, 5),
+                    textcoords="offset points",
+                    rotation=45,
+                    ha="left",
+                    va="bottom",
+                    fontsize=8,
+                    color=INK_SECONDARY,
+                )
     # headroom for the angled count labels above the tallest bar, applied
     # once since sharey means every panel uses the same limits anyway
     top = axes[0].get_ylim()[1]
     axes[0].set_ylim(top=top * (2.2 if log_y else 1.25))
-    for ax in axes[len(genomes):]:
+    for ax in axes[len(genomes) :]:
         ax.axis("off")
     fig.suptitle(title, fontsize=13, fontweight="bold")
     fig.tight_layout(rect=(0, 0, 1, 0.97))
@@ -815,8 +794,7 @@ def plot_threshold_heatmap(thresh_df: pd.DataFrame, title: str, dest: Path):
     plt.close(fig)
 
 
-def plot_band_bar(thresh_df: pd.DataFrame, column: str, xlabel: str, title: str,
-                   dest: Path, color=CATEGORICAL[3]):
+def plot_band_bar(thresh_df: pd.DataFrame, column: str, xlabel: str, title: str, dest: Path, color=CATEGORICAL[3]):
     """One horizontal bar per genome, for any single column of
     threshold_table()'s output - e.g. the non-cumulative "20-80%" band, or
     one of the cumulative ">=X%" columns (like ">=80%", the eliminated
@@ -824,34 +802,34 @@ def plot_band_bar(thresh_df: pd.DataFrame, column: str, xlabel: str, title: str,
     df = thresh_df[thresh_df["genome_label"] != "ALL"].copy()
     values = df.set_index("genome_label")[column].sort_values()
     fig, ax = plt.subplots(figsize=(7, 0.32 * len(values) + 1.5))
-    ax.barh(values.index, values.values, color=color, height=0.65, zorder=3)
+    ax.barh(values.index, values.to_numpy(), color=color, height=0.65, zorder=3)
     style_axes(ax, horizontal=True)
     for y, v in enumerate(values.values):
-        ax.annotate(f"{int(v)}", xy=(v, y), xytext=(5, 0), textcoords="offset points",
-                    ha="left", va="center", fontsize=8, color=INK_SECONDARY)
+        ax.annotate(
+            f"{int(v)}",
+            xy=(v, y),
+            xytext=(5, 0),
+            textcoords="offset points",
+            ha="left",
+            va="center",
+            fontsize=8,
+            color=INK_SECONDARY,
+        )
     ax.set_xlabel(xlabel)
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
-    ax.text(0.98, 0.03, f"total = {int(values.sum()):,}", transform=ax.transAxes,
-            ha="right", va="bottom", fontsize=9, color=INK_SECONDARY)
+    ax.text(
+        0.98,
+        0.03,
+        f"total = {int(values.sum()):,}",
+        transform=ax.transAxes,
+        ha="right",
+        va="bottom",
+        fontsize=9,
+        color=INK_SECONDARY,
+    )
     fig.tight_layout()
     fig.savefig(dest, dpi=150)
     plt.close(fig)
-
-
-OVERLAP_POSITION_LABELS = {
-    "5_prime": "5_prime (edge, near start)",
-    "3_prime": "3_prime (edge, near end)",
-    "internal": "internal (away from both ends)",
-    "mixed": "mixed (no single zone ≥ 70% of the overlap)",
-    "short_transcript": f"short_transcript (<{MIN_LEN_FOR_POSITION} bp, not classified)",
-}
-OVERLAP_POSITION_COLORS = {
-    "5_prime": CATEGORICAL[1],
-    "3_prime": CATEGORICAL[7],
-    "internal": CATEGORICAL[0],
-    "mixed": CATEGORICAL[3],
-    "short_transcript": "#c3c2b7",
-}
 
 
 def plot_overlap_position_bar(pc_df: pd.DataFrame, title: str, dest: Path):
@@ -870,26 +848,38 @@ def plot_overlap_position_bar(pc_df: pd.DataFrame, title: str, dest: Path):
     for x, cat in enumerate(order):
         v = counts[cat]
         ax.bar(x, v, color=OVERLAP_POSITION_COLORS[cat], zorder=3, label=OVERLAP_POSITION_LABELS[cat])
-        ax.annotate(f"{int(v)}", xy=(x, v), xytext=(0, 4), textcoords="offset points",
-                    ha="center", va="bottom", fontsize=9, color=INK_SECONDARY)
+        ax.annotate(
+            f"{int(v)}",
+            xy=(x, v),
+            xytext=(0, 4),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color=INK_SECONDARY,
+        )
     ax.set_xticks(range(len(order)))
     ax.set_xticklabels(order)
     style_axes(ax)
     ax.set_ylabel("Number of genes")
     ax.set_xlabel("Where the TE overlap falls along the gene (20-80% 'inspect' band only)")
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False,
-              fontsize=8, labelcolor=INK_SECONDARY)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False, fontsize=8, labelcolor=INK_SECONDARY)
     # top-center (annotate_n's usual spot) lands on the tallest bars here -
     # top-left instead, above the short 5_prime bar, stays clear
-    ax.text(0.02, 0.95, f"n = {int(counts.sum()):,}", transform=ax.transAxes,
-            ha="left", va="top", fontsize=9, color=INK_SECONDARY)
+    ax.text(
+        0.02,
+        0.95,
+        f"n = {int(counts.sum()):,}",
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=9,
+        color=INK_SECONDARY,
+    )
     fig.tight_layout()
     fig.savefig(dest, dpi=150)
     plt.close(fig)
-
-
-OVERLAP_PCT_BINS = [(0, 5), (5, 10), (10, 15), (15, 20), (20, 30), (30, 40), (40, 50), (50, 65), (65, 80)]
 
 
 def plot_overlap_position_by_pct(pc_df: pd.DataFrame, title: str, dest: Path):
@@ -913,36 +903,46 @@ def plot_overlap_position_by_pct(pc_df: pd.DataFrame, title: str, dest: Path):
 
     df["pct_bin"] = df["TE_overlap_pct"].map(bin_label)
     bin_labels = [f"{lo}-{hi}%" for lo, hi in OVERLAP_PCT_BINS]
-    pivot = (df.groupby(["pct_bin", "TE_overlap_position"]).size().unstack(fill_value=0)
-             .reindex(index=bin_labels, columns=cats, fill_value=0))
+    pivot = (
+        df.groupby(["pct_bin", "TE_overlap_position"])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(index=bin_labels, columns=cats, fill_value=0)
+    )
 
     fig, ax = plt.subplots(figsize=(11, 5.5))
     bottom = pd.Series([0] * len(pivot), index=pivot.index)
     for cat in cats:
-        ax.bar(pivot.index, pivot[cat], bottom=bottom, label=OVERLAP_POSITION_LABELS[cat],
-               color=OVERLAP_POSITION_COLORS[cat], zorder=3,
-               edgecolor=SURFACE, linewidth=1)
+        ax.bar(
+            pivot.index,
+            pivot[cat],
+            bottom=bottom,
+            label=OVERLAP_POSITION_LABELS[cat],
+            color=OVERLAP_POSITION_COLORS[cat],
+            zorder=3,
+            edgecolor=SURFACE,
+            linewidth=1,
+        )
         bottom = bottom + pivot[cat]
     for x, total in enumerate(bottom.values):
-        ax.annotate(f"{int(total)}", xy=(x, total), xytext=(0, 4), textcoords="offset points",
-                    ha="center", va="bottom", fontsize=9, color=INK_SECONDARY)
+        ax.annotate(
+            f"{int(total)}",
+            xy=(x, total),
+            xytext=(0, 4),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color=INK_SECONDARY,
+        )
     style_axes(ax)
     ax.set_ylabel("Number of genes")
     ax.set_xlabel("TE overlap (% of transcript) - any 0-80% overlap, not just the 20-80% band")
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
-    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False,
-              fontsize=8, labelcolor=INK_SECONDARY)
+    ax.legend(loc="upper left", bbox_to_anchor=(1.01, 1.0), frameon=False, fontsize=8, labelcolor=INK_SECONDARY)
     fig.tight_layout()
     fig.savefig(dest, dpi=150)
     plt.close(fig)
-
-
-FRAGMENT_SIZE_BINS = [(0, 80), (80, 300), (300, 1000), (1000, 3000), (3000, float("inf"))]
-FRAGMENT_SIZE_LABELS = ["<80 bp", "80-300 bp", "300-1,000 bp", "1,000-3,000 bp", ">=3,000 bp"]
-FRAGMENT_SIZE_COLORS = [CATEGORICAL[7], CATEGORICAL[1], CATEGORICAL[3], CATEGORICAL[0], CATEGORICAL[2]]
-
-
-FRAGMENT_PCT_BINS = [(0, 20), (20, 80), (80, 100.0001)]
 
 
 def plot_fragment_size_by_pct(pc_df: pd.DataFrame, title: str, dest: Path):
@@ -973,47 +973,74 @@ def plot_fragment_size_by_pct(pc_df: pd.DataFrame, title: str, dest: Path):
     df["pct_bin"] = df["TE_overlap_pct"].map(pct_bin_label)
     df["size_bin"] = df["TE_fragment_max_bp"].map(size_bin_label)
     bin_labels = [f"{lo}-{min(hi, 100):g}%" for lo, hi in FRAGMENT_PCT_BINS]
-    pivot = (df.groupby(["pct_bin", "size_bin"]).size().unstack(fill_value=0)
-             .reindex(index=bin_labels, columns=FRAGMENT_SIZE_LABELS, fill_value=0))
+    pivot = (
+        df.groupby(["pct_bin", "size_bin"])
+        .size()
+        .unstack(fill_value=0)
+        .reindex(index=bin_labels, columns=FRAGMENT_SIZE_LABELS, fill_value=0)
+    )
 
     fig, ax = plt.subplots(figsize=(11.5, 5.5))
     bottom = pd.Series([0] * len(pivot), index=pivot.index)
     for label, color in zip(FRAGMENT_SIZE_LABELS, FRAGMENT_SIZE_COLORS):
-        ax.bar(pivot.index, pivot[label], bottom=bottom, label=label,
-               color=color, zorder=3, edgecolor=SURFACE, linewidth=1)
+        ax.bar(
+            pivot.index, pivot[label], bottom=bottom, label=label, color=color, zorder=3, edgecolor=SURFACE, linewidth=1
+        )
         bottom = bottom + pivot[label]
     for x, total in enumerate(bottom.values):
-        ax.annotate(f"{int(total)}", xy=(x, total), xytext=(0, 4), textcoords="offset points",
-                    ha="center", va="bottom", fontsize=9, color=INK_SECONDARY)
+        ax.annotate(
+            f"{int(total)}",
+            xy=(x, total),
+            xytext=(0, 4),
+            textcoords="offset points",
+            ha="center",
+            va="bottom",
+            fontsize=9,
+            color=INK_SECONDARY,
+        )
     style_axes(ax)
     ax.set_ylabel("Number of genes")
     ax.set_xlabel("TE overlap (% of transcript)")
     ax.set_title(title, fontsize=13, fontweight="bold", pad=12)
-    ax.legend(title="Largest overlapping TE element", loc="upper left", bbox_to_anchor=(1.01, 1.0),
-              frameon=False, fontsize=8, title_fontsize=8, labelcolor=INK_SECONDARY)
+    ax.legend(
+        title="Largest overlapping TE element",
+        loc="upper left",
+        bbox_to_anchor=(1.01, 1.0),
+        frameon=False,
+        fontsize=8,
+        title_fontsize=8,
+        labelcolor=INK_SECONDARY,
+    )
     fig.tight_layout()
     fig.savefig(dest, dpi=150)
     plt.close(fig)
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--te-indir", required=True,
-                     help="Directory containing R_<genome_id>/ RepeatMasker subdirectories "
-                          "(same layout as summarize_te_content.py --indir)")
-    ap.add_argument("--gff-indir", required=True,
-                     help="Directory containing one GFF3 file per genome (*.gff / *.gff3)")
-    ap.add_argument("--genome-map", default=None,
-                     help="Optional 2-column TSV (genome_id<TAB>gff_path) to override "
-                          "automatic TE-genome-to-GFF matching, for naming conventions the "
-                          "automatic prefix-matching can't resolve on its own")
-    ap.add_argument("--outdir", required=True,
-                     help="Directory to write per-gene TSVs, threshold summaries, and plots")
-    ap.add_argument("--min-overlap-bp", type=int, default=MIN_OVERLAP_BP,
-                     help=f"A raw TE overlap below this many bp is treated as no overlap at "
-                          f"all - filters out coincidental boundary-touching noise (default: "
-                          f"{MIN_OVERLAP_BP})")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument(
+        "--te-indir",
+        required=True,
+        help="Directory containing R_<genome_id>/ RepeatMasker subdirectories "
+        "(same layout as summarize_te_content.py --indir)",
+    )
+    ap.add_argument("--gff-indir", required=True, help="Directory containing one GFF3 file per genome (*.gff / *.gff3)")
+    ap.add_argument(
+        "--genome-map",
+        default=None,
+        help="Optional 2-column TSV (genome_id<TAB>gff_path) to override "
+        "automatic TE-genome-to-GFF matching, for naming conventions the "
+        "automatic prefix-matching can't resolve on its own",
+    )
+    ap.add_argument("--outdir", required=True, help="Directory to write per-gene TSVs, threshold summaries, and plots")
+    ap.add_argument(
+        "--min-overlap-bp",
+        type=int,
+        default=MIN_OVERLAP_BP,
+        help=f"A raw TE overlap below this many bp is treated as no overlap at "
+        f"all - filters out coincidental boundary-touching noise (default: "
+        f"{MIN_OVERLAP_BP})",
+    )
     args = ap.parse_args()
 
     te_indir = Path(args.te_indir)
@@ -1038,29 +1065,45 @@ def main():
     gff_seqid_cache: dict = {}
     for genome_id, paths in sorted(genomes.items()):
         te_contigs = {h[0] for h in parse_out(paths["out"])}
-        gff_path = find_gff_for_genome(genome_id, gff_by_stem, genome_map,
-                                       te_contigs=te_contigs, seqid_cache=gff_seqid_cache)
+        gff_path = find_gff_for_genome(
+            genome_id, gff_by_stem, genome_map, te_contigs=te_contigs, seqid_cache=gff_seqid_cache
+        )
         if gff_path is None:
-            print(f"WARNING: no GFF match for TE genome_id {genome_id!r} in "
-                  f"{gff_indir} ({len(gff_by_stem)} GFF files available) - skipping. "
-                  f"Use --genome-map to specify this match explicitly.")
+            print(
+                f"WARNING: no GFF match for TE genome_id {genome_id!r} in "
+                f"{gff_indir} ({len(gff_by_stem)} GFF files available) - skipping. "
+                f"Use --genome-map to specify this match explicitly."
+            )
             continue
         print(f"Processing {genome_id} -> {gff_path.name} ...")
 
         te_all, te_by_class, te_by_name, element_spans = build_te_tracks(paths["out"])
         gene_meta, rna_to_gene, rna_description, cds_by_rna, exon_by_rna = parse_gff(gff_path)
         rows, transcript_rows, skipped_biotypes = compute_gene_rows(
-            genome_id, gff_path.stem, gene_meta, rna_to_gene, rna_description, cds_by_rna,
-            exon_by_rna, te_all, te_by_class, te_by_name, element_spans, args.min_overlap_bp)
+            genome_id,
+            gff_path.stem,
+            gene_meta,
+            rna_to_gene,
+            rna_description,
+            cds_by_rna,
+            exon_by_rna,
+            te_all,
+            te_by_class,
+            te_by_name,
+            element_spans,
+            args.min_overlap_bp,
+        )
         all_rows.extend(rows)
         all_transcript_rows.extend(transcript_rows)
         all_skipped_biotypes.update(skipped_biotypes)
 
     if all_skipped_biotypes:
-        print(f"\nWARNING: {sum(all_skipped_biotypes.values())} gene(s) had a gene_biotype "
-              f"that isn't 'protein_coding' or 'pseudogene' (tRNA/rRNA genes included - TE "
-              f"overlap is not computed for those) and were skipped entirely (not in "
-              f"gene_te_overlap.tsv at all): {dict(all_skipped_biotypes)}")
+        print(
+            f"\nWARNING: {sum(all_skipped_biotypes.values())} gene(s) had a gene_biotype "
+            f"that isn't 'protein_coding' or 'pseudogene' (tRNA/rRNA genes included - TE "
+            f"overlap is not computed for those) and were skipped entirely (not in "
+            f"gene_te_overlap.tsv at all): {dict(all_skipped_biotypes)}"
+        )
 
     # gene_df (every gene, overlap or not) is what n_genes / the threshold
     # tables below are computed from - that denominator has to include the
@@ -1077,19 +1120,21 @@ def main():
     # biggest single element only clips the gene and other fragments make
     # up the rest). Kept internally for plot_fragment_size_by_pct below,
     # dropped from the file itself.
-    _FRAGMENT_MAX_COLS = ["TE_fragment_max_bp", "TE_fragment_max_bp_name",
-                          "TE_fragment_max_bp_overlap_bp"]
-    nonzero_gene_df.drop(columns=_FRAGMENT_MAX_COLS).to_csv(
-        outdir / "gene_te_overlap.tsv", sep="\t", index=False)
-    print(f"\nWrote {outdir / 'gene_te_overlap.tsv'} "
-          f"({len(nonzero_gene_df)} genes with TE overlap, out of {len(gene_df)} total)")
+    _FRAGMENT_MAX_COLS = ["TE_fragment_max_bp", "TE_fragment_max_bp_name", "TE_fragment_max_bp_overlap_bp"]
+    nonzero_gene_df.drop(columns=_FRAGMENT_MAX_COLS).to_csv(outdir / "gene_te_overlap.tsv", sep="\t", index=False)
+    print(
+        f"\nWrote {outdir / 'gene_te_overlap.tsv'} "
+        f"({len(nonzero_gene_df)} genes with TE overlap, out of {len(gene_df)} total)"
+    )
 
     transcript_df = pd.DataFrame(all_transcript_rows)
     transcript_df.to_csv(outdir / "multi_transcript_te_overlap.tsv", sep="\t", index=False)
     n_multi_overlap_genes = transcript_df["gene_id"].nunique() if len(transcript_df) else 0
-    print(f"Wrote {outdir / 'multi_transcript_te_overlap.tsv'} "
-          f"({n_multi_overlap_genes} multi-transcript genes with TE overlap, "
-          f"{len(transcript_df)} transcript rows)")
+    print(
+        f"Wrote {outdir / 'multi_transcript_te_overlap.tsv'} "
+        f"({n_multi_overlap_genes} multi-transcript genes with TE overlap, "
+        f"{len(transcript_df)} transcript rows)"
+    )
 
     pc_df = gene_df[gene_df["gene_category"] == "protein_coding"]
     pg_df = gene_df[gene_df["gene_category"] == "pseudogene"]
@@ -1103,47 +1148,87 @@ def main():
     print(f"Wrote {outdir / 'pseudogene_threshold_summary.tsv'}")
 
     # --- Plots ---------------------------------------------------------
-    plot_hist(pc_df["TE_overlap_pct"], "Protein-coding genes: CDS overlap with TEs (all genes)",
-              plots_dir / "protein_coding_te_overlap_hist.png", log_y=True)
+    plot_hist(
+        pc_df["TE_overlap_pct"],
+        "Protein-coding genes: CDS overlap with TEs (all genes)",
+        plots_dir / "protein_coding_te_overlap_hist.png",
+        log_y=True,
+    )
     pc_nonzero_df = pc_df[pc_df["TE_overlap_bp"] > 0]
-    plot_hist(pc_nonzero_df["TE_overlap_pct"], "Protein-coding genes with TE overlap > 0",
-              plots_dir / "protein_coding_te_overlap_hist_nonzero.png",
-              log_y=False, color=CATEGORICAL[1])
-    plot_hist_by_genome(pc_nonzero_df, "Protein-coding CDS/TE overlap by genome (genes with overlap > 0)",
-                         plots_dir / "protein_coding_te_overlap_by_genome.png",
-                         bins=20, log_y=False)
+    plot_hist(
+        pc_nonzero_df["TE_overlap_pct"],
+        "Protein-coding genes with TE overlap > 0",
+        plots_dir / "protein_coding_te_overlap_hist_nonzero.png",
+        log_y=False,
+        color=CATEGORICAL[1],
+    )
+    plot_hist_by_genome(
+        pc_nonzero_df,
+        "Protein-coding CDS/TE overlap by genome (genes with overlap > 0)",
+        plots_dir / "protein_coding_te_overlap_by_genome.png",
+        bins=20,
+        log_y=False,
+    )
     pc_total_row = pc_thresh[pc_thresh["genome_id"] == "ALL"].iloc[0]
-    plot_threshold_heatmap(pc_thresh, "TE-overlap thresholds by genome",
-                            plots_dir / "protein_coding_threshold_sensitivity_by_genome.png")
-    plot_band_bar(pc_thresh, "20-80%", "Genes in the 20-80% band",
-                  "Genes in the 20-80% 'inspect' band, by genome",
-                  plots_dir / "protein_coding_inspect_band_by_genome.png")
-    print(f"\n{int(pc_total_row['20-80%'])} protein-coding genes fall in the 20-80% "
-          f"'inspect' band (pooled across genomes) - see the '20-80%' column in "
-          f"protein_coding_threshold_summary.tsv for the per-genome counts.")
+    plot_threshold_heatmap(
+        pc_thresh, "TE-overlap thresholds by genome", plots_dir / "protein_coding_threshold_sensitivity_by_genome.png"
+    )
+    plot_band_bar(
+        pc_thresh,
+        "20-80%",
+        "Genes in the 20-80% band",
+        "Genes in the 20-80% 'inspect' band, by genome",
+        plots_dir / "protein_coding_inspect_band_by_genome.png",
+    )
+    print(
+        f"\n{int(pc_total_row['20-80%'])} protein-coding genes fall in the 20-80% "
+        f"'inspect' band (pooled across genomes) - see the '20-80%' column in "
+        f"protein_coding_threshold_summary.tsv for the per-genome counts."
+    )
 
-    plot_band_bar(pc_thresh, ">=80%", "Genes in the >=80% band",
-                  "Genes in the >=80% 'eliminated' band, by genome",
-                  plots_dir / "protein_coding_eliminated_band_by_genome.png",
-                  color=CATEGORICAL[2])
-    print(f"{int(pc_total_row['>=80%'])} protein-coding genes fall in the >=80% "
-          f"'eliminated' band (pooled across genomes) - see the '>=80%' column in "
-          f"protein_coding_threshold_summary.tsv for the per-genome counts.")
+    plot_band_bar(
+        pc_thresh,
+        ">=80%",
+        "Genes in the >=80% band",
+        "Genes in the >=80% 'eliminated' band, by genome",
+        plots_dir / "protein_coding_eliminated_band_by_genome.png",
+        color=CATEGORICAL[2],
+    )
+    print(
+        f"{int(pc_total_row['>=80%'])} protein-coding genes fall in the >=80% "
+        f"'eliminated' band (pooled across genomes) - see the '>=80%' column in "
+        f"protein_coding_threshold_summary.tsv for the per-genome counts."
+    )
 
-    plot_overlap_position_bar(pc_df, "Where partial TE overlaps fall along the gene (20-80% band)",
-                               plots_dir / "protein_coding_overlap_position.png")
-    plot_overlap_position_by_pct(pc_df, "Overlap position by TE-overlap % (0-80% overlap)",
-                                  plots_dir / "protein_coding_overlap_position_by_pct.png")
-    plot_fragment_size_by_pct(pc_df, "Size of the TE element behind the overlap, by TE-overlap %",
-                               plots_dir / "protein_coding_te_fragment_size.png")
+    plot_overlap_position_bar(
+        pc_df,
+        "Where partial TE overlaps fall along the gene (20-80% band)",
+        plots_dir / "protein_coding_overlap_position.png",
+    )
+    plot_overlap_position_by_pct(
+        pc_df,
+        "Overlap position by TE-overlap % (0-80% overlap)",
+        plots_dir / "protein_coding_overlap_position_by_pct.png",
+    )
+    plot_fragment_size_by_pct(
+        pc_df,
+        "Size of the TE element behind the overlap, by TE-overlap %",
+        plots_dir / "protein_coding_te_fragment_size.png",
+    )
     n_check_model = int(pc_df["check_gene_model"].sum())
-    print(f"{n_check_model} protein-coding genes have TE overlap concentrated at one end "
-          f"(5' or 3') of the gene - candidates for a gene-model check, not just a TE-content "
-          f"call. See the 'TE_overlap_position'/'check_gene_model' columns in gene_te_overlap.tsv.")
+    print(
+        f"{n_check_model} protein-coding genes have TE overlap concentrated at one end "
+        f"(5' or 3') of the gene - candidates for a gene-model check, not just a TE-content "
+        f"call. See the 'TE_overlap_position'/'check_gene_model' columns in gene_te_overlap.tsv."
+    )
 
-    plot_hist(pg_df["TE_overlap_pct"],
-              "Pseudogene overlap with TEs (pooled)",
-              plots_dir / "pseudogene_te_overlap_hist.png", log_y=True, color=CATEGORICAL[2])
+    plot_hist(
+        pg_df["TE_overlap_pct"],
+        "Pseudogene overlap with TEs (pooled)",
+        plots_dir / "pseudogene_te_overlap_hist.png",
+        log_y=True,
+        color=CATEGORICAL[2],
+    )
 
     if len(transcript_df):
         per_gene = transcript_df.groupby(["genome_id", "gene_id"])["transcript_TE_overlap_pct"].agg(["min", "max"])
@@ -1154,10 +1239,12 @@ def main():
         # its min happens to be low - that just means the gene as a whole
         # has low overlap, not that isoform choice matters.
         divergent = per_gene[(per_gene["max"] - per_gene["min"]) >= 20]
-        print(f"\n{len(per_gene)} multi-transcript protein_coding genes have TE overlap in at "
-              f"least one isoform; {len(divergent)} of those show a real split between isoforms "
-              f"(>=20 percentage points between the lowest- and highest-overlap isoform) - see "
-              f"multi_transcript_te_overlap.tsv.")
+        print(
+            f"\n{len(per_gene)} multi-transcript protein_coding genes have TE overlap in at "
+            f"least one isoform; {len(divergent)} of those show a real split between isoforms "
+            f"(>=20 percentage points between the lowest- and highest-overlap isoform) - see "
+            f"multi_transcript_te_overlap.tsv."
+        )
 
     print(f"\nPlots written to {plots_dir}/")
 

@@ -28,18 +28,8 @@ OUT_DIR="interpro/interpro_lookup"
 
 set -euo pipefail
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there — fall back to the standard layout
-# relative to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/merge_interpro_results.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/04_InterProScan/scripts/merge_interpro_results.py" \
-    "04_InterProScan/scripts/merge_interpro_results.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find merge_interpro_results.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 04_InterProScan/scripts/merge_interpro_results.py
 
 [[ -d "$RESULTS_DIR" ]] || { echo "ERROR: results folder not found: $RESULTS_DIR (run the array job first)" >&2; exit 1; }
 [[ -f "$ORDER" ]] || { echo "ERROR: genome list not found: $ORDER" >&2; exit 1; }

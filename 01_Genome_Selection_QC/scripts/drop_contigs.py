@@ -184,35 +184,42 @@ def write_filtered(in_path, drop, filt):
 
 
 def main():
-    ap = argparse.ArgumentParser(
-        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("list", help="the <genome> <contig> list file")
-    ap.add_argument("--genomes-dir", default="genomes", metavar="DIR",
-                    help="assemblies as <genome>.fna / .fasta / .fa (default: genomes)")
-    ap.add_argument("--gff-dir", default="gff_originals", metavar="DIR",
-                    help="annotations as <genome>.gff3 / .gff; \"\" to skip GFFs "
-                         "(default: gff_originals)")
-    ap.add_argument("--apply", action="store_true",
-                    help="actually rewrite the files (default: dry run - report only)")
-    ap.add_argument("--strict", action="store_true",
-                    help="fail if a listed contig is in neither the FASTA nor the GFF "
-                         "(default: skip it with a note - so a cumulative drop list stays "
-                         "safe to re-run after some contigs are already removed)")
+    ap.add_argument(
+        "--genomes-dir",
+        default="genomes",
+        metavar="DIR",
+        help="assemblies as <genome>.fna / .fasta / .fa (default: genomes)",
+    )
+    ap.add_argument(
+        "--gff-dir",
+        default="gff_originals",
+        metavar="DIR",
+        help='annotations as <genome>.gff3 / .gff; "" to skip GFFs (default: gff_originals)',
+    )
+    ap.add_argument("--apply", action="store_true", help="actually rewrite the files (default: dry run - report only)")
+    ap.add_argument(
+        "--strict",
+        action="store_true",
+        help="fail if a listed contig is in neither the FASTA nor the GFF "
+        "(default: skip it with a note - so a cumulative drop list stays "
+        "safe to re-run after some contigs are already removed)",
+    )
     args = ap.parse_args()
 
     want = read_list(args.list)
 
     # Resolve every file and validate every contig ID up front - touch nothing until
     # the whole plan is known to be sound.
-    plan = []          # (genome, fna_path_or_None, gff_path_or_None, drop_set, in_fa_set)
+    plan = []  # (genome, fna_path_or_None, gff_path_or_None, drop_set, in_fa_set)
     errors = []
     for genome in sorted(want):
         drop = want[genome]
         fna = find_one(args.genomes_dir, genome, FASTA_EXTS)
         gff = find_one(args.gff_dir, genome, GFF_EXTS) if args.gff_dir else None
         if not fna and not gff:
-            errors.append(f"{genome}: no FASTA in {args.genomes_dir}/ "
-                          f"and no GFF in {args.gff_dir or '(disabled)'}/")
+            errors.append(f"{genome}: no FASTA in {args.genomes_dir}/ and no GFF in {args.gff_dir or '(disabled)'}/")
             continue
         in_fa = set(fasta_ids(fna)) & drop if fna else set()
         in_gff = gff_seqids(gff) & drop if gff else set()
@@ -225,17 +232,20 @@ def main():
             else:
                 # already removed by an earlier run (the list is a cumulative
                 # manifest), or a typo - either way nothing to do. Skip, don't fail.
-                print(f"note: {genome}: {unknown} not in {where} "
-                      f"(already removed, or a typo) - skipping", file=sys.stderr)
+                print(
+                    f"note: {genome}: {unknown} not in {where} (already removed, or a typo) - skipping", file=sys.stderr
+                )
                 drop = drop - set(unknown)
         only_gff = sorted(in_gff - in_fa)
         if only_gff and fna:
-            print(f"note: {genome}: {only_gff} already absent from {os.path.basename(fna)}"
-                  f" - will clean the GFF only", file=sys.stderr)
+            print(
+                f"note: {genome}: {only_gff} already absent from {os.path.basename(fna)} - will clean the GFF only",
+                file=sys.stderr,
+            )
         if not gff and args.gff_dir:
             print(f"note: {genome}: no GFF in {args.gff_dir}/ - assembly only", file=sys.stderr)
         if not drop:
-            continue                       # nothing left for this genome
+            continue  # nothing left for this genome
         plan.append((genome, fna, gff, drop, in_fa))
 
     if errors:

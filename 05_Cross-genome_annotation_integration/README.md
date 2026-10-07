@@ -637,7 +637,8 @@ Moreover, due to the liftoff process that can predict slightly different gene mo
 Scripts: [`scripts/filter_final_annotation_job.sh`](scripts/filter_final_annotation_job.sh) ·
 [`scripts/filter_final_annotation.py`](scripts/filter_final_annotation.py) ·
 [`scripts/plot_filter_qc_job.sh`](scripts/plot_filter_qc_job.sh) ·
-[`scripts/plot_filter_qc.py`](scripts/plot_filter_qc.py)
+[`scripts/plot_filter_qc.py`](scripts/plot_filter_qc.py) · shared with 7b and the QC plots:
+[`scripts/annotation_common.py`](scripts/annotation_common.py) (GFF parsing, CDS-overlap scan, ID renumbering)
 
 
 A gene is never partially removed: it's dropped from **every** genome's output or from none -
@@ -758,7 +759,7 @@ step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_d
 | `MIN_OVERLAP_GENOMES` | `2` | A gene present in more than 2 genomes needs a qualifying overlap in at least this many of them to count as a real, recurring conflict rather than an isolated Liftoff boundary glitch |
 | `EXTRA_COPY_REQUIRE_VALID_ORF` | `true` | `false` keeps every extra-copy gene regardless of ORF validity |
 | `REQUIRE_DOMAIN_ONLY` | `false` | `true` makes only a protein domain count as evidence, ignoring description text entirely |
-| `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
+| `ID_PREFIX` | *(required)* | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - set it per species, e.g. `Afu` for *A. fumigatus* (its reference's own native gene ID style, `Afu1g00100`): `sbatch --export=ALL,ID_PREFIX=Afu ...` |
 
 **Run** (one single SLURM job, works through every genome in `STRAINS` in one Python process -
 the cross-genome case-6 pass needs all of them loaded together anyway):
@@ -803,7 +804,7 @@ on to [step 06 - GET_PANGENES](../06_GET_PANGENES/README.md) to prepare and run
 ### 7b. No filtering (tag, decide after get_pangenes)
 
 Scripts: [`scripts/tag_final_annotation_job.sh`](scripts/tag_final_annotation_job.sh) ·
-[`scripts/tag_final_annotation.py`](scripts/tag_final_annotation.py)
+[`scripts/tag_final_annotation.py`](scripts/tag_final_annotation.py) · [`scripts/annotation_common.py`](scripts/annotation_common.py)
 
 **Why this exists.** 7a's overlap-resolution rule can still be wrong in a specific way: if a
 gene overlaps something in only one genome of the panel because that one genome's `main`/other
@@ -858,7 +859,7 @@ pangene-level confidence call it produces, isn't built yet - planned as part of
 | `FINAL_DIR` | `expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `OUTPUT_DIR`) |
 | `OUT_DIR` | `tagged_annotation` | Where to write the tagged GFFs + `_intersect_pairs.tsv` files |
 | `MIN_OVERLAP_BP` | `20` | CDS-to-CDS overlaps under this many bp are ignored entirely |
-| `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
+| `ID_PREFIX` | *(required)* | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - set it per species, e.g. `Afu` for *A. fumigatus* (its reference's own native gene ID style, `Afu1g00100`): `sbatch --export=ALL,ID_PREFIX=Afu ...` |
 
 **Run:**
 ```bash

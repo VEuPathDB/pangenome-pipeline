@@ -1,0 +1,4 @@
+strain	n_genes_before	n_genes_after	n_removed	n_extra_copy_before	n_extra_copy_after	n_overlap_pairs_before	n_overlap_pairs_after	n_contained_before	n_contained_after
+REF	3	2	1	0	0	1	0	1	0
+S2	4	2	2	1	0	0	0	0	0
+S3	7	5	2	0	0	2	1	1	0

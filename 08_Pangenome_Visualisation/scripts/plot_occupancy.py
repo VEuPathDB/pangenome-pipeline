@@ -12,16 +12,16 @@ Writes <out-prefix>.png/.svg and <out-prefix>.tsv (occupancy, category, count).
 
 Input: rows = clusters, columns = genomes, cell > 0 = cluster present in that genome.
 """
+
 import argparse
 import csv
-import math
 import sys
 
 import matplotlib
+
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
-
 from plot_pancore import read_presence
 
 COLORS = {"Core": "#0072B2", "Soft-core": "#E69F00", "Shell": "#009E73", "Cloud": "#CC79A7"}
@@ -51,8 +51,12 @@ def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("-i", "--matrix", required=True, help="pangene_matrix.tr.tab (rows = clusters, columns = genomes)")
     ap.add_argument("-o", "--out-prefix", required=True, help="output prefix (writes .png/.svg/.tsv)")
-    ap.add_argument("--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)")
-    ap.add_argument("--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)")
+    ap.add_argument(
+        "--core-missing", type=int, default=0, help="core = missing from at most this many genomes (default 0)"
+    )
+    ap.add_argument(
+        "--softcore-missing", type=int, default=1, help="soft-core = missing from at most this many genomes (default 1)"
+    )
     ap.add_argument("--cloud-max", type=int, default=2, help="cloud = present in at most this many genomes (default 2)")
     ap.add_argument("--title", default="", help="plot title (none by default)")
     args = ap.parse_args()
@@ -83,8 +87,13 @@ def main():
     if args.title:
         ax.set_title(args.title, loc="left", fontsize=14)
     present = [c for c in ORDER if c in cats]
-    ax.legend([plt.Rectangle((0, 0), 1, 1, color=COLORS[c]) for c in present], present,
-              loc="center left", bbox_to_anchor=(1.01, 0.5), frameon=False)
+    ax.legend(
+        [plt.Rectangle((0, 0), 1, 1, color=COLORS[c]) for c in present],
+        present,
+        loc="center left",
+        bbox_to_anchor=(1.01, 0.5),
+        frameon=False,
+    )
     fig.tight_layout()
     for ext in ("png", "svg"):
         fig.savefig(f"{args.out_prefix}.{ext}", dpi=200, bbox_inches="tight")

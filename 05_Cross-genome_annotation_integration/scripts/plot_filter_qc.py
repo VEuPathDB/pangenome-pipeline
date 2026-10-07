@@ -34,9 +34,11 @@ import os
 import re
 import sys
 from collections import defaultdict
+from pathlib import Path
 
 try:
     import matplotlib
+
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 except ImportError:
@@ -46,7 +48,10 @@ SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 if SCRIPT_DIR not in sys.path:
     sys.path.insert(0, SCRIPT_DIR)
 
-from filter_final_annotation import ID_RE, PARENT_RE, _int_attr, _float_attr, _valid_orf, find_cds_overlaps
+from annotation_common import ID_RE, PARENT_RE, find_cds_overlaps, float_attr, int_attr, source_counts, valid_orf
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.io import read_strains
 
 REASON_CATEGORIES = [
     (r"^extra copy with no valid ORF", "extra copy: no valid ORF"),
@@ -62,13 +67,6 @@ def categorize_reason(reason):
         if re.search(pattern, reason):
             return label
     return "other"
-
-
-def read_strains(value):
-    if os.path.isfile(value):
-        with open(value) as fh:
-            return [l.strip() for l in fh if l.strip() and not l.startswith("#")]
-    return [s.strip() for s in value.split(",") if s.strip()]
 
 
 def parse_gff_for_qc(path, gene_feature_type):
@@ -89,18 +87,22 @@ def parse_gff_for_qc(path, gene_feature_type):
         fields = line.rstrip("\n").split("\t")
         if len(fields) < 9:
             continue
-        seqname, source, feature, start, end, score, strand = fields[:7]
+        seqname, source, feature, start, end, _score, strand = fields[:7]
         attrs = fields[8]
         m = ID_RE.search(attrs)
         feat_id = m.group(1) if m else None
 
         if feature == gene_feature_type and feat_id:
             genes[feat_id] = {
-                "id": feat_id, "seqname": seqname, "source": source,
-                "start": int(start), "end": int(end), "strand": strand,
-                "extra_copy_number": _int_attr(attrs, "extra_copy_number"),
-                "valid_ORF": _valid_orf(attrs),
-                "coverage": _float_attr(attrs, "coverage"),
+                "id": feat_id,
+                "seqname": seqname,
+                "source": source,
+                "start": int(start),
+                "end": int(end),
+                "strand": strand,
+                "extra_copy_number": int_attr(attrs, "extra_copy_number"),
+                "valid_ORF": valid_orf(attrs),
+                "coverage": float_attr(attrs, "coverage"),
             }
         elif feature == "mRNA" and feat_id:
             parent = PARENT_RE.search(attrs)
@@ -135,7 +137,7 @@ def parse_gff_for_qc(path, gene_feature_type):
             if bp > best_bp:
                 best_bp, best_mrna = bp, mrna_id
         gene["cds_segments"] = sorted(cds_by_mrna.get(best_mrna, []))
-        gene["cds_bp"] = best_bp if best_bp > 0 else 0
+        gene["cds_bp"] = max(0, best_bp)
         gene["has_domain"] = any(mrna_has_domain.get(m, False) for m in gene_mrnas)
 
     return genes
@@ -161,32 +163,29 @@ def severity_counts(genes, min_overlap_bp):
     return counts
 
 
-def source_counts(genes, reference_strain):
-    """reference_strain is the actual genome name (e.g. "ME49"), not the "main" tag -
-    needed to split "rescued_<reference>" out from every other strain's "rescued_<x>"."""
-    ref_rescued_tag = f"rescued_{reference_strain}"
-    counts = {"main": 0, "original": 0, "reference_rescued": 0, "good_others": 0, "rescued_others": 0}
-    for g in genes.values():
-        src = g["source"]
-        if src == "main":
-            counts["main"] += 1
-        elif src == ref_rescued_tag:
-            counts["reference_rescued"] += 1
-        elif src.startswith("good_"):
-            counts["good_others"] += 1
-        elif src.startswith("rescued_"):
-            counts["rescued_others"] += 1
-        else:
-            counts["original"] += 1
-    return counts
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--strains", required=True, help="Comma-separated genome names or a file with one per line - first one must be the reference")
-    parser.add_argument("--original-dir", required=True, help="Directory with <strain>_final_annotation.gff (this pipeline's raw output, before filtering)")
-    parser.add_argument("--filtered-dir", required=True, help="Directory with <strain>_final_annotation_filtered.gff and <strain>_filter_report.tsv (7a's output)")
-    parser.add_argument("--min-overlap-bp", type=int, default=20, help="Same --min-overlap-bp used for the real filter run (default: 20)")
+    parser.add_argument(
+        "--strains",
+        required=True,
+        help="Comma-separated genome names or a file with one per line - first one must be the reference",
+    )
+    parser.add_argument(
+        "--original-dir",
+        required=True,
+        help="Directory with <strain>_final_annotation.gff (this pipeline's raw output, before filtering)",
+    )
+    parser.add_argument(
+        "--filtered-dir",
+        required=True,
+        help="Directory with <strain>_final_annotation_filtered.gff and <strain>_filter_report.tsv (7a's output)",
+    )
+    parser.add_argument(
+        "--min-overlap-bp",
+        type=int,
+        default=20,
+        help="Same --min-overlap-bp used for the real filter run (default: 20)",
+    )
     parser.add_argument("--out-dir", default="./filter_qc_plots", help="Where to write the plots and summary.tsv")
     args = parser.parse_args()
 
@@ -228,13 +227,20 @@ def main():
         source_before_all[s] = source_counts(genes_before, strains[0])
         source_after_all[s] = source_counts(genes_after, strains[0])
 
-        rows.append({
-            "strain": s, "n_genes_before": n_before, "n_genes_after": n_after,
-            "n_removed": n_before - n_after,
-            "n_extra_copy_before": n_extra_before, "n_extra_copy_after": n_extra_after,
-            "n_overlap_pairs_before": sum(sev_before.values()), "n_overlap_pairs_after": sum(sev_after.values()),
-            "n_contained_before": sev_before["contained"], "n_contained_after": sev_after["contained"],
-        })
+        rows.append(
+            {
+                "strain": s,
+                "n_genes_before": n_before,
+                "n_genes_after": n_after,
+                "n_removed": n_before - n_after,
+                "n_extra_copy_before": n_extra_before,
+                "n_extra_copy_after": n_extra_after,
+                "n_overlap_pairs_before": sum(sev_before.values()),
+                "n_overlap_pairs_after": sum(sev_after.values()),
+                "n_contained_before": sev_before["contained"],
+                "n_contained_after": sev_after["contained"],
+            }
+        )
 
     with open(os.path.join(args.out_dir, "summary.tsv"), "w", newline="") as fh:
         writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()), delimiter="\t")
@@ -291,7 +297,10 @@ def main():
     # --- Plot 4: overlap severity, before vs. after ---
     fig, axes = plt.subplots(2, 1, figsize=(max(8, len(strains) * 0.6), 9), sharex=True)
     sev_colors = {"minor": "#B0B0B0", "substantial": "#F2B035", "contained": "#C0392B"}
-    for ax, data, title in [(axes[0], severity_before_all, "before filtering"), (axes[1], severity_after_all, "after filtering")]:
+    for ax, data, title in [
+        (axes[0], severity_before_all, "before filtering"),
+        (axes[1], severity_after_all, "after filtering"),
+    ]:
         bottoms = [0] * len(strains)
         for sev in ("minor", "substantial", "contained"):
             values = [data[s][sev] for s in strains]
@@ -307,10 +316,18 @@ def main():
 
     # --- Plot 5: source composition, before vs. after ---
     src_labels = ["main", "original", "reference_rescued", "good_others", "rescued_others"]
-    src_colors = {"main": "#F8766D", "original": "#00BA38", "reference_rescued": "#619CFF",
-                  "good_others": "#B379E0", "rescued_others": "#7A5195"}
+    src_colors = {
+        "main": "#F8766D",
+        "original": "#00BA38",
+        "reference_rescued": "#619CFF",
+        "good_others": "#B379E0",
+        "rescued_others": "#7A5195",
+    }
     fig, axes = plt.subplots(2, 1, figsize=(max(8, len(strains) * 0.6), 9), sharex=True)
-    for ax, data, title in [(axes[0], source_before_all, "before filtering"), (axes[1], source_after_all, "after filtering")]:
+    for ax, data, title in [
+        (axes[0], source_before_all, "before filtering"),
+        (axes[1], source_after_all, "after filtering"),
+    ]:
         bottoms = [0] * len(strains)
         for src in src_labels:
             values = [data[s][src] for s in strains]

@@ -39,17 +39,15 @@
 # ORGANELLE_CONTIGS : the contig name(s) in that genome, space-separated. You
 #                     find these by looking at the assembly description and the
 #                     contig names of that genome.
-SOURCE_GENOME="AF293"
-ORGANELLE_CONTIGS="mito_A_fumigatus_Af293"
+SOURCE_GENOME="${SOURCE_GENOME:?set SOURCE_GENOME (e.g. AF293) here or with sbatch --export=ALL,SOURCE_GENOME=...}"
+ORGANELLE_CONTIGS="${ORGANELLE_CONTIGS:?set ORGANELLE_CONTIGS (e.g. mito_A_fumigatus_Af293) here or with sbatch --export}"
 # --------------------------------------------------------------------------
 
 set -eo pipefail
 
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put blastn / samtools / python3 on the PATH:
-export MAMBA_ROOT_PREFIX="$HOME/hc-storage/micromamba"
-export MAMBA_EXE="$HOME/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 set -u

@@ -38,6 +38,7 @@ Usage:
         --outdir gff_updated \
         [--min-pct 80] [--extra-genes confirmed_20_80.tsv]
 """
+
 from __future__ import annotations
 
 import argparse
@@ -47,8 +48,10 @@ from pathlib import Path
 import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from extract_flagged_genes import find_gff
-from te_gene_overlap import parse_attributes, strip_prefix, GENE_FTYPE_TO_BIOTYPE
+from te_gene_overlap import GENE_FTYPE_TO_BIOTYPE, parse_attributes, strip_prefix
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.io import load_extra_genes
 
 # Same set of gene-level feature types (GFF3 column 3) te_gene_overlap.py
 # recognises when it builds gene_te_overlap.tsv in the first place - not just
@@ -63,21 +66,15 @@ FEATURE_TYPES_WITH_PARENT_GENE = {"mRNA", "tRNA", "rRNA"}
 FEATURE_TYPES_WITH_PARENT_RNA = {"exon", "CDS"}
 
 
-def load_extra_genes(path) -> set:
-    """2-column TSV (no header): genome_label<TAB>gene_id."""
-    pairs = set()
-    with Path(path).open() as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            genome_label, gene_id = line.split("\t")
-            pairs.add((genome_label, gene_id))
-    return pairs
-
-
-def build_mobile_element_line(fields: list, gene_id: str, te_class: str, te_name: str,
-                               te_overlap_pct: float, original_type: str, original_attrs: dict) -> str:
+def build_mobile_element_line(
+    fields: list,
+    gene_id: str,
+    te_class: str,
+    te_name: str,
+    te_overlap_pct: float,
+    original_type: str,
+    original_attrs: dict,
+) -> str:
     """fields: the original gene/pseudogene line's 9 columns (only 0
     (contig), 3 (start), 4 (end), 6 (strand) are reused - everything else is
     rebuilt fresh, matching how RefSeq/GenBank write mobile_genetic_element
@@ -165,8 +162,9 @@ def reclassify_gff(gff_path: Path, gene_info: dict) -> tuple[list, int, set]:
         if ftype in GENE_FTYPES:
             if fid in target_raw:
                 gene_id, te_class, te_name, pct, original_type, original_attrs = target_raw[fid]
-                out_lines.append(build_mobile_element_line(
-                    fields, gene_id, te_class, te_name, pct, original_type, original_attrs))
+                out_lines.append(
+                    build_mobile_element_line(fields, gene_id, te_class, te_name, pct, original_type, original_attrs)
+                )
                 n_changed += 1
             else:
                 out_lines.append(line)
@@ -188,20 +186,30 @@ def reclassify_gff(gff_path: Path, gene_info: dict) -> tuple[list, int, set]:
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--gene-table", required=True,
-                     help="gene_te_overlap.tsv produced by te_gene_overlap.py")
-    ap.add_argument("--gff-indir", required=True,
-                     help="Directory with the source GFF3 files (genome_label.gff/.gff3) - never modified")
-    ap.add_argument("--outdir", required=True,
-                     help="Directory to write the full updated GFF set (and a reclassified-genes summary TSV)")
-    ap.add_argument("--min-pct", type=float, default=80.0,
-                     help="Reclassify every protein_coding gene with TE_overlap_pct >= this, "
-                          "automatically (default: 80)")
-    ap.add_argument("--extra-genes", default=None,
-                     help="Optional 2-column TSV (genome_label<TAB>gene_id, no header) of "
-                          "manually-confirmed genes below --min-pct to reclassify as well")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gene-table", required=True, help="gene_te_overlap.tsv produced by te_gene_overlap.py")
+    ap.add_argument(
+        "--gff-indir",
+        required=True,
+        help="Directory with the source GFF3 files (genome_label.gff/.gff3) - never modified",
+    )
+    ap.add_argument(
+        "--outdir",
+        required=True,
+        help="Directory to write the full updated GFF set (and a reclassified-genes summary TSV)",
+    )
+    ap.add_argument(
+        "--min-pct",
+        type=float,
+        default=80.0,
+        help="Reclassify every protein_coding gene with TE_overlap_pct >= this, automatically (default: 80)",
+    )
+    ap.add_argument(
+        "--extra-genes",
+        default=None,
+        help="Optional 2-column TSV (genome_label<TAB>gene_id, no header) of "
+        "manually-confirmed genes below --min-pct to reclassify as well",
+    )
     args = ap.parse_args()
 
     gff_indir = Path(args.gff_indir)
@@ -226,12 +234,18 @@ def main():
             target[key] = (row["TE_overlap_pct"], row["dominant_TE_class"], row["dominant_TE_name"])
 
     if not target:
-        raise SystemExit(f"No genes to reclassify (TE_overlap_pct >= {args.min_pct}, "
-                          f"plus none/no valid entries in --extra-genes)")
+        raise SystemExit(
+            f"No genes to reclassify (TE_overlap_pct >= {args.min_pct}, plus none/no valid entries in --extra-genes)"
+        )
 
     summary_rows = [
-        {"genome_label": g, "gene_id": gid, "TE_overlap_pct": pct,
-         "dominant_TE_class": te_class, "dominant_TE_name": te_name}
+        {
+            "genome_label": g,
+            "gene_id": gid,
+            "TE_overlap_pct": pct,
+            "dominant_TE_class": te_class,
+            "dominant_TE_name": te_name,
+        }
         for (g, gid), (pct, te_class, te_name) in target.items()
     ]
     summary_df = pd.DataFrame(summary_rows).sort_values(["genome_label", "TE_overlap_pct"], ascending=[True, False])
@@ -255,8 +269,10 @@ def main():
         out_lines, n_changed, found_ids = reclassify_gff(gff_path, gene_info)
         missing_here = set(gene_info) - found_ids
         if missing_here:
-            print(f"WARNING: {len(missing_here)} of {len(gene_info)} gene(s) not found in "
-                  f"{gff_path.name} for {genome_label!r} - NOT reclassified: {sorted(missing_here)}")
+            print(
+                f"WARNING: {len(missing_here)} of {len(gene_info)} gene(s) not found in "
+                f"{gff_path.name} for {genome_label!r} - NOT reclassified: {sorted(missing_here)}"
+            )
             missing_pairs.extend((genome_label, gid) for gid in missing_here)
         dest = outdir / gff_path.name
         dest.write_text("".join(out_lines))
@@ -266,19 +282,25 @@ def main():
 
     unmatched = set(by_genome_label) - {p.stem for p in gff_files}
     if unmatched:
-        print(f"WARNING: {sum(len(by_genome_label[g]) for g in unmatched)} gene(s) in "
-              f"genome_label(s) {sorted(unmatched)} had no matching GFF in {gff_indir} - not reclassified")
+        print(
+            f"WARNING: {sum(len(by_genome_label[g]) for g in unmatched)} gene(s) in "
+            f"genome_label(s) {sorted(unmatched)} had no matching GFF in {gff_indir} - not reclassified"
+        )
         missing_pairs.extend((g, gid) for g in unmatched for gid in by_genome_label[g])
 
     if missing_pairs:
-        print(f"\nWARNING: {len(missing_pairs)} of {len(target)} requested gene(s) were NOT "
-              f"reclassified (still a gene model, not a mobile_genetic_element, in the output "
-              f"GFF - see the WARNINGs above for why):")
+        print(
+            f"\nWARNING: {len(missing_pairs)} of {len(target)} requested gene(s) were NOT "
+            f"reclassified (still a gene model, not a mobile_genetic_element, in the output "
+            f"GFF - see the WARNINGs above for why):"
+        )
         for genome_label, gene_id in sorted(missing_pairs):
             print(f"  {genome_label}\t{gene_id}")
 
-    print(f"\n{total_changed} gene(s) reclassified across {len(gff_files)} genome(s). "
-          f"Full updated GFF set written to {outdir}/")
+    print(
+        f"\n{total_changed} gene(s) reclassified across {len(gff_files)} genome(s). "
+        f"Full updated GFF set written to {outdir}/"
+    )
 
 
 if __name__ == "__main__":

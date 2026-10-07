@@ -29,7 +29,7 @@
 # the time this job finishes. No second command, no separate --apply step.
 #
 # Submit from the project folder:
-#     sbatch 01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh
+#     sbatch species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh
 #
 # ─── ADAPT: the paths below, the ### ADAPT ### block, and the #SBATCH lines ───
 GENOMES="genomes"                 # step-01 assemblies folder
@@ -44,11 +44,9 @@ BACKUP_DIR="01_Genome_Selection_QC/backup_before_short_contig_drop"   # untouche
 
 set -eo pipefail
 
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put samtools and python3 on the PATH:
-export MAMBA_ROOT_PREFIX="$HOME/hc-storage/micromamba"
-export MAMBA_EXE="$HOME/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 set -u

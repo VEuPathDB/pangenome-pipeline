@@ -32,6 +32,7 @@ Usage:
     python3 scripts/sync_species_results.py --species Afum
     python3 scripts/sync_species_results.py --species Tgondii --source ../Tgondii --out results/Tgondii
 """
+
 import argparse
 import os
 import re
@@ -39,16 +40,14 @@ import shutil
 import sys
 
 LINK_RE = re.compile(r"\]\(([^)]+)\)")
-STEP_FOLDER_ROW_RE = re.compile(
-    r"\[(\d\d_[A-Za-z0-9_-]+/)\]\(\1\)"
-)
+STEP_FOLDER_ROW_RE = re.compile(r"\[(\d\d_[A-Za-z0-9_-]+/)\]\(\1\)")
 PIPELINE_LINK_PREFIX = "../pangenome_analysis/"
 REPORT_FILES = ("README.md", "SUMMARY.md")
 
 
 def classify(link):
     """-> one of "external", "anchor", "pipeline", "asset" """
-    if link.startswith("http://") or link.startswith("https://") or link.startswith("mailto:"):
+    if link.startswith(("http://", "https://", "mailto:")):
         return "external"
     if link.startswith("#"):
         return "anchor"
@@ -63,6 +62,7 @@ def rewrite_text(text, source_dir, assets_found, assets_missing):
     def delink_step_row(m):
         folder = m.group(1)
         return f"{folder} *(working data, not published here)*"
+
     text = STEP_FOLDER_ROW_RE.sub(delink_step_row, text)
 
     # 2. every remaining local link: rewrite pipeline cross-repo links, copy local assets in place.
@@ -72,9 +72,9 @@ def rewrite_text(text, source_dir, assets_found, assets_missing):
         if kind in ("external", "anchor"):
             return m.group(0)
         if kind == "pipeline":
-            return f"]({'../../' + link[len(PIPELINE_LINK_PREFIX):]})"
+            return f"]({'../../' + link[len(PIPELINE_LINK_PREFIX) :]})"
         # kind == "asset": a path relative to the species folder, optionally with a "#anchor" tail
-        path_part, _, anchor = link.partition("#")
+        path_part, _, _anchor = link.partition("#")
         if path_part in REPORT_FILES or path_part == "":
             return m.group(0)  # README.md/SUMMARY.md linking to each other - already siblings
         src = os.path.join(source_dir, path_part)
@@ -91,8 +91,12 @@ def rewrite_text(text, source_dir, assets_found, assets_missing):
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--species", required=True, help="Species name, used as the results/<Species>/ folder name")
-    ap.add_argument("--source", help="Path to the species project folder (default: ../<species>, relative to this repo's root)")
-    ap.add_argument("--out", help="Where to write the curated copy (default: results/<species>, relative to this repo's root)")
+    ap.add_argument(
+        "--source", help="Path to the species project folder (default: ../<species>, relative to this repo's root)"
+    )
+    ap.add_argument(
+        "--out", help="Where to write the curated copy (default: results/<species>, relative to this repo's root)"
+    )
     args = ap.parse_args()
 
     repo_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -130,10 +134,13 @@ def main():
 
     total_bytes = sum(os.path.getsize(os.path.join(out_dir, rel)) for rel in copied)
     print(f"[{args.species}] {out_dir}")
-    print(f"  README.md + SUMMARY.md copied")
+    print("  README.md + SUMMARY.md copied")
     print(f"  {len(copied)} asset(s) copied, {total_bytes / 1024 / 1024:.1f} MB total")
     if assets_missing:
-        print(f"  WARNING: {len(assets_missing)} linked path(s) not found under {source_dir}, left as-is in the text:", file=sys.stderr)
+        print(
+            f"  WARNING: {len(assets_missing)} linked path(s) not found under {source_dir}, left as-is in the text:",
+            file=sys.stderr,
+        )
         for m in assets_missing:
             print(f"    {m}", file=sys.stderr)
     if copy_failed:

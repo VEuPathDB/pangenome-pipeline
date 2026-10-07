@@ -13,7 +13,8 @@
 #   2. self-aligns it             -> contig_redundancy/<label>.self.paf
 #                                    (minimap2 -xasm5 -DP <asm> <asm>, the call purge_dups uses)
 # then contig_redundancy.py combines that with the existing
-# synteny/<label>_vs_AF293.paf and gff_originals/<label>.gff into
+# synteny/<label>_vs_<reference>.paf (reference = first genome in genome_order.txt, as in
+# synteny_vs_ref.slurm.sh) and gff_originals/<label>.gff into
 #   contig_redundancy/REPORT.md   +   contig_redundancy/<label>.contigs.tsv
 #
 # Nothing is dropped. Review the report, then edit
@@ -34,11 +35,9 @@
 
 set -eo pipefail
 
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 ### ADAPT ### — put minimap2 / samtools / python3 on the PATH:
-export MAMBA_ROOT_PREFIX="$HOME/hc-storage/micromamba"
-export MAMBA_EXE="$HOME/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 # ── TUNING ───────────────────────────────────────────────────────────────────
@@ -93,7 +92,7 @@ done
 
 echo
 echo "=== building report ==="
-python3 "$PY" "$PROJECT_DIR" --md "contig_redundancy/REPORT.md" \
+python3 "$PY" "$PROJECT_DIR" --ref "${LABELS[0]}" --md "contig_redundancy/REPORT.md" \
     --chrom-min-mb "$CHROM_MIN_MB" --dup-frac "$DUP_FRAC" --dup-min-id "$DUP_MIN_ID"
 
 echo

@@ -1,0 +1,10 @@
+##gff-version 3
+chr1	main	gene	1000	3000	.	+	.	ID=Tst1g00001;description=heat%20shock%20protein;valid_ORFs=1;original_ID=geneA
+chr1	main	mRNA	1000	3000	.	+	.	ID=geneA-T1;Parent=Tst1g00001
+chr1	main	CDS	1000	1500	.	+	.	ID=geneA-T1-CDS1;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	CDS	2500	3000	.	+	.	ID=geneA-T1-CDS2;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	gene	5000	6000	.	+	.	ID=Tst1g00002;description=hypothetical protein;valid_ORFs=1;original_ID=geneB
+chr1	main	mRNA	5000	6000	.	+	.	ID=geneB-T1;Parent=Tst1g00002
+chr1	main	CDS	5000	6000	.	+	.	ID=geneB-T1-CDS1;Parent=geneB-T1
+chr1	main	ncRNA_gene	7000	7100	.	+	.	ID=ncA
+chr1	main	ncRNA	7000	7100	.	+	.	ID=ncA-T1;Parent=ncA

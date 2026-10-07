@@ -103,17 +103,27 @@ def extract_good_transfer_ids(gff_path, min_coverage, min_identity, keep_extra_c
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--gff", required=True, help="Input Liftoff GFF3 (the *_strain_liftoff_updated.gff3_polished file)")
+    parser.add_argument(
+        "--gff", required=True, help="Input Liftoff GFF3 (the *_strain_liftoff_updated.gff3_polished file)"
+    )
     parser.add_argument("--out", required=True, help="Output text file, one gene ID per line")
     parser.add_argument("--min-coverage", type=float, default=0.9, help="Minimum Liftoff coverage (default: 0.9)")
-    parser.add_argument("--min-identity", type=float, default=0.9, help="Minimum Liftoff sequence identity (default: 0.9)")
-    parser.add_argument("--keep-extra-copies", action="store_true",
-                         help="Keep extra copies (extra_copy_number > 0) too, instead of restricting to the primary copy")
-    parser.add_argument("--gene-feature-types", default="gene,protein_coding_gene",
-                         help="Comma-separated level-1 feature type name(s) that mark a protein-coding gene in "
-                              "the input GFF (default: 'gene,protein_coding_gene', covering both common "
-                              "conventions - NCBI-style GFFs typically use 'gene', Liftoff/VEuPathGDB-style "
-                              "references typically use 'protein_coding_gene')")
+    parser.add_argument(
+        "--min-identity", type=float, default=0.9, help="Minimum Liftoff sequence identity (default: 0.9)"
+    )
+    parser.add_argument(
+        "--keep-extra-copies",
+        action="store_true",
+        help="Keep extra copies (extra_copy_number > 0) too, instead of restricting to the primary copy",
+    )
+    parser.add_argument(
+        "--gene-feature-types",
+        default="gene,protein_coding_gene",
+        help="Comma-separated level-1 feature type name(s) that mark a protein-coding gene in "
+        "the input GFF (default: 'gene,protein_coding_gene', covering both common "
+        "conventions - NCBI-style GFFs typically use 'gene', Liftoff/VEuPathGDB-style "
+        "references typically use 'protein_coding_gene')",
+    )
     args = parser.parse_args()
 
     gene_feature_types = {t.strip() for t in args.gene_feature_types.split(",") if t.strip()}

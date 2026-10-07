@@ -32,25 +32,9 @@ GENOME_SUFFIX=".fna"                                   # filename suffix for eac
 ORDER="genome_order.txt"                               # same genome list used throughout this pipeline
 OUT_DIR="for_get_pangenes_7b"                          # point run_get_pangenes_7b_job.sh's INPUT_DIR here
 
-if [[ -f "$ORDER" ]]; then
-  mapfile -t GENOMES < <(grep -vE '^\s*(#|$)' "$ORDER")
-else
-  IFS=',' read -ra GENOMES <<< "$ORDER"
-fi
-[[ ${#GENOMES[@]} -ge 1 ]] || { echo "ERROR: ORDER has no genomes - check it's been edited" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script COMMON 06_GET_PANGENES/scripts/get_pangenes_common.sh
+# shellcheck source=get_pangenes_common.sh
+source "$COMMON"
 
-mkdir -p "$OUT_DIR"
-
-n=0
-for genome in "${GENOMES[@]}"; do
-  gff="$ANNOTATION_DIR/${genome}${ANNOTATION_SUFFIX}"
-  fna="$GENOME_DIR/${genome}${GENOME_SUFFIX}"
-  [[ -f "$gff" ]] || { echo "ERROR: missing $gff" >&2; exit 1; }
-  [[ -f "$fna" ]] || { echo "ERROR: missing $fna" >&2; exit 1; }
-  ln -sf "$(cd "$(dirname "$gff")" && pwd)/$(basename "$gff")" "$OUT_DIR/${genome}_for_get_pangenes.gff"
-  ln -sf "$(cd "$(dirname "$fna")" && pwd)/$(basename "$fna")" "$OUT_DIR/${genome}_for_get_pangenes.fna"
-  n=$((n + 1))
-  echo "linked $genome"
-done
-
-echo "$n genome(s) linked into $OUT_DIR. Outputs are in $OUT_DIR"
+link_for_get_pangenes

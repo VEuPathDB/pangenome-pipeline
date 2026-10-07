@@ -1,0 +1,3 @@
+gene_id	source	seqname	reason
+geneR	rescued_S2	chr1	rescued transfer, Liftoff coverage 0.30 < 0.5
+geneI	S3	chr1	overlaps geneH (100.0% of its own CDS); neither has evidence, geneH more supported panel-wide (1 vs 0)

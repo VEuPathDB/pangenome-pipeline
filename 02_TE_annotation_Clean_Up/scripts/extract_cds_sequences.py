@@ -16,7 +16,7 @@ Usage:
     python3 extract_cds_sequences.py \
         --gene-table te_annotation_integration/gene_te_overlap.tsv \
         --gff-indir gff_originals \
-        --genomes-dir /Users/aludwig/Documents/MobilomePyricularia/genomes \
+        --genomes-dir genomes \
         --outdir te_annotation_integration/flagged_gff \
         [--min-pct 20] [--max-pct 80] [--extra-genes confirmed.tsv]
 
@@ -32,6 +32,7 @@ matches genome_label is what's looked up; contig IDs in the FASTA headers
 must match the GFF's seqid column (true for genomes downloaded from NCBI
 alongside their GFF3, as in this project).
 """
+
 from __future__ import annotations
 
 import argparse
@@ -53,9 +54,15 @@ def revcomp(seq: str) -> str:
 
 def find_genome_fasta(genomes_dir: Path, genome_label: str) -> Path | None:
     patterns = [
-        f"{genome_label}.fna", f"{genome_label}.fasta", f"{genome_label}.fa",
-        f"{genome_label}_*.fna", f"{genome_label}_*.fasta", f"{genome_label}_*.fa",
-        f"{genome_label}*.fna", f"{genome_label}*.fasta", f"{genome_label}*.fa",
+        f"{genome_label}.fna",
+        f"{genome_label}.fasta",
+        f"{genome_label}.fa",
+        f"{genome_label}_*.fna",
+        f"{genome_label}_*.fasta",
+        f"{genome_label}_*.fa",
+        f"{genome_label}*.fna",
+        f"{genome_label}*.fasta",
+        f"{genome_label}*.fa",
     ]
     for pat in patterns:
         matches = sorted(genomes_dir.glob(pat))
@@ -70,7 +77,7 @@ def load_contigs(fasta_path: Path, wanted: set) -> dict:
     on a handful of contigs, so there's no need to hold the whole thing."""
     seqs = {}
     current_id = None
-    current_chunks = []
+    current_chunks: list[str] = []
     with fasta_path.open() as fh:
         for line in fh:
             if line.startswith(">"):
@@ -91,39 +98,42 @@ def splice_cds(contig_seq: str, cds_intervals: list, strand: str) -> str:
     then reverse-complements the whole thing for a - strand gene - reverse-
     complementing an ascending-order concatenation reorders and complements
     every piece correctly in one step."""
-    pieces = [contig_seq[s - 1:e] for s, e in sorted(cds_intervals)]
+    pieces = [contig_seq[s - 1 : e] for s, e in sorted(cds_intervals)]
     seq = "".join(pieces)
     return revcomp(seq) if strand == "-" else seq
 
 
 def main():
-    ap = argparse.ArgumentParser(description=__doc__,
-                                  formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--gene-table", required=True,
-                     help="gene_te_overlap.tsv produced by te_gene_overlap.py")
-    ap.add_argument("--gff-indir", required=True,
-                     help="Directory with the source GFF3 files (genome_label.gff/.gff3)")
-    ap.add_argument("--genomes-dir", required=True,
-                     help="Directory with one assembly FASTA per genome (genome_label_*.fna)")
-    ap.add_argument("--outdir", required=True,
-                     help="Directory to write the combined CDS FASTA to")
-    ap.add_argument("--min-pct", type=float, default=20.0,
-                     help="Minimum TE_overlap_pct, inclusive (default: 20)")
-    ap.add_argument("--max-pct", type=float, default=80.0,
-                     help="Maximum TE_overlap_pct, exclusive (default: 80)")
-    ap.add_argument("--min-div", type=float, default=None,
-                     help="Optional minimum TE_divergence_pct, inclusive - on top of "
-                          "--min-pct/--max-pct, to isolate e.g. high-overlap genes whose "
-                          "dominant TE fragment is divergent enough to warrant a manual look "
-                          "before treating the overlap call as settled")
-    ap.add_argument("--max-div", type=float, default=None,
-                     help="Optional maximum TE_divergence_pct, exclusive")
-    ap.add_argument("--extra-genes", default=None,
-                     help="Optional 2-column TSV (genome_label<TAB>gene_id, no header) of "
-                          "genes to add on top of the --min-pct/--max-pct band")
-    ap.add_argument("--out-name", default="flagged_genes_cds.fna",
-                     help="Output FASTA filename, written inside --outdir "
-                          "(default: flagged_genes_cds.fna)")
+    ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    ap.add_argument("--gene-table", required=True, help="gene_te_overlap.tsv produced by te_gene_overlap.py")
+    ap.add_argument("--gff-indir", required=True, help="Directory with the source GFF3 files (genome_label.gff/.gff3)")
+    ap.add_argument(
+        "--genomes-dir", required=True, help="Directory with one assembly FASTA per genome (genome_label_*.fna)"
+    )
+    ap.add_argument("--outdir", required=True, help="Directory to write the combined CDS FASTA to")
+    ap.add_argument("--min-pct", type=float, default=20.0, help="Minimum TE_overlap_pct, inclusive (default: 20)")
+    ap.add_argument("--max-pct", type=float, default=80.0, help="Maximum TE_overlap_pct, exclusive (default: 80)")
+    ap.add_argument(
+        "--min-div",
+        type=float,
+        default=None,
+        help="Optional minimum TE_divergence_pct, inclusive - on top of "
+        "--min-pct/--max-pct, to isolate e.g. high-overlap genes whose "
+        "dominant TE fragment is divergent enough to warrant a manual look "
+        "before treating the overlap call as settled",
+    )
+    ap.add_argument("--max-div", type=float, default=None, help="Optional maximum TE_divergence_pct, exclusive")
+    ap.add_argument(
+        "--extra-genes",
+        default=None,
+        help="Optional 2-column TSV (genome_label<TAB>gene_id, no header) of "
+        "genes to add on top of the --min-pct/--max-pct band",
+    )
+    ap.add_argument(
+        "--out-name",
+        default="flagged_genes_cds.fna",
+        help="Output FASTA filename, written inside --outdir (default: flagged_genes_cds.fna)",
+    )
     args = ap.parse_args()
 
     gff_indir = Path(args.gff_indir)
@@ -154,9 +164,11 @@ def main():
             target_pairs.add(pair)
 
     if not target_pairs:
-        raise SystemExit(f"No protein_coding/pseudogene genes with {args.min_pct}% <= "
-                          f"TE_overlap_pct < {args.max_pct}% found in {args.gene_table} "
-                          f"(plus none/no valid entries in --extra-genes)")
+        raise SystemExit(
+            f"No protein_coding/pseudogene genes with {args.min_pct}% <= "
+            f"TE_overlap_pct < {args.max_pct}% found in {args.gene_table} "
+            f"(plus none/no valid entries in --extra-genes)"
+        )
 
     meta = df.set_index(["genome_label", "gene_id"])
     by_genome = {}
@@ -170,13 +182,17 @@ def main():
     for genome_label, gene_ids in sorted(by_genome.items()):
         gff_path = gff_by_stem.get(genome_label)
         if gff_path is None:
-            print(f"WARNING: no GFF found for genome_label {genome_label!r} in {gff_indir} "
-                  f"- skipping {len(gene_ids)} genes")
+            print(
+                f"WARNING: no GFF found for genome_label {genome_label!r} in {gff_indir} "
+                f"- skipping {len(gene_ids)} genes"
+            )
             continue
         fasta_path = find_genome_fasta(genomes_dir, genome_label)
         if fasta_path is None:
-            print(f"WARNING: no genome FASTA found for genome_label {genome_label!r} in "
-                  f"{genomes_dir} - skipping {len(gene_ids)} genes")
+            print(
+                f"WARNING: no genome FASTA found for genome_label {genome_label!r} in "
+                f"{genomes_dir} - skipping {len(gene_ids)} genes"
+            )
             continue
 
         gene_meta, rna_to_gene, _, cds_by_rna, _ = parse_gff(gff_path)
@@ -193,8 +209,7 @@ def main():
         # for either convention (or any other prefix strip_prefix is ever taught).
         raw_id_by_stripped = {strip_prefix(raw, "gene-"): raw for raw in gene_meta}
 
-        wanted_contigs = {gene_meta[raw_id_by_stripped[gid]]["contig"] for gid in gene_ids
-                           if gid in raw_id_by_stripped}
+        wanted_contigs = {gene_meta[raw_id_by_stripped[gid]]["contig"] for gid in gene_ids if gid in raw_id_by_stripped}
         contig_seqs = load_contigs(fasta_path, wanted_contigs)
 
         for gene_id in sorted(gene_ids):
@@ -205,8 +220,7 @@ def main():
             g = gene_meta[raw_gene_id]
             contig_seq = contig_seqs.get(g["contig"])
             if contig_seq is None:
-                print(f"WARNING: contig {g['contig']!r} not found in {fasta_path.name} "
-                      f"for gene {gene_id!r} - skipping")
+                print(f"WARNING: contig {g['contig']!r} not found in {fasta_path.name} for gene {gene_id!r} - skipping")
                 continue
             row = meta.loc[(genome_label, gene_id)]
             transcripts = sorted(rnas_by_gene.get(gene_id, []))
@@ -232,18 +246,22 @@ def main():
                 # gene was found, but none of its transcripts had a CDS to splice
                 # (expected for some pseudogenes - see te_gene_overlap.py) -
                 # warn so a genuinely missing sequence is never just silent.
-                print(f"WARNING: gene {gene_id!r} ({genome_label}) has no CDS in "
-                      f"{gff_path.name} across {len(transcripts)} transcript(s) - "
-                      f"no sequence written")
+                print(
+                    f"WARNING: gene {gene_id!r} ({genome_label}) has no CDS in "
+                    f"{gff_path.name} across {len(transcripts)} transcript(s) - "
+                    f"no sequence written"
+                )
             else:
                 n_genes_written += 1
                 written_pairs.add((genome_label, gene_id))
 
     missing_pairs = sorted(target_pairs - written_pairs)
     if missing_pairs:
-        print(f"\nWARNING: {len(missing_pairs)} of {len(target_pairs)} requested gene(s) "
-              f"have NO sequence in the output FASTA (see the WARNINGs above for why - "
-              f"missing GFF/FASTA, gene not found, contig not found, or no CDS):")
+        print(
+            f"\nWARNING: {len(missing_pairs)} of {len(target_pairs)} requested gene(s) "
+            f"have NO sequence in the output FASTA (see the WARNINGs above for why - "
+            f"missing GFF/FASTA, gene not found, contig not found, or no CDS):"
+        )
         for genome_label, gene_id in missing_pairs:
             print(f"  {genome_label}\t{gene_id}")
 
@@ -255,7 +273,7 @@ def main():
         for header, seq in records:
             fh.write(header + "\n")
             for i in range(0, len(seq), 70):
-                fh.write(seq[i:i + 70] + "\n")
+                fh.write(seq[i : i + 70] + "\n")
 
     print(f"Wrote {dest} ({len(records)} transcript(s) from {n_genes_written} gene(s))")
 

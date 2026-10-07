@@ -1,0 +1,14 @@
+##gff-version 3
+chr1	main	protein_coding_gene	1000	3000	.	+	.	ID=geneA;description=heat%20shock%20protein;valid_ORFs=1
+chr1	main	mRNA	1000	3000	.	+	.	ID=geneA-T1;Parent=geneA
+chr1	main	CDS	1000	1500	.	+	.	ID=geneA-T1-CDS1;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	CDS	2500	3000	.	+	.	ID=geneA-T1-CDS2;Parent=geneA-T1;Dbxref=InterPro:IPR000001
+chr1	main	protein_coding_gene	5000	6000	.	+	.	ID=geneB;description=hypothetical protein;valid_ORFs=1
+chr1	main	mRNA	5000	6000	.	+	.	ID=geneB-T1;Parent=geneB
+chr1	main	CDS	5000	6000	.	+	.	ID=geneB-T1-CDS1;Parent=geneB-T1
+chr1	S2	protein_coding_gene	8000	8400	.	+	.	ID=geneX;description=hypothetical protein
+chr1	S2	mRNA	8000	8400	.	+	.	ID=geneX-T1;Parent=geneX
+chr1	S2	CDS	8000	8400	.	+	.	ID=geneX-T1-CDS1;Parent=geneX-T1
+chr1	good_S3	protein_coding_gene	9000	9600	.	+	.	ID=geneE;extra_copy_number=1;valid_ORF=False;coverage=1.0
+chr1	good_S3	mRNA	9000	9600	.	+	.	ID=geneE-T1;Parent=geneE
+chr1	good_S3	CDS	9000	9600	.	+	.	ID=geneE-T1-CDS1;Parent=geneE-T1

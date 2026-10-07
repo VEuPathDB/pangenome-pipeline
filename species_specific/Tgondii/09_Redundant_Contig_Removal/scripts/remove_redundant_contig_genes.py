@@ -20,6 +20,7 @@ get_pangenes on the new GFFs if an exact result is needed.
 
 Standard library only.
 """
+
 import argparse
 import csv
 import os
@@ -66,7 +67,9 @@ def main():
     ap.add_argument("--gff-dir", required=True)
     ap.add_argument("--gff-suffix", required=True)
     ap.add_argument("--out-gff-dir", required=True)
-    ap.add_argument("--matrix-dir", required=True, help="folder with pangene_matrix.tr.tab and pangene_matrix_genes.tr.tab")
+    ap.add_argument(
+        "--matrix-dir", required=True, help="folder with pangene_matrix.tr.tab and pangene_matrix_genes.tr.tab"
+    )
     ap.add_argument("--out-matrix-dir", required=True)
     ap.add_argument("--report", required=True)
     args = ap.parse_args()
@@ -83,9 +86,10 @@ def main():
     for name in sorted(os.listdir(args.gff_dir)):
         if not name.endswith(args.gff_suffix):
             continue
-        genome = name[:-len(args.gff_suffix)]
-        ids, n_lines = filter_gff(os.path.join(args.gff_dir, name), os.path.join(args.out_gff_dir, name),
-                                  contigs.get(genome, set()))
+        genome = name[: -len(args.gff_suffix)]
+        ids, n_lines = filter_gff(
+            os.path.join(args.gff_dir, name), os.path.join(args.out_gff_dir, name), contigs.get(genome, set())
+        )
         removed |= ids
         report.append([genome, len(contigs.get(genome, ())), len(ids), n_lines])
         if ids:
@@ -100,7 +104,7 @@ def main():
     counts_by_id = {r[0]: r for r in counts_rows[1:]}
 
     new_genes = [genes_rows[0]]
-    new_counts = [counts_rows[0]] + [r for r in counts_rows[1:] if r[0].startswith("chr")]   # "unsorted" row, as it is
+    new_counts = [counts_rows[0]] + [r for r in counts_rows[1:] if r[0].startswith("chr")]  # "unsorted" row, as it is
     n_pangenes = n_dropped = n_reduced = n_genes_removed = n_mismatch = 0
     dropped_occ, seen = [], set()
     for r in genes_rows[1:]:
@@ -128,8 +132,8 @@ def main():
             if i < len(old_counts) and old_counts[i] not in ("NA", "") and int(float(old_counts[i])) != len(genes):
                 n_mismatch += 1
         # keep trailing empty cells (the files end each line with a tab)
-        row_g += r[len(row_g):]
-        row_c += old_counts[len(row_c):]
+        row_g += r[len(row_g) :]
+        row_c += old_counts[len(row_c) :]
         if after == 0:
             n_dropped += 1
             dropped_occ.append(occ_before)
@@ -139,8 +143,10 @@ def main():
         new_genes.append(row_g)
         new_counts.append(row_c)
 
-    for path, rows in ((os.path.join(args.out_matrix_dir, "pangene_matrix_genes.tr.tab"), new_genes),
-                       (os.path.join(args.out_matrix_dir, "pangene_matrix.tr.tab"), new_counts)):
+    for path, rows in (
+        (os.path.join(args.out_matrix_dir, "pangene_matrix_genes.tr.tab"), new_genes),
+        (os.path.join(args.out_matrix_dir, "pangene_matrix.tr.tab"), new_counts),
+    ):
         with open(path, "w", newline="") as fh:
             csv.writer(fh, delimiter="\t", lineterminator="\n").writerows(rows)
 
@@ -148,14 +154,19 @@ def main():
         w = csv.writer(fh, delimiter="\t")
         w.writerow(["genome", "contigs_removed", "features_removed", "gff_lines_removed"])
         w.writerows(report)
-    print(f"\ngenes removed from the GFFs: {len(removed)}; found in the matrix: {len(seen)}; "
-          f"not in the matrix: {len(removed) - len(seen)}")
+    print(
+        f"\ngenes removed from the GFFs: {len(removed)}; found in the matrix: {len(seen)}; "
+        f"not in the matrix: {len(removed) - len(seen)}"
+    )
     print(f"pangenes: {n_pangenes} -> {n_pangenes - n_dropped} ({n_dropped} removed, {n_reduced} lost some genes)")
     if dropped_occ:
         from collections import Counter
+
         print("removed pangenes by occupancy:", dict(sorted(Counter(dropped_occ).items())))
     if n_mismatch:
-        print(f"WARNING: {n_mismatch} cells where the original count differs from the number of gene IDs", file=sys.stderr)
+        print(
+            f"WARNING: {n_mismatch} cells where the original count differs from the number of gene IDs", file=sys.stderr
+        )
     print(f"Wrote {args.out_gff_dir}/, {args.out_matrix_dir}/ and {args.report}")
 
 

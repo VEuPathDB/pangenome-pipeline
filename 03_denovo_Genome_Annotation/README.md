@@ -71,7 +71,10 @@ Skip this step if good gene annotations are already available for all your genom
 
 ### 1. Environment variables (`~/.bashrc`)
 
-Add the shared paths and your personal Singularity cache directory to your `~/.bashrc`:
+Set `FUNANNOTATE_SHARED` (the shared funannotate install) in the project's `pipeline_config.sh`
+(see the [main README](../README.md#getting-the-pipeline-into-a-project)) - the job scripts read it
+from there. For running funannotate by hand, and for your personal Singularity cache directory, add
+these to your `~/.bashrc`:
 
 ```bash
 # Funannotate shared installation

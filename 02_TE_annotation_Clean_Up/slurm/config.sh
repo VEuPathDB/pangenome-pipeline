@@ -25,6 +25,10 @@ TE_STEP_DIR="$(cd "${_CONFIG_DIR}/.." && pwd -P)"                # .../02_TE_ann
 PROJECT_DIR="$(cd "${TE_STEP_DIR}/.." && pwd -P)"               # the project root (holds genomes/)
 unset _CONFIG_DIR
 
+# Cluster paths (MCHelper, RepBase, TE peptides, BUSCO lineage, micromamba) come from the
+# project's pipeline_config.sh - see pipeline_config.example.sh. This also provides activate_env.
+source "${PROJECT_DIR}/lib/slurm_common.sh"
+
 ###############################################################################
 # Genome inputs
 ###############################################################################
@@ -65,24 +69,23 @@ CURATED_TE_LIBRARY="${TE_STEP_DIR}/fake_lib.fasta"
 #cat diptera_odb10/hmms/*.hmm > diptera_odb10.hmm
 #cd -
 
-# Edit the path to busco.
-BUSCO_LINEAGE="/home/aludwig/hc-storage/Afumigatus_pangenes/funannotate/busco_downloads/eurotiales_odb12.hmm"
+# Set BUSCO_LINEAGE in pipeline_config.sh.
+BUSCO_LINEAGE="${BUSCO_LINEAGE:-}"
 
-# MCHelper script.
-# Edit the path to MCHelper.py.
-MCHELPER_PY="/home/aludwig/hc-storage/bin/MCHelper/MCHelper.py"
+# MCHelper script - set MCHELPER_PY in pipeline_config.sh.
+MCHELPER_PY="${MCHELPER_PY:-}"
 
 ###############################################################################
 # Reference files for final BLAST searches
 ###############################################################################
 
 # RepBase nucleotide library used by BLASTN in the final filtering step.
-# Edit this path if your RepBase file is stored somewhere else.
-REPBASE_NT_FASTA="/home/aludwig/hc-storage/db_TEs/RepBase31.06.fasta/RepBase31.06.fasta"
+# Set REPBASE_NT_FASTA in pipeline_config.sh.
+REPBASE_NT_FASTA="${REPBASE_NT_FASTA:-}"
 
 # TE peptide library, for example RepeatPeps.lib, used by BLASTX in the final
-# filtering step. Edit this path if your peptide file is stored somewhere else.
-TE_PEP_FASTA="/home/aludwig/hc-storage/db_TEs/RepeatPeps.lib"
+# filtering step. Set TE_PEP_FASTA in pipeline_config.sh.
+TE_PEP_FASTA="${TE_PEP_FASTA:-}"
 
 ###############################################################################
 # Output directories
@@ -319,11 +322,16 @@ load_filtering_environment() {
 
     module purge || true
 
-    module load ncbi-blast/2.12.0
-    module load seqkit/2.9.0
+    if [[ -n "$(_container_images "$ENV_TE_FILTER")" ]]; then
+        # $CONTAINER_DIR/te_filter/ (BLAST+, cd-hit, seqkit images - containers/pull_containers.sh)
+        activate_env "$ENV_TE_FILTER"
+    else
+        module load ncbi-blast/2.12.0
+        module load seqkit/2.9.0
 
-    # Keep the module name that exists on your cluster.
-    module load cd-hit || module load cd-hit-est || true
+        # Keep the module name that exists on your cluster.
+        module load cd-hit || module load cd-hit-est || true
+    fi
 
     set -u
 
@@ -370,20 +378,11 @@ load_mchelper_environment() {
 
     module purge || true
 
-    export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-    export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-
-    if [[ ! -x "${MAMBA_EXE}" ]]; then
-        echo "ERROR: micromamba executable not found: ${MAMBA_EXE}" >&2
-        exit 1
-    fi
-
-    eval "$("${MAMBA_EXE}" shell hook --shell bash --root-prefix "${MAMBA_ROOT_PREFIX}")"
-    micromamba activate mchelper
+    activate_env "$ENV_MCHELPER"  # env names / backend: pipeline_config.sh
     set -u
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "ERROR: python3 not found after activating MCHelper environment." >&2
+    if ! command -v mchelper >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: neither mchelper nor python3 found after activating MCHelper environment." >&2
         exit 1
     fi
 }

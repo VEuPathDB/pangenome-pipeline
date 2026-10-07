@@ -33,28 +33,15 @@ GFF_OUTDIR="gff_cleaned"          # filtered copies land here
 
 set -euo pipefail
 
-# Locate the .py. Under `sbatch` the wrapper is copied to a spool dir, so
-# ${BASH_SOURCE[0]} is useless there — fall back to the standard layout relative
-# to the directory you submitted from.
-PY=""
-for cand in \
-    "$(dirname "${BASH_SOURCE[0]}")/build_te_kill_lists.py" \
-    "${SLURM_SUBMIT_DIR:-$PWD}/02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py" \
-    "02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py"
-do
-    [[ -f "$cand" ]] && { PY="$cand"; break; }
-done
-[[ -n "$PY" ]] || { echo "ERROR: cannot find build_te_kill_lists.py (run from the project folder)" >&2; exit 1; }
+source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
+find_script PY 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.py
 
 [[ -f "$GENE_TABLE" ]] || { echo "ERROR: gene table not found: $GENE_TABLE" >&2; exit 1; }
 [[ -d "$GFF_INDIR" ]]  || { echo "ERROR: GFF folder not found: $GFF_INDIR" >&2; exit 1; }
 mkdir -p "$GFF_OUTDIR"
 
 ### ADAPT ### — put a python3 with pandas on the PATH:
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate synteny
+activate_env "$ENV_SYNTENY"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v python3 >/dev/null || { echo "ERROR: python3 not on PATH" >&2; exit 1; }
@@ -71,10 +58,7 @@ echo "=== 2/2: AGAT filter (${GFF_INDIR} -> ${GFF_OUTDIR}) ==="
 ### ADAPT ### — put AGAT (agat_sp_filter_feature_from_kill_list.pl) on the PATH.
 #              Re-exports the hook so this activation doesn't depend on the
 #              first ADAPT block above still being in scope:
-export MAMBA_ROOT_PREFIX="/home/aludwig/hc-storage/micromamba"
-export MAMBA_EXE="/home/aludwig/hc-storage/bin/micromamba/micromamba"
-eval "$("$MAMBA_EXE" shell hook --shell bash --root-prefix "$MAMBA_ROOT_PREFIX")"
-micromamba activate bioinfo
+activate_env "$ENV_BIOINFO"  # env names / backend: pipeline_config.sh
 ### END ADAPT ###
 
 command -v agat_sp_filter_feature_from_kill_list.pl >/dev/null \
