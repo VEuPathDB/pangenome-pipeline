@@ -13,7 +13,6 @@ its accessory part (the cloud) may reflect real biology and how much may come fr
 5. [Running it](#running-it)
 6. [Adapting the scripts](#adapting-the-scripts)
 7. [Outputs](#outputs)
-8. [Additional options](#additional-options)
 
 ## Dependencies
 
@@ -114,27 +113,14 @@ Files start with the label given to the run (for example `Afum7b`). Every figure
 | :--- | :--- | :--- | :--- |
 | Pangenome and core genome size | `_pancore`, `_pancore_separate` | Genomes are added one at a time in 100 random orders. The pangenome and the core size are drawn at each step, with the fitted curves (Tettelin for the pan, Tettelin and Willenbrock for the core). The `.log` has the fit parameters. | Is the pangenome open (still growing with each genome) and is the core stable, or is the panel too small to tell? |
 | Pangene occupancy | `_occupancy` | One bar per occupancy (1 to N genomes), coloured by category. The categories are decided as in the table above. | The overall composition: how much is core, soft-core, shell and cloud. |
+| Soft-core pangenes missing per genome | `_softcore_missing` | One bar per genome, worst first: how many soft-core pangenes that genome is missing from, plus the panel mean as a reference line. At the default cuts each soft-core pangene is missing from exactly one genome, so the count is a direct per-genome tally. | Soft-core genes are expected in nearly every genome, so no genome should carry a much larger share of the "missing" total than the others. One that does is a content-QC flag - check that genome's assembly (dropped/short contigs, low coverage) or its own annotation completeness before trusting its occupancy calls. |
 | Singletons per genome | `_singletons` | Pangenes found in only one genome, counted per genome. | Genome-specific content, and outliers. A genome with many more singletons than the others may be divergent, or carry redundant contigs, contamination or poor annotation. When two or more genomes are very close, what they share is present in more than one genome, so their singletons are automatically fewer. |
 | POCS heatmap | `_POCS_heatmap` | Percentage of conserved sequences between every pair of genomes, clustered. | How related the genomes are, and which one sits apart. |
-| Gene properties by occupancy | `_occupancy_properties`, `_occupancy_properties_log` | Top: share of genes with an InterPro/PFAM domain. Bottom: protein length. One value per pangene, by occupancy. | Short genes with no domain tend to include annotation artefacts and gene fragments, but they can also be real genes. The plot shows how much the cloud differs from the core in these properties. |
-| Contig size by occupancy | `_contig_classes` | For each category, the share of its pangenes in each contig size class (median contig of the pangene's genes). | A cloud that sits on short contigs may reflect leftovers of the assembly (redundant or contaminant contigs), although short contigs can also carry real accessory genes. |
-| InterPro term enrichment | `_domain_enrichment` | Which InterPro entries are found more often in the core or in the cloud than in the other pangenes (one-sided Fisher test, Benjamini-Hochberg adjusted). Dot size is the gene ratio, colour the adjusted p-value. Entries carried by fewer than 5 pangenes in the whole universe are not tested, and an entry is drawn only if at least 3 pangenes of the category carry it. | What functions appear to make up the core and the cloud. An entry that dominates the cloud can point to an artefact, for example a very long gene annotated in pieces or an organelle gene, and is worth checking. |
-| Invalid ORFs by occupancy | `_occupancy_invalid_only` (count), `_occupancy_invalid_percent` (percentage), `_invalid_share` | Pangenes with more than 50 % of invalid genes, by occupancy. `_invalid_share` has one bar per category, from cloud to core, split by the share of invalid genes in each pangene: none, up to half, more than half but not all, all. A gene is invalid when Liftoff found no valid ORF (`valid_ORFs=0`) or the source annotation calls it a pseudogene. | Shows how much of each category is made of genes with a broken ORF or a pseudogene mark. Invalid pangenes concentrated in the cloud suggest broken transfers or pseudogenes rather than functional accessory genes, although a pseudogene can also be a real, recent loss. |
-| Unsupported overlapping genes by occupancy | `_occupancy_unsupported_only` (count), `_occupancy_unsupported_percent` (percentage), `_unsupported_share` | Pangenes with more than 50 % of genes that are not from the reference layer (`main`), overlap another gene and have neither a domain nor a specific description. **7b only.** | Shows possible false genes that may exist only because they overlap a real one. If many are in the core, they may be conserved only through the gene they overlap. |
-
-Notes on how the pangenes are counted:
-
-- **Gene properties** and **contig size** use only pangenes with exactly one gene in each genome they are present in.
-  A pangene with several genes in a genome has no single protein length or contig, and it may hold distinct genes.
-  The job log says how many pangenes were left out.
-- **Invalid ORFs** and **unsupported overlapping genes** count every gene of every pangene, several genes in one
-  genome included. Genes taken from a genome's own annotation have no ORF result and can only be marked by the
-  pseudogene biotype; pangenes with no gene that can be judged are left out.
-- The Tukey p-value written on the gene-properties plot treats the genes of one pangene as independent samples,
-  although they come from different genomes, so it is optimistic.
-- The enrichment counts only pangenes with at least one InterPro entry. A pangene carries an entry if at least one of its
-  genes, in any genome, has it; how many genes have it does not matter. A core pangene collects entries from the genes of
-  every genome, which may favour the core side.
+| Gene properties by occupancy | `_occupancy_properties`, `_occupancy_properties_log` | Top: share of genes with an InterPro/PFAM domain. Bottom: protein length. One value per pangene (over all its genes), by occupancy. A Tukey HSD test compares the four categories on these values, and the p-value of core against cloud is written on each panel. | Short genes with no domain tend to include annotation artefacts and gene fragments, but they can also be real genes. The plot shows how much the cloud differs from the core in these properties. The p-value is optimistic, because the genes of one pangene come from different genomes and are not independent samples. |
+| Contig size by occupancy | `_contig_classes` | For each category, the share of its pangenes in each contig size class (median contig over all the pangene's genes). | A cloud that sits on short contigs may reflect leftovers of the assembly (redundant or contaminant contigs), although short contigs can also carry real accessory genes. |
+| InterPro term enrichment | `_domain_enrichment` | Which InterPro entries are found more often in the core or in the cloud than in the other pangenes (one-sided Fisher test, Benjamini-Hochberg adjusted). Dot size is the gene ratio, colour the adjusted p-value. Entries carried by fewer than 5 pangenes in the whole universe are not tested, and an entry is drawn only if at least 3 pangenes of the category carry it. | What functions appear to make up the core and the cloud. An entry that dominates the cloud can point to an artefact, for example a very long gene annotated in pieces or an organelle gene, and is worth checking. A pangene carries an entry if any of its genes has it. Core pangenes collect entries from the genes of every genome, which may favour the core. |
+| Invalid ORFs by occupancy | `_occupancy_invalid_only` (count), `_occupancy_invalid_percent` (percentage), `_invalid_share` | Pangenes with more than 50 % of invalid genes, by occupancy. `_invalid_share` has one bar per category, from cloud to core, split by the share of invalid genes in each pangene: none, up to half, more than half but not all, all. A gene is invalid when Liftoff found no valid ORF (`valid_ORFs=0`) or the source annotation calls it a pseudogene. | Shows how much of each category is made of genes with a broken ORF or a pseudogene mark. Invalid pangenes concentrated in the cloud suggest broken transfers or pseudogenes rather than functional accessory genes, although a pseudogene can also be a real, recent loss. Genes from a genome's own annotation have no ORF result, so only the pseudogene biotype can mark them; pangenes with no gene that can be judged are left out. The 50 % cut can be changed with `--min-share` in `plot_occupancy_invalid.py`. |
+| Unsupported overlapping genes by occupancy | `_occupancy_unsupported_only` (count), `_occupancy_unsupported_percent` (percentage), `_unsupported_share` | Pangenes with more than 50 % of genes that are not from the reference layer (`main`), overlap another gene and have neither a domain nor a specific description. **7b only.** | Shows possible false genes that may exist only because they overlap a real one. If many are in the core, they may be conserved only through the gene they overlap. The 50 % cut can be changed with `--min-share`, as for the invalid ORFs. |
 
 ## Running it
 
@@ -175,7 +161,7 @@ For a 7a set do the same without `--overlap`. `--overlap` is only needed in this
 | `--matrix-subdir` | Only when the result folder holds more than one `pangene_matrix.tr.tab`: the subfolder to use. |
 | `--gff-suffix` | GFF name is `<genome><suffix>` (default `_for_get_pangenes.gff`). |
 | `--overlap yes` | Makes the unsupported overlapping genes plots. Only for the 7b set, when you give `--pangenes-dir` and `--gff-dir` yourself instead of `--set 7b`. Default: not made. |
-| `--contig-sizes` | Path of `contig_sizes.tsv` (default `01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv`). |
+| `--contig-sizes` | Path of `contig_sizes.tsv` (default `contig_size_profile/contig_sizes.tsv`). |
 | `--entry-list` | Path of the InterPro `entry.list`; downloaded there if missing. Download it once on the login node, because compute nodes may have no internet. |
 | `--core-missing`, `--softcore-missing`, `--cloud-max` | How the occupancy categories are cut, in numbers of genomes (default 0, 1, 2; see above). Applied to every plot with categories. |
 | `--categories`, `--alpha`, `--min-total`, `--min-count`, `--top` | Enrichment settings (default `Core,Cloud`, 0.05, 5, 3, 15): the categories tested, the adjusted p-value cut, the minimum size of an entry in the whole universe to be tested, the minimum pangenes of the category carrying an entry to draw it, and the entries drawn per category. |
@@ -185,7 +171,7 @@ The job looks for `pangene_matrix.tr.tab` by name below `--pangenes-dir`. If it 
 stops and says so. If one plot fails, the others still run; the job lists the failed ones at the end and exits with an
 error. Set `SKIP_ENV=1` to skip the micromamba block when already inside an environment.
 
-To make only the first four plots (pan/core, occupancy, singletons, POCS) on a laptop, in seconds (the category cuts can be
+To make only the first five plots (pan/core, occupancy, soft-core missing, singletons, POCS) on a laptop, in seconds (the category cuts can be
 set with the environment variables `CORE_MISSING`, `SOFTCORE_MISSING` and `CLOUD_MAX`):
 
 ```bash
@@ -204,7 +190,7 @@ In [`plot_all_job.sh`](scripts/plot_all_job.sh):
   environment.
 - The InterPro `entry.list`: `INTERPRO_ENTRY_LIST` in `pipeline_config.sh` (see
   [InterPro entry list](#interpro-entry-list)), or pass your own path with `--entry-list`.
-- The default of `--contig-sizes` (`01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv`), if the step 01 table
+- The default of `--contig-sizes` (`contig_size_profile/contig_sizes.tsv`), if the step 01 table
   is elsewhere.
 
 The jobs of the single plots (`plot_domain_enrichment_job.sh`, `plot_occupancy_properties_job.sh`) have the same
@@ -218,6 +204,7 @@ One `.png` and one `.svg` per figure, plus a `.tsv` with the values behind it (`
 pangenome_plots/
 ├── <label>_pancore.{png,svg,log}   <label>_pancore_separate.{png,svg,log}
 ├── <label>_occupancy.{png,svg,tsv}
+├── <label>_softcore_missing.{png,svg,tsv}
 ├── <label>_singletons.{png,svg,tsv}
 ├── <label>_POCS_heatmap.{png,svg}
 ├── <label>_occupancy_properties.{png,svg,tsv}   <label>_occupancy_properties_log.{png,svg,tsv}
@@ -228,29 +215,5 @@ pangenome_plots/
 ```
 
 The `_pangenes.tsv` files next to the invalid and unsupported plots list every pangene with its share of bad genes.
-
-## Additional options
-
-The job makes one fixed version of each figure. Two of the scripts can also draw other versions of the same figure, or
-change how the pangenes are counted. The job does not make these; to get one, run the script by hand, with the environment
-active. For example, the contig size plot as boxplots, for the 7b set:
-
-```bash
-python3 08_Pangenome_Visualisation/scripts/plot_occupancy_contigs.py \
-  --genes-matrix <get_pangenes folder>/pangene_matrix_genes.tr.tab \
-  --gff-dir for_get_pangenes_7b --gff-suffix _for_get_pangenes.gff \
-  --contig-sizes 01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv \
-  --style boxplot -o pangenome_plots/Afum7b_occupancy_contigs
-```
-
-The other arguments are the same as in the job. What each option does:
-
-**Contig size plot** (`plot_occupancy_contigs.py`)
-- `--style boxplot`: instead of the bars by size class, one boxplot per occupancy with the median contig length of each
-  pangene, and a Tukey p-value for core against cloud. `--yscale log` or `--yscale linear` sets the axis.
-
-**Invalid ORFs and unsupported overlapping genes plots** (`plot_occupancy_invalid.py`; `--mark overlap` for the second)
-- `--single-copy`: leaves out the pangenes with more than one gene in a genome.
-- `--min-share`: the share of bad genes above which a pangene counts as "mostly" (default 0.5, half).
 
 [↑ Back to top](#08--pangenome-visualisation) &nbsp;|&nbsp; [Back to top level](../README.md)

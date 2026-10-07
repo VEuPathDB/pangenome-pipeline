@@ -2,10 +2,11 @@
 """
 Post-process every strain's <genome>_final_annotation.gff (this pipeline's output) with three
 filters: resolving overlapping-gene pairs, then dropping unsupported extra-copy genes, then the
-rescued-coverage floor. Reads ALL genomes in --strains in one run and decides ONE global verdict
-per gene (by its original ID, shared across every genome that carries it) - a gene dropped
-anywhere in the panel is dropped from every genome's output, even where its own local copy never
-overlapped anything. A gene is never partially removed: all-or-nothing across the whole panel.
+rescued-coverage floor. Reads ALL genomes in --strains in one run. The overlap verdict (step 1) is
+ONE global verdict per gene (by its original ID, shared across every genome that carries it) - a
+gene that loses an overlap anywhere in the panel is dropped from every genome's output, even where
+its own local copy never overlapped anything. The extra-copy and rescued-coverage checks (steps
+2-3) judge one copy in one genome, so they drop only that copy, in that genome.
 
 Execution order matters:
 
@@ -52,12 +53,12 @@ Execution order matters:
        of them -> dropped, a real recurring conflict.
 
 2) Extra-copy genes (extra_copy_number > 0), among whatever survived step 1, are kept only if
-   they have a valid ORF - dropped otherwise (--extra-copy-require-valid-orf, on by default). No
+   they have a valid ORF - dropped otherwise, in that genome only (--extra-copy-require-valid-orf, on by default). No
    contig-size or domain check: a genuine extra copy (real tandem duplication, real gene family
    expansion) can legitimately sit on a short contig or lack a domain hit on its own.
 
 3) Every rescued_<genome> gene, among whatever survived steps 1-2, below
-   --min-rescued-coverage (default 0.5) Liftoff coverage is dropped outright. rescued_<genome>
+   --min-rescued-coverage (default 0.5) Liftoff coverage is dropped, in that genome only. rescued_<genome>
    is this pipeline's lowest-confidence tier (round 2 of the build step - a genome's *entire*
    transfer, unfiltered, added only as a last resort) - it never had to clear a coverage/identity
    bar to get into the final annotation in the first place, unlike good_<genome>, so this is the
@@ -378,20 +379,27 @@ def main():
     print(f"Overlap resolution: {len(verdict)} genes dropped panel-wide", file=sys.stderr)
 
     # --- Steps 2-3: extra copies, then rescued-coverage floor - only among overlap survivors ---
+    # These judge one copy in one genome, so the verdict is per (genome, gene), never panel-wide.
+    local_verdict = {}
     for s, genes in genes_by_strain.items():
         for gid, g in genes.items():
             if gid in verdict:
                 continue
             if g["extra_copy_number"] and args.extra_copy_require_valid_orf and not g["valid_ORF"]:
-                verdict[gid] = "extra copy with no valid ORF"
+                local_verdict[(s, gid)] = "extra copy with no valid ORF"
     for s, genes in genes_by_strain.items():
         for gid, g in genes.items():
-            if gid in verdict or not g["source"].startswith("rescued_"):
+            if gid in verdict or (s, gid) in local_verdict or not g["source"].startswith("rescued_"):
                 continue
             if g["coverage"] is not None and g["coverage"] < args.min_rescued_coverage:
-                verdict[gid] = f"rescued transfer, Liftoff coverage {g['coverage']:.2f} < {args.min_rescued_coverage}"
+                local_verdict[(s, gid)] = (
+                    f"rescued transfer, Liftoff coverage {g['coverage']:.2f} < {args.min_rescued_coverage}"
+                )
 
-    # --- Steps 4-5: write every genome's output, applying the same verdicts everywhere ---
+    def reason_for(s, gid):
+        return verdict.get(gid) or local_verdict.get((s, gid))
+
+    # --- Steps 4-5: write every genome's output: overlap verdicts everywhere, steps 2-3 per genome ---
     summary_rows = []
     for i, s in enumerate(strains, start=1):
         genes = genes_by_strain[s]
@@ -399,18 +407,18 @@ def main():
         out_path = os.path.join(args.out_dir, f"{s}_final_annotation_filtered.gff")
         report_path = os.path.join(args.out_dir, f"{s}_filter_report.tsv")
 
-        kept_ids = {gid for gid in genes if gid not in verdict}
+        kept_ids = {gid for gid in genes if not reason_for(s, gid)}
         id_mapping = assign_new_ids(genes, kept_ids, i, args.id_prefix)
         write_filtered_gff(gff_path, out_path, genes, kept_ids, id_mapping)
 
         with open(report_path, "w") as rep_fh:
             rep_fh.write("gene_id\tsource\tseqname\treason\n")
             for gid, g in genes.items():
-                if gid in verdict:
-                    rep_fh.write(f"{gid}\t{g['source']}\t{g['seqname']}\t{verdict[gid]}\n")
+                if reason_for(s, gid):
+                    rep_fh.write(f"{gid}\t{g['source']}\t{g['seqname']}\t{reason_for(s, gid)}\n")
 
         n_total = len(genes)
-        n_removed = sum(1 for gid in genes if gid in verdict)
+        n_removed = sum(1 for gid in genes if reason_for(s, gid))
         print(
             f"  {s}: {n_total} protein-coding genes -> {n_total - n_removed} kept, "
             f"{n_removed} removed ({round(100 * n_removed / n_total, 1) if n_total else 0}%) -> {out_path}",

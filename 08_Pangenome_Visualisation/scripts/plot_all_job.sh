@@ -30,7 +30,7 @@
 #   --set 7a|7b          shortcut: --pangenes-dir for_get_pangenes_<set>_pangenes, --gff-dir for_get_pangenes_<set>,
 #                        and --overlap yes for 7b, no for 7a
 #   --overlap yes|no     also plot the unsupported overlapping genes; needs the tagged 7b GFFs (intersect=)  (default no)
-#   --contig-sizes FILE  step-01 table with genome_label, contig, length   (default 01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv)
+#   --contig-sizes FILE  step-01 table with genome_label, contig, length   (default contig_size_profile/contig_sizes.tsv)
 #   --entry-list FILE    InterPro IPR id -> name, downloaded there if missing (default INTERPRO_ENTRY_LIST from pipeline_config.sh)
 #   --out-dir DIR        output folder                                     (default pangenome_plots)
 #   --core-missing A  --softcore-missing B  --cloud-max C   how the categories are cut, in numbers of genomes
@@ -40,8 +40,8 @@
 #                        --min-total = entries carried by fewer pangenes in the whole universe are not tested;
 #                        --min-count = only entries carried by at least N pangenes of the category are drawn
 #
-# It runs, in this order: plot_all.sh (pan/core curves joined and separate, occupancy, singletons, POCS
-# heatmap), plot_domain_enrichment.py, plot_occupancy_properties.py (linear and log axis),
+# It runs, in this order: plot_all.sh (pan/core curves joined and separate, occupancy, soft-core genes
+# missing per genome, singletons, POCS heatmap), plot_domain_enrichment.py, plot_occupancy_properties.py (linear and log axis),
 # plot_occupancy_contigs.py (contig size classes), and plot_occupancy_invalid.py (pangenes with mostly
 # invalid ORFs, count, percentage and the share by category, and the same for unsupported overlapping genes with --overlap yes).
 # A plot that fails does not stop the others; the job lists the failed ones at the end and exits with an error.
@@ -50,7 +50,7 @@ set -uo pipefail
 
 PANGENES_DIR=""; MATRIX_SUBDIR=""; GFF_DIR=""; GFF_SUFFIX="_for_get_pangenes.gff"; LABEL=""; SET=""
 OVERLAP="no"
-CONTIG_SIZES="01_Genome_Selection_QC/contig_size_profile/contig_sizes.tsv"
+CONTIG_SIZES="contig_size_profile/contig_sizes.tsv"
 ENTRY_LIST=""
 OUT_DIR="pangenome_plots"
 CATEGORIES="Core,Cloud"; ALPHA="0.05"; MIN_TOTAL="5"; MIN_COUNT="3"; TOP="15"

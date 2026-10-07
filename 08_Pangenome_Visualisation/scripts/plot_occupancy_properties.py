@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Gene properties of the pangenes by pangene occupancy (domain evidence and protein length).
 
-Only pangenes with exactly one gene in every genome they are present in are used, so each pangene of
-occupancy k has exactly k genes (pangenes with more than one gene in a genome are left out).
+Every pangene is used, including the ones with more than one gene in a genome. The occupancy is the number
+of genomes the pangene is present in, whatever the number of genes there.
 
   B  Proportion of genes with an InterPro/PFAM domain - one bar per occupancy (mean over the
-     pangenes of that occupancy of "genes with a domain / genes in the pangene").
+     pangenes of that occupancy of "genes with a domain / genes in the pangene", all genes of all genomes).
   C  Protein length in amino acids - one boxplot per occupancy. Each pangene contributes ONE value:
-     the median of its genes' protein lengths (a gene's protein length = summed CDS length / 3, of its
-     longest transcript).
+     the median of the protein lengths of all its genes (a gene's protein length = summed CDS length / 3,
+     of its longest transcript).
 
 Bars and boxes are coloured by category (Core / Soft-core / Shell / Cloud, same definition as
 plot_occupancy.py). The Tukey HSD p-value of Core versus Cloud is written on each panel; note that the
@@ -17,7 +17,7 @@ genes of one pangene come from different genomes and are not independent samples
 Inputs:
   --genes-matrix  pangene_matrix_genes.tr.tab from get_pangenes (cells = gene IDs, "-" = absent)
   --gff-dir       GFFs whose gene IDs match the matrix, named <genome><--gff-suffix>
-Writes <out-prefix>.png/.svg and <out-prefix>.tsv (one row per pangene used).
+Writes <out-prefix>.png/.svg and <out-prefix>.tsv (one row per pangene).
 
 Needs numpy, scipy, matplotlib.
 """
@@ -120,7 +120,7 @@ def main():
         gene_data[genome] = parse_gff(path)
         print(f"{genome}: {len(gene_data[genome])} genes", file=sys.stderr)
 
-    used, multi, missing = [], 0, 0
+    used, missing = [], 0
     for r in rows[1:]:
         if r[0].startswith("chr"):
             continue
@@ -133,10 +133,7 @@ def main():
             members.append((genome, ids))
         if not members:
             continue
-        if any(len(ids) > 1 for _, ids in members):
-            multi += 1
-            continue
-        vals = [gene_data[g].get(ids[0]) for g, ids in members]
+        vals = [gene_data[g].get(gid) for g, ids in members for gid in ids]
         if any(v is None for v in vals):
             missing += 1
             continue
@@ -154,8 +151,7 @@ def main():
         )
 
     print(
-        f"{len(used)} pangenes used; {multi} left out (more than one gene in a genome)"
-        + (f"; {missing} skipped (gene not found in the GFFs)" if missing else ""),
+        f"{len(used)} pangenes used" + (f"; {missing} skipped (gene not found in the GFFs)" if missing else ""),
         file=sys.stderr,
     )
     if not used:
