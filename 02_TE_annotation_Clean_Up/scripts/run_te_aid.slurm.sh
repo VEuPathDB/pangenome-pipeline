@@ -59,8 +59,8 @@ module load R/4.5.1 || true
 source "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1  # find_script, activate_env, pipeline_config.sh
 activate_env "$ENV_TE_ANNOT"  # env names / backend: pipeline_config.sh
 set -u
-require_config TE_AID
-TEAID="$TE_AID"   # the TE-Aid executable, set in pipeline_config.sh
+TEAID="${TE_AID:-$(command -v TE-Aid || true)}"   # TE_AID in pipeline_config.sh, else TE-Aid from the environment (te_annot.sif)
+[[ -n "$TEAID" ]] || { echo "ERROR: set TE_AID in pipeline_config.sh, or provide the '$ENV_TE_ANNOT' environment (e.g. \$CONTAINER_DIR/$ENV_TE_ANNOT.sif)" >&2; exit 1; }
 ### END ADAPT ###
 
 [[ -s "$INPUT_FASTA" ]] || { echo "ERROR: candidate FASTA not found or empty: $INPUT_FASTA (run from the project folder)" >&2; exit 1; }

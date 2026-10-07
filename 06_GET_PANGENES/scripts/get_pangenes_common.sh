@@ -35,12 +35,11 @@ link_for_get_pangenes() {
   echo "$n genome(s) linked into $OUT_DIR. Outputs are in $OUT_DIR"
 }
 
-# Run get_pangenes.pl on INPUT_DIR from the get_pangenes micromamba environment.
-# Needs: INPUT_DIR N_CPUS TAXA_THRESHOLD VARIANT; optional TAXON_REGEX. GET_PANGENES_ENV (bin/ of the
-# get_pangenes micromamba environment) comes from pipeline_config.sh, via lib/slurm_common.sh.
+# Run get_pangenes.pl on INPUT_DIR.
+# Needs: INPUT_DIR N_CPUS TAXA_THRESHOLD VARIANT; optional TAXON_REGEX. Comes from pipeline_config.sh,
+# via lib/slurm_common.sh: GET_PANGENES_ENV (bin/ of a get_pangenes micromamba environment) if set,
+# otherwise activate_env "$ENV_GET_PANGENES" (e.g. $CONTAINER_DIR/get_pangenes.sif).
 run_get_pangenes() {
-  require_config GET_PANGENES_ENV
-
   # Remove any previously loaded cluster modules.
   module purge
 
@@ -50,17 +49,24 @@ run_get_pangenes() {
   unset PERL_MB_OPT
   unset PERL_MM_OPT
 
-  # Add the micromamba environment's own programs (get_pangenes.pl, its bundled Python, bedtools) to PATH.
-  export PATH="$GET_PANGENES_ENV:$PATH"
-
-  local GETP="$GET_PANGENES_ENV/get_pangenes.pl"
-  local BEDTOOLS="$GET_PANGENES_ENV/bedtools"
-
-  if [[ -n "${TAXON_REGEX:-}" ]]; then
-    "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -s "$TAXON_REGEX" -n "$N_CPUS" -B "$BEDTOOLS"
+  local GETP=get_pangenes.pl
+  local -a bedtools_opt=()   # get_pangenes defaults to the bedtools on its own PATH
+  if [[ -n "${GET_PANGENES_ENV:-}" ]]; then
+    # Add the micromamba environment's own programs (get_pangenes.pl, its bundled Python, bedtools) to PATH.
+    export PATH="$GET_PANGENES_ENV:$PATH"
+    GETP="$GET_PANGENES_ENV/get_pangenes.pl"
+    bedtools_opt=(-B "$GET_PANGENES_ENV/bedtools")
   else
-    "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -n "$N_CPUS" -B "$BEDTOOLS"
+    activate_env "$ENV_GET_PANGENES"
+    command -v "$GETP" >/dev/null \
+      || _pipeline_die "get_pangenes.pl not found: set GET_PANGENES_ENV, or provide the '$ENV_GET_PANGENES' environment (e.g. $CONTAINER_DIR/$ENV_GET_PANGENES.sif)"
   fi
 
-  echo "get_pangenes ($VARIANT) completed. Outputs (pangene_matrix*.tab, etc.) are in $INPUT_DIR"
+  if [[ -n "${TAXON_REGEX:-}" ]]; then
+    "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -s "$TAXON_REGEX" -n "$N_CPUS" "${bedtools_opt[@]}"
+  else
+    "$GETP" -d "$INPUT_DIR" -t "$TAXA_THRESHOLD" -n "$N_CPUS" "${bedtools_opt[@]}"
+  fi
+
+  echo "get_pangenes ($VARIANT) completed. Outputs (pangene_matrix*.tab, etc.) are in ${INPUT_DIR}_pangenes/"
 }

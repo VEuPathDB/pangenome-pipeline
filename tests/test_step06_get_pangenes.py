@@ -94,13 +94,38 @@ def test_run_get_pangenes_calls_tool_with_settings(tmp_path, taxon_regex, expect
     assert (env_bin / "called_with").read_text().strip() == expected_args.format(env=env_bin)
 
 
-def test_run_get_pangenes_needs_the_env_setting(tmp_path):
+def test_run_get_pangenes_without_env_uses_activate_env(tmp_path):
+    """No GET_PANGENES_ENV: get_pangenes.pl comes from activate_env (a container, or PATH), without -B."""
+    tools = tmp_path / "tools"
+    tools.mkdir()
+    fake = tools / "get_pangenes.pl"
+    fake.write_text('#!/bin/bash\necho "$@" > "$(dirname "$0")/called_with"\n')
+    fake.chmod(0o755)
     script = (
+        "set -euo pipefail\n"
+        "module() { :; }\n"
         f"source {REPO_ROOT / 'lib' / 'slurm_common.sh'}\n"
         f"source {SCRIPTS / 'get_pangenes_common.sh'}\n"
         "INPUT_DIR=in N_CPUS=4 TAXA_THRESHOLD=0 VARIANT=7a\n"
         "run_get_pangenes\n"
     )
-    result = _bash(["-c", script], cwd=tmp_path, GET_PANGENES_ENV="", PIPELINE_CONFIG=str(tmp_path / "none.sh"))
+    env = {"GET_PANGENES_ENV": "", "MAMBA_EXE": "", "CONDA_EXE": "", "CONTAINER_DIR": "", "ENV_BACKEND": "path"}
+    result = _bash(["-c", script], cwd=tmp_path, PATH=f"{tools}:{os.environ['PATH']}", **env)
+    assert result.returncode == 0, result.stderr
+    assert "activate_env get_pangenes: path" in result.stderr
+    assert (tools / "called_with").read_text().strip() == "-d in -t 0 -n 4"
+
+
+def test_run_get_pangenes_says_how_to_provide_it(tmp_path):
+    script = (
+        "module() { :; }\n"
+        f"source {REPO_ROOT / 'lib' / 'slurm_common.sh'}\n"
+        f"source {SCRIPTS / 'get_pangenes_common.sh'}\n"
+        "INPUT_DIR=in N_CPUS=4 TAXA_THRESHOLD=0 VARIANT=7a\n"
+        "run_get_pangenes\n"
+    )
+    result = _bash(
+        ["-c", script], cwd=tmp_path, GET_PANGENES_ENV="", ENV_BACKEND="path", PIPELINE_CONFIG=str(tmp_path / "none.sh")
+    )
     assert result.returncode == 1
-    assert "GET_PANGENES_ENV not set" in result.stderr
+    assert "get_pangenes.pl not found: set GET_PANGENES_ENV" in result.stderr

@@ -322,11 +322,16 @@ load_filtering_environment() {
 
     module purge || true
 
-    module load ncbi-blast/2.12.0
-    module load seqkit/2.9.0
+    if [[ -n "$(_container_images "$ENV_TE_FILTER")" ]]; then
+        # $CONTAINER_DIR/te_filter/ (BLAST+, cd-hit, seqkit images - containers/pull_containers.sh)
+        activate_env "$ENV_TE_FILTER"
+    else
+        module load ncbi-blast/2.12.0
+        module load seqkit/2.9.0
 
-    # Keep the module name that exists on your cluster.
-    module load cd-hit || module load cd-hit-est || true
+        # Keep the module name that exists on your cluster.
+        module load cd-hit || module load cd-hit-est || true
+    fi
 
     set -u
 
@@ -376,8 +381,8 @@ load_mchelper_environment() {
     activate_env "$ENV_MCHELPER"  # env names / backend: pipeline_config.sh
     set -u
 
-    if ! command -v python3 >/dev/null 2>&1; then
-        echo "ERROR: python3 not found after activating MCHelper environment." >&2
+    if ! command -v mchelper >/dev/null 2>&1 && ! command -v python3 >/dev/null 2>&1; then
+        echo "ERROR: neither mchelper nor python3 found after activating MCHelper environment." >&2
         exit 1
     fi
 }
