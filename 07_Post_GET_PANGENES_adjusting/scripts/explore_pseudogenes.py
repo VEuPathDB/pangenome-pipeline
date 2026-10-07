@@ -26,8 +26,10 @@ import os
 import re
 import sys
 from collections import Counter
+from pathlib import Path
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import ID_RE
 
 
 def parse_genes(path):

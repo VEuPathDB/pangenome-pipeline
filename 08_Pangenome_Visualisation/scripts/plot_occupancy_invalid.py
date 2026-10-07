@@ -37,6 +37,7 @@ import csv
 import os
 import re
 import sys
+from pathlib import Path
 from urllib.parse import unquote_plus
 
 import matplotlib
@@ -46,12 +47,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 from plot_occupancy import COLORS, ORDER, categorize
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DESCRIPTION_RE, ID_RE, INTERSECT_RE, PARENT_RE, PRODUCT_RE
 
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
 # Same list as filter_final_annotation.py: a description this generic counts as no evidence.
 GENERIC_DESCRIPTIONS = {
     "hypothetical protein",

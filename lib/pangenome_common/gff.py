@@ -1,6 +1,7 @@
 """Finding and reading GFF files."""
 
 import os
+import re
 from pathlib import Path
 from urllib.parse import unquote_plus
 
@@ -45,6 +46,15 @@ BIOTYPE_TO_CATEGORY = {
 # than the gene; VEuPathDB (FungiDB, ...) puts "description" directly on the gene; "Note" and
 # "Name" are the common fallbacks when neither of those is set.
 DESCRIPTION_ATTR_KEYS = ("description", "product", "Note", "note", "Name")
+
+# GFF3 column-9 attribute values, e.g. ID_RE.search(attrs).group(1). Values are left URL-encoded.
+ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
+PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
+DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
+PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
+DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
+GENE_BIOTYPE_RE = re.compile(r"(?:^|;)gene_biotype=([^;]+)")
+INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
 
 
 def find_gff(gff_dir, name, exts=(".gff3", ".gff"), case_insensitive=False):

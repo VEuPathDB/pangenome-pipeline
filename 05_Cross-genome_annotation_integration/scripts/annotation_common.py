@@ -11,14 +11,11 @@ from pathlib import Path
 from urllib.parse import unquote_plus
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DESCRIPTION_RE, ID_RE, PARENT_RE, PRODUCT_RE
 from pangenome_common.intervals import segments_overlap_bp
 
 # Anchored on the start of the column or a ";" so e.g. "sequence_ID=" or "copy_num_ID=" is never
 # mistaken for ID=.
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DESCRIPTION_RE = re.compile(r"(?:^|;)description=([^;]+)")
-PRODUCT_RE = re.compile(r"(?:^|;)product=([^;]+)")
 
 # Feature types that only ever appear nested under a level-1 gene feature, never as an
 # independent top-level entity - used to recognize "a new gene-level block just started"

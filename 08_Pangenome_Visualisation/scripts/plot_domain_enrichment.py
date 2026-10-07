@@ -29,9 +29,9 @@ import argparse
 import csv
 import glob
 import os
-import re
 import sys
 import urllib.request
+from pathlib import Path
 
 import matplotlib
 
@@ -41,10 +41,10 @@ import numpy as np
 from plot_occupancy import ORDER, categorize
 from scipy.stats import false_discovery_control, fisher_exact
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DBXREF_RE, ID_RE, PARENT_RE
+
 ENTRY_LIST_URL = "https://ftp.ebi.ac.uk/pub/databases/interpro/current_release/entry.list"
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 
 
 def gene_domains(gff_dir):

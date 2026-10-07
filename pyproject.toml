@@ -38,6 +38,7 @@ omit = [
 profile = "black"
 line_length = 120
 known_first_party = ["pangenome_common"]
+combine_as_imports = true
 skip = [
   ".venv",
   ".nox",
@@ -74,6 +75,7 @@ exclude = [
 ]
 
 [tool.ruff.lint.isort]
+combine-as-imports = true
 known-first-party = ["pangenome_common"]
 
 [tool.uv]

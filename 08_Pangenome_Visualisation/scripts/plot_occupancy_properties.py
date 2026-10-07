@@ -25,8 +25,8 @@ Needs numpy, scipy, matplotlib.
 import argparse
 import csv
 import os
-import re
 import sys
+from pathlib import Path
 
 import matplotlib
 
@@ -38,9 +38,8 @@ from matplotlib.transforms import blended_transform_factory
 from plot_occupancy import COLORS, ORDER, categorize
 from scipy.stats import tukey_hsd
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DBXREF_RE, ID_RE, PARENT_RE
 
 
 def parse_gff(path):

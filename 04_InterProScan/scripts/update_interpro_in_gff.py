@@ -32,9 +32,10 @@ Usage:
 import argparse
 import re
 import sys
+from pathlib import Path
 
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DBXREF_RE, PARENT_RE
 
 
 def load_lookup(path):

@@ -24,18 +24,14 @@ else happens for it.
 
 import argparse
 import os
-import re
 import shutil
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import find_gff
+from pangenome_common.gff import ID_RE, PARENT_RE, find_gff
 from pangenome_common.io import read_id_list
-
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
 
 
 def read_kill_list(path):

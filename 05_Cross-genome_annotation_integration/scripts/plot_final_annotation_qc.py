@@ -58,6 +58,7 @@ from pathlib import Path
 from urllib.parse import unquote
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import GENE_BIOTYPE_RE
 from pangenome_common.io import read_strains
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -81,7 +82,6 @@ try:
 except ImportError:
     sys.exit("ERROR: this script needs matplotlib - install it with 'pip install matplotlib'")
 
-GENE_BIOTYPE_RE = re.compile(r"(?:^|;)gene_biotype=([^;]+)")
 COPY_NUM_ID_RE = re.compile(r"(?:^|;)copy_num_ID=([^;]+)")
 COVERAGE_RE = re.compile(r"(?:^|;)coverage=([^;]+)")
 SEQUENCE_ID_RE = re.compile(r"(?:^|;)sequence_ID=([^;]+)")

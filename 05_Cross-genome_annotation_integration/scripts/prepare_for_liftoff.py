@@ -48,11 +48,9 @@ from collections import defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
-from pangenome_common.gff import biotype_category, find_gff
+from pangenome_common.gff import ID_RE, PARENT_RE, biotype_category, find_gff
 from pangenome_common.io import read_id_list
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
 BIOTYPE_RES = [
     re.compile(r"(?:^|;)gene_biotype=([^;]+)"),
     re.compile(r"(?:^|;)biotype=([^;]+)"),

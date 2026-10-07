@@ -24,12 +24,12 @@ import os
 import re
 import sys
 from collections import Counter
+from pathlib import Path
 
-ID_RE = re.compile(r"(?:^|;)ID=([^;]+)")
-PARENT_RE = re.compile(r"(?:^|;)Parent=([^;]+)")
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.gff import DBXREF_RE, ID_RE, INTERSECT_RE, PARENT_RE
+
 ORIG_RE = re.compile(r"(?:^|;)original_ID=([^;]+)")
-INTERSECT_RE = re.compile(r"(?:^|;)intersect=([^;]+)")
-DBXREF_RE = re.compile(r"(?:^|;)Dbxref=([^;]+)")
 
 
 def parse_tagged_gff(path):

@@ -61,23 +61,14 @@ confirmed manually from the 20-80% inspect band that should be killed too.
 from __future__ import annotations
 
 import argparse
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import pandas as pd
 
-
-def load_extra_genes(path) -> set:
-    """2-column TSV (no header): genome_label<TAB>gene_id."""
-    pairs = set()
-    with Path(path).open() as fh:
-        for line in fh:
-            line = line.strip()
-            if not line or line.startswith("#"):
-                continue
-            genome_label, gene_id = line.split("\t")
-            pairs.add((genome_label, gene_id))
-    return pairs
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "lib"))
+from pangenome_common.io import load_extra_genes
 
 
 def main():
