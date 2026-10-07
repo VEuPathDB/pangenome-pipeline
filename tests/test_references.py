@@ -25,21 +25,14 @@ KNOWN_MISSING = {
         "Tgondii-only script kept in the species project, not committed (refactor plan A4)"
     ),
     "contig_redundancy_final.slurm.sh": "same as above, mentioned by name in step 09's make_removal_list.py",
-    "step09_redundant_contig_removal/remove_redundant_contig_genes.slurm.sh": (
+    "09_Redundant_Contig_Removal/scripts/remove_redundant_contig_genes.slurm.sh": (
         "Tgondii-only step 09 wrapper, not committed (refactor plan A4)"
     ),
-    "step09_redundant_contig_removal/plot_nonredundant_job.sh": (
+    "09_Redundant_Contig_Removal/scripts/plot_nonredundant_job.sh": (
         "Tgondii-only step 09 wrapper, not committed (refactor plan A4)"
     ),
     "plot_nonredundant_job.sh": "same as above, mentioned by name in the Tgondii report",
-    "09_Redundant_Contig_Removal/scripts/remove_redundant_contig_genes.slurm.sh": (
-        "the two step 09 wrappers above, under the old layout's path - how the Tgondii report records the run"
-    ),
-    "09_Redundant_Contig_Removal/scripts/plot_nonredundant_job.sh": "same as above",
-    "step01_genome_selection_qc/summarize_dropped_genes.py": (
-        "Tgondii-only helper called by species_specific/Tgondii/.../drop_short_contigs.slurm.sh, not committed"
-    ),
-    "species_specific/Tgondii/step01_genome_selection_qc/summarize_dropped_genes.py": (
+    "01_Genome_Selection_QC/scripts/summarize_dropped_genes.py": (
         "Tgondii-only helper called by species_specific/Tgondii/.../drop_short_contigs.slurm.sh, not committed"
     ),
 }
@@ -118,8 +111,6 @@ def find_missing():
     for path in _git_ls_files(*SCANNED_PATTERNS):
         if path.startswith("tests/"):
             continue  # the tests name made-up scripts on purpose
-        if path.startswith("results/") and not path.endswith(".md"):
-            continue  # frozen copies of old script versions; the reports themselves are still checked
         text = (REPO_ROOT / path).read_text(errors="replace")
         for lineno, line in enumerate(text.splitlines(), start=1):
             for ref in extract_references(line):
@@ -159,11 +150,9 @@ def test_extract_references_normalises_tokens():
 
 
 def test_resolves_relative_to_file_root_and_tail():
-    assert resolves(
-        "../workflow/step01_genome_selection_qc/drop_contigs_slurm.sh", "docs/step01_genome_selection_qc.md"
-    )  # relative to the doc
-    assert resolves("workflow/step01_genome_selection_qc/drop_contigs_slurm.sh", "README.md")  # relative to the root
-    assert resolves("te_library/config.sh", "somewhere/else.md")  # tail of a tracked path
+    assert resolves("scripts/drop_contigs.py", "01_Genome_Selection_QC/README.md")  # relative to the README
+    assert resolves("01_Genome_Selection_QC/scripts/drop_contigs.py", "README.md")  # relative to the root
+    assert resolves("slurm/config.sh", "somewhere/else.md")  # tail of a tracked path
     assert resolves("drop_contigs.py", "anything")  # bare name
     assert not resolves("scripts/no_such_script.py", "README.md")
     assert not resolves("no_such_script.py", "README.md")

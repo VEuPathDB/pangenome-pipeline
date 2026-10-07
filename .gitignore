@@ -5,13 +5,9 @@ site/
 
 # Per-cluster settings (copy pipeline_config.example.sh)
 pipeline_config.sh
-
-# Job outputs and SLURM logs, if a job is ever run from inside the checkout
-/output/
-/logs/
 __pycache__/
 .DS_Store
 node_modules/
 
 # A colleague's own scripts, kept locally for reference only (not ours to publish)
-workflow/step04_interproscan/reference_colleague_scripts/
+04_InterProScan/scripts/reference_colleague_scripts/

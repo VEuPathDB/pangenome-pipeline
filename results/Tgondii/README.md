@@ -14,7 +14,7 @@ This document tracks the execution, parameters, and results of the pangenome ana
 * **No transposable elements.** A systematic apicomplexan-wide mobilome screen
   ([Rodriguez & Makalowski, 2022](https://doi.org/10.3390/genes13050887), using
   RepeatModeler, RepeatMasker, LTRpred, MGEScan and TEclass — largely the same toolkit this
-  pipeline's [TE candidate pipeline](../../docs/step02_te_annotation_clean_up.md)
+  pipeline's [TE candidate pipeline](../../02_TE_annotation_Clean_Up/README.md)
   uses) found **no bona fide TEs in *T. gondii*, nor in its closest relatives** *Hammondia*,
   *Neospora*, and *Sarcocystis* (the whole family came back negative; *Cryptosporidium* too).
   TEs are present elsewhere in Apicomplexa (*Eimeria*, some *Babesia*/*Theileria* species,
@@ -34,7 +34,7 @@ This document tracks the execution, parameters, and results of the pangenome ana
   continuously acquired and a significant source of **intraspecific** variation, i.e. it
   differs from strain to strain within the panel, not just between *T. gondii* and its
   organelle. **Implication for [step 01](#01--genome-selection--qc):** the
-  [organelle screen](../../docs/step01_genome_selection_qc.md#10-organelle-screen)
+  [organelle screen](../../01_Genome_Selection_QC/README.md#10-organelle-screen)
   should expect to find many more, and more scattered, organellar fragments in the nuclear
   assemblies than the single small NUMT seen in the Afum panel — most will be small fragments
   genuinely embedded in nuclear contigs (real nuclear DNA — keep, per the existing
@@ -43,7 +43,7 @@ This document tracks the execution, parameters, and results of the pangenome ana
   Also, unlike a fungus, *T. gondii* carries **two organelles to screen** — mitochondrion
   *and* apicoplast (a relict, non-photosynthetic plastid retained by most Apicomplexa) — both
   need their own contig/fragment identified before the
-  [organelle screen](../../docs/step01_genome_selection_qc.md#10-organelle-screen)
+  [organelle screen](../../01_Genome_Selection_QC/README.md#10-organelle-screen)
   can be run.
 
 * **Population structure is clonal despite an obligate sexual cycle.** Type I, II and III
@@ -173,13 +173,13 @@ cd ..
 ### Header formatting & renaming
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/rename_headers_slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/rename_headers_slurm.sh
 ```
 
 ### Species check (whole-genome ANI vs ME49, `skani`)
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/check_species.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/check_species.slurm.sh
 ```
 
 All 14 genomes are *T. gondii* — **ANI 98.7–99.7 %** to ME49, aligned fraction 0.93–0.98,
@@ -199,7 +199,7 @@ every genome `same_species`. No contamination or wrong-species assemblies. Full 
 ### Contig size profile
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/contig_size_profile.slurm.sh
 ```
 
 **34,066 sub-10kb contigs across the panel** — 93–99% of each genome's contig count for every
@@ -245,7 +245,7 @@ justification for dropping other than contig size alone.
 Whole-genome alignments were generated with `minimap2 -x asm10` and plotted with `plot_dotplot.py`:
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/synteny_vs_ref.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/synteny_vs_ref.slurm.sh
 ```
 
 | Assembly / Strain | Synteny Dotplot vs ME49 | Assembly / Strain | Synteny Dotplot vs ME49 |
@@ -266,7 +266,7 @@ their own contig* count as inversions — the raw red in a scaffold dot-plot is 
 arbitrary orientation of independent scaffolds, not biology):
 
 ```bash
-PYTHONPATH=src python3 -m pangenome_pipeline.step01_genome_selection_qc.synteny_report \
+python 01_Genome_Selection_QC/scripts/synteny_report.py \
     01_Genome_Selection_QC/synteny --ref-mb 65.63 \
     --md 01_Genome_Selection_QC/synteny/SYNTENY_REPORT.md \
     --tsv 01_Genome_Selection_QC/synteny/SYNTENY_REPORT.tsv
@@ -335,7 +335,7 @@ contigs (including 289 known virulence-family genes), accepted as the cost of a 
 panel-wide rule.
 
 Script (Tgondii-only, not part of the general pipeline template):
-[`species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.slurm.sh`](../../species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.slurm.sh).
+[`species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh`](../../species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh).
 **Already run** (before step 04). One run does everything: builds the drop list, backs up every
 affected genome's FASTA + GFF (untouched copy in
 `01_Genome_Selection_QC/backup_before_short_contig_drop/`, the only way back if needed),
@@ -346,7 +346,7 @@ is present in the GFFs used from step 04 onward.
 
 Command that was run:
 ```bash
-sbatch species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.slurm.sh
+sbatch species_specific/Tgondii/01_Genome_Selection_QC/scripts/drop_short_contigs.slurm.sh
 ```
 
 [↑ Back to top](#analysis-steps)
@@ -360,7 +360,7 @@ sbatch species_specific/Tgondii/step01_genome_selection_qc/drop_short_contigs.sl
 The TE candidate pipeline was run on the 15 *T. gondii* genomes:
 
 ```bash
-bash workflow/step02_te_annotation_clean_up/te_library/run_pipeline_slurm.sh
+bash 02_TE_annotation_Clean_Up/slurm/run_pipeline_slurm.sh
 ```
 
 **Output:** **106 non-redundant candidate TE consensus sequences** across the panel
@@ -376,7 +376,7 @@ that filter would have dropped (e.g. solo-LTR-only families) before curating int
 library:
 
 ```bash
-sbatch workflow/step02_te_annotation_clean_up/run_te_aid.slurm.sh
+sbatch 02_TE_annotation_Clean_Up/scripts/run_te_aid.slurm.sh
 ```
 
 (`INPUT_FASTA`/`OUTDIR` in the script set to the `all_MCHelper_curated_sequences_NR.cdhit80.fa`
@@ -426,10 +426,10 @@ Submit the array job with:
 ```bash
 mkdir -p interpro/logs
 N=$(($(wc -l < interpro/interpro_manifest.tsv) - 1))
-sbatch --array=1-${N}%20 workflow/step04_interproscan/interproscan_array_job.slurm.sh
+sbatch --array=1-${N}%20 04_InterProScan/scripts/interproscan_array_job.slurm.sh
 ```
 (currently 150, but always recomputed from the manifest, not hardcoded - see
-[`04_InterProScan/README.md`](../../docs/step04_interproscan.md) for why).
+[`04_InterProScan/README.md`](../../04_InterProScan/README.md) for why).
 
 Protein extraction ran on `gff_originals/` (this species has no `gff_cleaned/`). The array job
 **finished**: all 150 chunks completed (each chunk's `.out` ends with
@@ -440,7 +440,7 @@ Protein extraction ran on `gff_originals/` (this species has no `gff_cleaned/`).
 Combines the per-chunk InterProScan output into one lookup table per genome
 (`interpro/interpro_lookup/`) and checks completeness:
 ```bash
-sbatch workflow/step04_interproscan/merge_interpro_job.slurm.sh
+sbatch 04_InterProScan/scripts/merge_interpro_job.slurm.sh
 ```
 A protein reported as absent from the chunk output is a `NOTE`, not an error: InterProScan only
 writes a row when it finds a hit, so it is a protein with no domain hits. Only a missing chunk
@@ -452,7 +452,7 @@ Writes the `InterPro:`/`PFAM:` evidence into the `Dbxref=` of each CDS line, rea
 `gff_originals/` (`GFF_INDIR` is set to that in this species' copy of the script) and writing
 new GFFs to `gff_with_interpro/` (the input is never modified):
 ```bash
-sbatch workflow/step04_interproscan/update_interpro_in_gff.slurm.sh
+sbatch 04_InterProScan/scripts/update_interpro_in_gff.slurm.sh
 ```
 `gff_with_interpro/` is the input for step 05.
 
@@ -468,11 +468,11 @@ Run **once**, after [step 04](#04--interproscan), on `gff_with_interpro/` (the G
 domain evidence written in), so that the domain columns and plots are real. Output folder for
 this run: `annotation_check_with_interpro/`.
 ```bash
-sbatch workflow/step05_cross_genome_annotation_integration/analyze_input_gffs_job.sh
+sbatch 05_Cross-genome_annotation_integration/scripts/analyze_input_gffs_job.sh
 ```
 (`GFF_DIR="gff_with_interpro"` is the script's default; for the run above `OUT_DIR` was set to
 `annotation_check_with_interpro`. Full description of every output file:
-[general README](../../docs/step05_cross_genome_annotation_integration.md#step-1-native-annotation-check).)
+[general README](../../05_Cross-genome_annotation_integration/README.md#step-1-native-annotation-check).)
 
 **Genes per genome** - 8,000 to 10,000 protein-coding genes per genome, split by whether the
 gene carries InterPro/PFAM evidence (56-62% do, in every genome, so no genome stands out
@@ -524,25 +524,25 @@ genes are removed. Listed in `kill_list_manual.tsv` (project root):
 | `TGME49_321700` | Kinase-like \| domain-containing protein | `TGME49_500405` | 800 |
 
 Removing them (40 GFF lines including their exons/transcripts) is done by
-[`remove_genes_from_gff_job.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-2-remove-specific-genes-from-the-gffs-optional-manual-kill-list),
+[`remove_genes_from_gff_job.sh`](../../05_Cross-genome_annotation_integration/README.md#step-2-remove-specific-genes-from-the-gffs-optional-manual-kill-list),
 reading `gff_with_interpro/` and writing every genome to `gff_curated/` (genomes without an
 entry in the list are copied unchanged):
 ```bash
-sbatch workflow/step05_cross_genome_annotation_integration/remove_genes_from_gff_job.sh
+sbatch 05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff_job.sh
 ```
 `kill_list_manual.tsv` has no header, one gene per line: `genome<TAB>gene_id`
 (e.g. `ME49	TGME49_242250`). Run this step **before** "Prepare the GFFs for Liftoff" below.
 
 ### Prepare the GFFs for Liftoff
 
-[`prepare_for_liftoff_job.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-3-prepare-the-gffs-for-liftoff)
+[`prepare_for_liftoff_job.sh`](../../05_Cross-genome_annotation_integration/README.md#step-3-prepare-the-gffs-for-liftoff)
 reads `gff_curated/` and writes to `gff_for_liftoff/`: genes reduced to their coding sequence
 (no UTRs), protein-coding genes and pseudogenes unified to `protein_coding_gene`, and the
 non-coding RNA genes given a different type (`ncRNA_gene`, `tRNA_gene`) so Liftoff - which only
 transfers the types in `liftoff_feature_types.txt` - does not copy them onto other genomes. Each
 genome keeps its own non-coding genes. This is what goes into Liftoff:
 ```bash
-sbatch workflow/step05_cross_genome_annotation_integration/prepare_for_liftoff_job.sh
+sbatch 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh
 ```
 
 Result (`gff_for_liftoff/prepare_for_liftoff_report.tsv`; `liftoff_feature_types.txt` contains
@@ -586,18 +586,18 @@ the type list Liftoff transfers.
 
 ### Liftoff (all-against-all)
 
-[`liftoff_all_vs_all.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-4-liftoff)
+[`liftoff_all_vs_all.sh`](../../05_Cross-genome_annotation_integration/README.md#step-4-liftoff)
 lifts every genome's prepared annotation (`gff_for_liftoff/`) onto every other genome's
 FASTA (`genomes/`) - 15 genomes, so 210 pairs. Run as one job per source genome:
 ```bash
 mkdir -p liftoff_output/logs
-sbatch --array=1-15 workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
+sbatch --array=1-15 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
 ```
 Results go to `liftoff_output/polished/`, job logs to `liftoff_output/logs/`. Resubmitting skips pairs that are already done.
 
 ### Build each genome's final annotation
 
-[`build_final_annotation_basic.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-5-build-each-genomes-final-annotation)
+[`build_final_annotation_basic.sh`](../../05_Cross-genome_annotation_integration/README.md#step-5-build-each-genomes-final-annotation)
 builds one annotation per genome anchored on its own coordinates. The reference is ME49 (first line
 of `genome_order.txt`). The layers are the reference's confident transfers (`main`), then the
 genome's own annotation from `gff_for_liftoff/` - which is where its non-coding genes come back in -
@@ -605,7 +605,7 @@ then the other genomes' good transfers (`good_<genome>`), then everything left (
 Run after all Liftoff jobs have finished, one job per genome:
 ```bash
 mkdir -p expanded_annotation/logs
-sbatch --array=1-15 workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh
+sbatch --array=1-15 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
 ```
 Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expanded_annotation/logs/`.
 
@@ -615,14 +615,14 @@ Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expan
 
 ### Step 6: Built annotation check
 
-QC on the raw build output, before [step 7](../../docs/step05_cross_genome_annotation_integration.md#step-7-final-annotation-if-using-step-5-pre-get_pangenes)'s
+QC on the raw build output, before [step 7](../../05_Cross-genome_annotation_integration/README.md#step-7-final-annotation-if-using-step-5-pre-get_pangenes)'s
 filter runs. Output folder: `final_annotation_qc_plots/`.
 ```bash
 mkdir -p final_annotation_qc_plots/logs
-sbatch workflow/step05_cross_genome_annotation_integration/plot_final_annotation_qc_job.sh
+sbatch 05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc_job.sh
 ```
 (Full description of every output file:
-[general README](../../docs/step05_cross_genome_annotation_integration.md#step-6-built-annotation-check-if-using-step-5).)
+[general README](../../05_Cross-genome_annotation_integration/README.md#step-6-built-annotation-check-if-using-step-5).)
 
 **Gene counts** - each genome's final build has 9,249-9,933 protein-coding genes, well above
 its own original annotation (8,000-10,000), since genes are being pulled in from every other
@@ -680,7 +680,7 @@ above, per genome).
 
 Ran [`filter_final_annotation.py`](05_Cross-genome_annotation_integration/scripts/filter_final_annotation.py)
 on all 15 genomes (rule details in the
-[general README](../../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
+[general README](../../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
 Output: `filtered_annotation/<genome>_final_annotation_filtered.gff` - `gene`-typed, IDs
 renumbered `Tg<strain-index>g<00001, ...>`, original ID kept in `original_ID=`.
 
@@ -755,7 +755,7 @@ transfers):
 
 Ran [`tag_final_annotation.py`](05_Cross-genome_annotation_integration/scripts/tag_final_annotation.py)
 on all 15 genomes (rule details in the
-[general README](../../docs/step05_cross_genome_annotation_integration.md#7b-no-filtering-tag-decide-after-get_pangenes)).
+[general README](../../05_Cross-genome_annotation_integration/README.md#7b-no-filtering-tag-decide-after-get_pangenes)).
 Nothing removed - same `gene`-typing/ID-renumbering as 7a, plus an `intersect=` tag on every
 gene recording what it overlaps (`NA`/`with_main`/`with_other_with_domain`/`with_other_no_domain`).
 Output: `tagged_annotation/<genome>_final_annotation_tagged.gff` + `<genome>_intersect_pairs.tsv`.
@@ -786,8 +786,8 @@ Output: `tagged_annotation/<genome>_final_annotation_tagged.gff` + `<genome>_int
 
 Ran `get_pangenes` on the 7b GFFs (`tagged_annotation/`, nothing pre-filtered), 15 genomes:
 ```bash
-sbatch workflow/step06_get_pangenes/link_for_get_pangenes_7b.slurm.sh
-sbatch workflow/step06_get_pangenes/run_get_pangenes_7b_job.sh
+sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_7b.slurm.sh
+sbatch 06_GET_PANGENES/scripts/run_get_pangenes_7b_job.sh
 ```
 Result: **11,031 pangenes** across the 15 genomes (`for_get_pangenes_7b_pangenes/pangene_matrix*.tab`;
 `pangene_matrix_genes.tr.tab` lists the gene IDs of every genome in every pangene).
@@ -857,8 +857,8 @@ bash 08_Pangenome_Visualisation/scripts/plot_all.sh \
 The folders are given on the command line, and the matrices are found by name below the `get_pangenes` folder:
 ```bash
 mkdir -p pangenome_plots/logs
-sbatch workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7b --label Toxo7b
-sbatch workflow/step08_pangenome_visualisation/plot_all_job.sh --set 7a --label Toxo7a
+sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7b --label Toxo7b
+sbatch 08_Pangenome_Visualisation/scripts/plot_all_job.sh --set 7a --label Toxo7a
 ```
 `--set` stands for `--pangenes-dir for_get_pangenes_<set>_pangenes --gff-dir for_get_pangenes_<set>`, and turns the
 unsupported-overlap plot on for 7b only. Give the two folders by hand for any other layout (`--help` lists every option).
@@ -1027,7 +1027,7 @@ mitochondrial gene, so several copies per genome fit mitochondrial DNA inserted 
 genome (NUMTs) or poor transfers of them, but this was not tested: it would need the sequences
 aligned to the mitochondrial genome.
 ```bash
-sbatch workflow/step08_pangenome_visualisation/plot_domain_enrichment_job.sh
+sbatch 08_Pangenome_Visualisation/scripts/plot_domain_enrichment_job.sh
 ```
 
 ![InterPro term enrichment, no filtering](08_Pangenome_Visualisation/pangenome_plots/Toxo7b_domain_enrichment.png)
@@ -1175,9 +1175,9 @@ sbatch 09_Redundant_Contig_Removal/scripts/remove_redundant_contig_genes.slurm.s
 mkdir -p pangenome_plots/logs && sbatch 09_Redundant_Contig_Removal/scripts/plot_nonredundant_job.sh
 ```
 
-1. [`make_removal_list.py`](../../species_specific/Tgondii/step09_redundant_contig_removal/make_removal_list.py) lists every small contig that
+1. [`make_removal_list.py`](../../species_specific/Tgondii/09_Redundant_Contig_Removal/scripts/make_removal_list.py) lists every small contig that
    carries genes and is flagged (`small-redundant`) or is 75-89 % duplicated.
-2. [`remove_redundant_contig_genes.py`](../../species_specific/Tgondii/step09_redundant_contig_removal/remove_redundant_contig_genes.py) drops those
+2. [`remove_redundant_contig_genes.py`](../../species_specific/Tgondii/09_Redundant_Contig_Removal/scripts/remove_redundant_contig_genes.py) drops those
    contigs from each GFF (the gene with its children) and the gene IDs from `pangene_matrix_genes.tr.tab`; a pangene left
    with no gene is removed, and `pangene_matrix.tr.tab` is rebuilt from it. The IDs are unique across genomes and each
    GFF holds its own genes, so only the GFFs of ME49 and RH88 change.

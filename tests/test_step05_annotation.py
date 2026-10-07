@@ -1,4 +1,4 @@
-"""step05_cross_genome_annotation_integration - Liftoff transfer filtering and overlap resolution."""
+"""05_Cross-genome_annotation_integration - Liftoff transfer filtering and overlap resolution."""
 
 import os
 import subprocess
@@ -7,7 +7,7 @@ import sys
 import pytest
 from conftest import gff_line
 
-SCRIPTS = "src/pangenome_pipeline/step05_cross_genome_annotation_integration/"
+SCRIPTS = "05_Cross-genome_annotation_integration/scripts/"
 
 
 @pytest.fixture(scope="module")

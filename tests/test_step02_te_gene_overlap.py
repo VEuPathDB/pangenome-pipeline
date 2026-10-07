@@ -1,8 +1,8 @@
-"""step02_te_annotation_clean_up/te_gene_overlap.py - interval maths and TE/gene overlap classification."""
+"""02_TE_annotation_Clean_Up/scripts/te_gene_overlap.py - interval maths and TE/gene overlap classification."""
 
 import pytest
 
-SCRIPT = "src/pangenome_pipeline/step02_te_annotation_clean_up/te_gene_overlap.py"
+SCRIPT = "02_TE_annotation_Clean_Up/scripts/te_gene_overlap.py"
 
 
 @pytest.fixture(scope="module")

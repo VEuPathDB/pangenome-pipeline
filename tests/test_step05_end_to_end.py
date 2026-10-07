@@ -26,8 +26,7 @@ import pytest
 from conftest import REPO_ROOT
 
 DATA = REPO_ROOT / "tests" / "data" / "step05"
-PACKAGE = "pangenome_pipeline.step05_cross_genome_annotation_integration"
-JOB = "workflow/step05_cross_genome_annotation_integration/filter_final_annotation_job.sh"
+SCRIPTS = REPO_ROOT / "05_Cross-genome_annotation_integration" / "scripts"
 
 PANEL = ["--strains", "genome_order.txt", "--final-dir", "expanded_annotation"]
 
@@ -37,7 +36,7 @@ def _run_and_compare(script, args, expected_dir, tmp_path, pattern="*"):
     the snapshot in expected_dir."""
     out_dir = tmp_path / "out"
     result = subprocess.run(
-        [sys.executable, "-m", f"{PACKAGE}.{script.removesuffix('.py')}", *args, "--out-dir", str(out_dir)],
+        [sys.executable, str(SCRIPTS / script), *args, "--out-dir", str(out_dir)],
         cwd=DATA,
         env={**os.environ, "MPLBACKEND": "Agg"},
         capture_output=True,
@@ -108,42 +107,30 @@ def test_fixture_inputs_untouched():
     assert names == ["REF_final_annotation.gff", "S2_final_annotation.gff", "S3_final_annotation.gff"]
 
 
-def test_filter_job_wrapper_end_to_end(run_job, tmp_path):
-    """The SLURM wrapper, submitted from a project folder as a user would, reads the build's output from
-    output/step05_*/expanded_annotation/, runs the package through lib/slurm_common.sh's PYTHONPATH and
-    writes the same reports as the snapshot to output/step05_*/filtered_annotation/."""
+def test_filter_job_wrapper_end_to_end(tmp_path):
+    """The SLURM wrapper, run from a project folder as a user would (sbatch's `module` stubbed out),
+    finds its .py through lib/slurm_common.sh and produces the same reports as the snapshot."""
     project = tmp_path / "project"
-    step_out = project / "output" / "step05_cross_genome_annotation_integration"
-    shutil.copytree(DATA / "expanded_annotation", step_out / "expanded_annotation")
+    project.mkdir()
+    for name in ("lib", "05_Cross-genome_annotation_integration"):
+        (project / name).symlink_to(REPO_ROOT / name)
+    shutil.copytree(DATA / "expanded_annotation", project / "expanded_annotation")
     shutil.copy(DATA / "genome_order.txt", project / "genome_order.txt")
+    stubs = tmp_path / "bin"
+    stubs.mkdir()
+    (stubs / "module").write_text("#!/bin/sh\nexit 0\n")
+    (stubs / "module").chmod(0o755)
+    (stubs / "python3").symlink_to(sys.executable)
 
-    result = run_job(JOB, project)
+    result = subprocess.run(
+        ["bash", str(SCRIPTS / "filter_final_annotation_job.sh")],
+        cwd=project,
+        env={**os.environ, "PATH": f"{stubs}:{os.environ['PATH']}"},
+        capture_output=True,
+        text=True,
+        check=False,
+    )
     assert result.returncode == 0, result.stderr
-    out = step_out / "filtered_annotation"
+    out = project / "filtered_annotation"
     for name in ("filter_summary.tsv", "REF_filter_report.tsv", "S2_filter_report.tsv", "S3_filter_report.tsv"):
         assert (out / name).read_text() == (DATA / "expected_filter" / name).read_text(), name
-
-
-def test_check_final_annotations_reads_build_logs_from_project_logs(run_job, tmp_path):
-    """A genome without its final GFF is reported with the end of its build job's log from logs/, and
-    the resubmit command names the build job by its full path."""
-    project = tmp_path / "project"
-    final = project / "output" / "step05_cross_genome_annotation_integration" / "expanded_annotation"
-    (final / "G2").mkdir(parents=True)
-    (final / "G1_final_annotation.gff").write_text("##gff-version 3\n")
-    (final / "G2" / "step_main.gff").write_text("##gff-version 3\n")
-    (project / "genome_order.txt").write_text("G1\nG2\n")
-    (project / "logs").mkdir()
-    (project / "logs" / "build_final_annotation_4242.out").write_text("Array task 2: building G2\n")
-    (project / "logs" / "build_final_annotation_4242.err").write_text("ERROR: AGAT failed on G2\n")
-
-    result = run_job("workflow/step05_cross_genome_annotation_integration/check_final_annotations_job.sh", project)
-    assert result.returncode == 1
-    assert "OK       G1" in result.stdout
-    assert "MISSING  G2  (array task 2) - stopped in round 1 (good transfers)" in result.stdout
-    assert f"job log: {project}/logs/build_final_annotation_4242.err" in result.stdout
-    assert "ERROR: AGAT failed on G2" in result.stdout
-    assert (
-        f"sbatch --array=2 {REPO_ROOT}/workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh"
-        in result.stdout
-    )

@@ -221,13 +221,13 @@ cleaning. The rest of the GFF is the 8 chromosomes; no small contigs were carrie
 ### 01.3 Header formatting & renaming
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/rename_headers_slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/rename_headers_slurm.sh
 ```
 
 ### 01.4 Species check (whole-genome ANI vs AF293, `skani`)
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/check_species.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/check_species.slurm.sh
 ```
 
 All 16 genomes are *A. fumigatus* sensu stricto — **ANI 99.2–99.6 %** to AF293, aligned
@@ -252,7 +252,7 @@ The AF293 mitochondrial contig (`mito_A_fumigatus_Af293`, 31,765 bp) was extract
 represented:
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/screen_organelles.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/screen_organelles.slurm.sh
 ```
 
 Full table: [`organelle_screen.tsv`](01_Genome_Selection_QC/organelle_screen/organelle_screen.tsv).
@@ -299,11 +299,11 @@ tiles the entire contig, so the whole thing is organellar and safe to drop.
 
 These 12 contigs are in [`01_Genome_Selection_QC/drop_contigs.txt`](01_Genome_Selection_QC/drop_contigs.txt).
 They were removed from `genomes/` and `gff_originals/` with the shared
-[contig-removal tool](../../docs/step01_genome_selection_qc.md#12-remove-the-unwanted-contigs) —
+[contig-removal tool](../../01_Genome_Selection_QC/README.md#12-remove-the-unwanted-contigs) —
 the wrapper does a dry run, then applies:
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/drop_contigs_slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh
 ```
 
 Result — nuclear contigs remaining: **AF293** 8, **AF100-9B** 8, **ATCC 42202** 9, **47-4** 22.
@@ -316,7 +316,7 @@ genomes were already mito-free and were not touched. (The genome table above sti
 Whole-genome alignments were generated with `minimap2 -x asm10` and plotted with `plot_dotplot.py`:
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/synteny_vs_ref.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/synteny_vs_ref.slurm.sh
 ```
 
 | Assembly / Strain | Synteny Dotplot vs AF293 | Assembly / Strain | Synteny Dotplot vs AF293 |
@@ -338,7 +338,7 @@ their own contig* count as inversions — the raw red in a scaffold dot-plot is 
 arbitrary orientation of independent scaffolds, not biology):
 
 ```bash
-PYTHONPATH=src python3 -m pangenome_pipeline.step01_genome_selection_qc.synteny_report \
+python 01_Genome_Selection_QC/scripts/synteny_report.py \
     01_Genome_Selection_QC/synteny --ref-mb 29.38 \
     --md 01_Genome_Selection_QC/synteny/SYNTENY_REPORT.md \
     --tsv 01_Genome_Selection_QC/synteny/SYNTENY_REPORT.tsv
@@ -412,7 +412,7 @@ haplotig-style overlap, extra rDNA copy); their genes would be counted twice and
 pangenome.
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/contig_redundancy.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/contig_redundancy.slurm.sh
 ```
 
 Self-aligns each genome (`minimap2 -xasm5 -DP`, the `purge_dups` call), combined with the
@@ -497,7 +497,7 @@ span, `blastn`s it against the whole assembly, keeps the best hit off its own co
 checks it lands on an annotated gene:
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/check_redundant_genes.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/check_redundant_genes.slurm.sh
 ```
 
 Per genome: `contig_redundancy/<label>.redundant_genes.{tsv,fa,blast.tsv}` — the per-gene
@@ -541,7 +541,7 @@ Added to the cumulative
 the FASTA and the GFF:
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/drop_contigs_slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/drop_contigs_slurm.sh
 ```
 
 **Not dropped:** the `small-unplaced` gene-rich contigs (ATCC 42202, ATCC 46645, eAF1436,
@@ -556,7 +556,7 @@ sbatch workflow/step01_genome_selection_qc/drop_contigs_slurm.sh
 > download.
 
 ```bash
-sbatch workflow/step01_genome_selection_qc/contig_size_profile.slurm.sh
+sbatch 01_Genome_Selection_QC/scripts/contig_size_profile.slurm.sh
 ```
 
 Out of 17 genomes, only **2** have any contig under 10 kb left: **A1163** (32 contigs, but
@@ -592,7 +592,7 @@ Ran RepeatMasker on every assembly with the curated library
 per genome:
 
 ```bash
-sbatch workflow/step02_te_annotation_clean_up/run_repeatmasker.slurm.sh
+sbatch 02_TE_annotation_Clean_Up/scripts/run_repeatmasker.slurm.sh
 ```
 
 > ⚠️ This was run **before** the step-01 contig drop (see 02.2).
@@ -607,8 +607,8 @@ carries hits on contigs that were dropped afterwards — which would add mitocho
 haplotig TE to the per-genome totals and make `summarize_te_content.py` divide by the
 pre-drop genome length.
 
-Scripts: [`species_specific/Afum/step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.slurm.sh`](../../species_specific/Afum/step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.slurm.sh)
-· [`species_specific/Afum/step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.py`](../../species_specific/Afum/step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.py)
+Scripts: [`species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh`](../../species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh)
+· [`species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py`](../../species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.py)
 (what it calls). For every `RM_<genome_id>/` (matched to its genome by the folder name / the
 `.out` file name) it drops from `.out` / `.gff` the lines on the contigs listed for that
 genome in the manifest, corrects the `.tbl` `total length:` (old total minus the removed
@@ -619,7 +619,7 @@ entry (e.g. A1160) are just copied through. The wrapper defaults to
 project folder:
 
 ```bash
-sbatch species_specific/Afum/step02_te_annotation_clean_up/fix_repeatmasker_after_contig_drop.slurm.sh
+sbatch species_specific/Afum/02_TE_annotation_Clean_Up/scripts/fix_repeatmasker_after_contig_drop.slurm.sh
 ```
 
 (`DROP_LIST=""` + `GENOMES="genomes"` in the wrapper is the alternative — removes *any*
@@ -636,7 +636,7 @@ This is Afum-only: the general pipeline expects the contig drop (step 01) to hap
 
 ```bash
 # INDIR="repeatmasker_contig_filtered" in the script
-sbatch workflow/step02_te_annotation_clean_up/summarize_te_content.slurm.sh
+sbatch 02_TE_annotation_Clean_Up/scripts/summarize_te_content.slurm.sh
 ```
 
 Numbers: [`te_content_summary/te_content_summary.tsv`](02_TE_annotation_Clean_Up/te_content_summary/te_content_summary.tsv)
@@ -721,7 +721,7 @@ computes the non-redundant TE overlap over the CDS of every gene and (2) extract
 spliced CDS sequence (FASTA) of the genes in the `MIN_PCT`–`MAX_PCT` band (default 20–80%):
 
 ```bash
-sbatch workflow/step02_te_annotation_clean_up/te_gene_overlap.slurm.sh
+sbatch 02_TE_annotation_Clean_Up/scripts/te_gene_overlap.slurm.sh
 ```
 
 **Output,** all in `te_annotation_integration/`:
@@ -769,7 +769,7 @@ Eliminated-band genes (≥80% overlap) manually reviewed and confirmed as genuin
 models, safe to remove. The 20–80% "flagged"/inspect band is not yet reviewed.
 
 ```bash
-sbatch workflow/step02_te_annotation_clean_up/build_te_kill_lists.slurm.sh
+sbatch 02_TE_annotation_Clean_Up/scripts/build_te_kill_lists.slurm.sh
 ```
 
 339 confirmed TE-derived genes removed from every genome's GFF, output in `gff_cleaned/`.
@@ -791,8 +791,8 @@ No need as all genomes used have annotation
 ### 04.1 Running InterProScan
 
 ```bash
-sbatch workflow/step04_interproscan/extract_proteins.slurm.sh          # gff_cleaned/ -> interpro/proteins/*.faa
-sbatch workflow/step04_interproscan/build_interpro_manifest.slurm.sh   # interpro/interpro_manifest.tsv
+sbatch 04_InterProScan/scripts/extract_proteins.slurm.sh          # gff_cleaned/ -> interpro/proteins/*.faa
+sbatch 04_InterProScan/scripts/build_interpro_manifest.slurm.sh   # interpro/interpro_manifest.tsv
 ```
 
 `interpro_manifest.tsv` for this panel (17 genomes, `CHUNK_SIZE=1000`): **184 total chunks**.
@@ -800,10 +800,10 @@ Submit the array job with:
 ```bash
 mkdir -p interpro/logs
 N=$(($(wc -l < interpro/interpro_manifest.tsv) - 1))
-sbatch --array=1-${N}%20 workflow/step04_interproscan/interproscan_array_job.slurm.sh
+sbatch --array=1-${N}%20 04_InterProScan/scripts/interproscan_array_job.slurm.sh
 ```
 (currently 184, but always recomputed from the manifest, not hardcoded - see
-[`04_InterProScan/README.md`](../../docs/step04_interproscan.md) for why: a bare
+[`04_InterProScan/README.md`](../../04_InterProScan/README.md) for why: a bare
 `sbatch interproscan_array_job.slurm.sh` with no `--array=...` only runs 1 smoke-test task).
 
 Protein extraction ran on `gff_cleaned/` (step 02's TE-kill-list output — organelle,
@@ -815,7 +815,7 @@ chunks completed (each chunk's `.out` ends with `Finished <genome> chunk <N>`).
 Combines the per-chunk InterProScan output into one lookup table per genome
 (`interpro/interpro_lookup/`) and checks completeness:
 ```bash
-sbatch workflow/step04_interproscan/merge_interpro_job.slurm.sh
+sbatch 04_InterProScan/scripts/merge_interpro_job.slurm.sh
 ```
 A protein reported as absent from the chunk output is a `NOTE`, not an error: InterProScan only
 writes a row when it finds a hit, so it is a protein with no domain hits. Only a missing chunk
@@ -826,7 +826,7 @@ file (`WARNING`) means the results are incomplete.
 Writes the `InterPro:`/`PFAM:` evidence into the `Dbxref=` of each CDS line, reading
 `gff_cleaned/` and writing new GFFs to `gff_with_interpro/` (the input is never modified):
 ```bash
-sbatch workflow/step04_interproscan/update_interpro_in_gff.slurm.sh
+sbatch 04_InterProScan/scripts/update_interpro_in_gff.slurm.sh
 ```
 This ran successfully; `gff_with_interpro/` is the input for step 05.
 
@@ -842,7 +842,7 @@ Run **once**, after [step 04](#04--interproscan), on `gff_with_interpro/` (the G
 domain evidence written in), so that the domain columns and plots are real. Output folder for
 this run: `annotation_check/`.
 ```bash
-sbatch workflow/step05_cross_genome_annotation_integration/analyze_input_gffs_job.sh
+sbatch 05_Cross-genome_annotation_integration/scripts/analyze_input_gffs_job.sh
 ```
 
 **Genes per genome** - 9,601 to 10,464 protein-coding genes per genome, split by whether the
@@ -885,14 +885,14 @@ Also in that folder: `03_gene_overlap_counts.png` (whole-gene overlap, UTR inclu
 ### Prepare the GFFs for Liftoff
 
 No genes are removed by a kill list for this species (no `gff_curated/`), so
-[`prepare_for_liftoff_job.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-3-prepare-the-gffs-for-liftoff)
+[`prepare_for_liftoff_job.sh`](../../05_Cross-genome_annotation_integration/README.md#step-3-prepare-the-gffs-for-liftoff)
 reads `gff_with_interpro/` (step 04's output) directly and writes to `gff_for_liftoff/`: genes
 reduced to their coding sequence (no UTRs), protein-coding genes and pseudogenes unified to
 `protein_coding_gene`, and tRNA genes given their own type (`tRNA_gene`) so Liftoff - which only
 transfers the types in `liftoff_feature_types.txt` (here just `protein_coding_gene`) - does not
 copy them onto other genomes. Each genome keeps its own non-coding genes.
 ```bash
-sbatch workflow/step05_cross_genome_annotation_integration/prepare_for_liftoff_job.sh
+sbatch 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh
 ```
 
 Result (`gff_for_liftoff/prepare_for_liftoff_report.tsv`), per genome: transcripts processed, UTR
@@ -965,18 +965,18 @@ Gene types changed (only where the type had to change):
 
 ### Liftoff (all-against-all)
 
-[`liftoff_all_vs_all.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-4-liftoff)
+[`liftoff_all_vs_all.sh`](../../05_Cross-genome_annotation_integration/README.md#step-4-liftoff)
 lifts every genome's prepared annotation (`gff_for_liftoff/`) onto every other genome's
 FASTA (`genomes/`) - 17 genomes, so 272 pairs. Run as one job per source genome:
 ```bash
 mkdir -p liftoff_output/logs
-sbatch --array=1-17 workflow/step05_cross_genome_annotation_integration/liftoff_all_vs_all.sh
+sbatch --array=1-17 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
 ```
 Results go to `liftoff_output/polished/`, job logs to `liftoff_output/logs/`. Resubmitting skips pairs that are already done.
 
 ### Build each genome's final annotation
 
-[`build_final_annotation_basic.sh`](../../docs/step05_cross_genome_annotation_integration.md#step-5-build-each-genomes-final-annotation)
+[`build_final_annotation_basic.sh`](../../05_Cross-genome_annotation_integration/README.md#step-5-build-each-genomes-final-annotation)
 builds one annotation per genome anchored on its own coordinates. The reference is AF293 (first line
 of `genome_order.txt`). The layers are the reference's confident transfers (`main`), then the
 genome's own annotation from `gff_for_liftoff/` - which is where its non-coding genes come back in -
@@ -984,15 +984,15 @@ then the other genomes' good transfers (`good_<genome>`), then everything left (
 Run after all Liftoff jobs have finished, one job per genome:
 ```bash
 mkdir -p expanded_annotation/logs
-sbatch --array=1-17 workflow/step05_cross_genome_annotation_integration/build_final_annotation_basic.sh
+sbatch --array=1-17 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
 ```
 Results: `expanded_annotation/<genome>_final_annotation.gff`, job logs in `expanded_annotation/logs/`.
 
 ### Filtering — 7a (with filtering)
 
-Ran [`filter_final_annotation.py`](../../src/pangenome_pipeline/step05_cross_genome_annotation_integration/filter_final_annotation.py)
+Ran [`filter_final_annotation.py`](../../05_Cross-genome_annotation_integration/scripts/filter_final_annotation.py)
 on all 17 genomes (rule details in the
-[general README](../../docs/step05_cross_genome_annotation_integration.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
+[general README](../../05_Cross-genome_annotation_integration/README.md#7a-filter-drop-unsupported-genes-before-get_pangenes)).
 Output: `filtered_annotation/<genome>_final_annotation_filtered.gff`, with the genes typed `gene` and
 renumbered `Afu<strain-index>g<00001, ...>`, original ID kept in `original_ID=`. The figures come from
 `plot_filter_qc_job.sh` (`filter_qc_plots/`).

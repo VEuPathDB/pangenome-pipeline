@@ -1,12 +1,8 @@
-"""alternative_get_panloci/panloci_common.py - helpers shared by step1-3."""
-
-import os
-import subprocess
+"""Alternative_Get_PanLoci_pipeline/scripts/panloci_common.py - helpers shared by step1-3."""
 
 import pytest
-from conftest import REPO_ROOT
 
-SCRIPT = "src/pangenome_pipeline/alternative_get_panloci/panloci_common.py"
+SCRIPT = "Alternative_Get_PanLoci_pipeline/scripts/panloci_common.py"
 
 SAMPLES = (
     "strain_id\tgenome_fasta\tannotation_gff\tanalysis_order\nB \tb.fa\tNA\t2\nA\ta.fa\tgffs/\t1\nC\tc.fa\tNA\t10\n"
@@ -111,25 +107,3 @@ def test_merge_hal_liftover_primary_and_duplicates(pc, write_file, tmp_path):
     ]
     pc.merge_hal_liftover(raw, seed, str(out), str(qc), 5000)  # appends, no second header
     assert len(qc.read_text().splitlines()) == 3
-
-
-def test_runner_finds_the_pipeline_and_defaults_to_alt_panloci_out(tmp_path):
-    """run_get_panloci.sh finds the checkout from its own folder; with no RUN_DIR set it works in
-    output/alternative_get_panloci/ under the folder it is run from (and stops there: no samples.tsv)."""
-    runner = REPO_ROOT / "workflow" / "alternative_get_panloci" / "no_slurm" / "run_get_panloci.sh"
-    env = {k: v for k, v in os.environ.items() if k not in ("PIPELINE_DIR", "RUN_DIR", "SLURM_SUBMIT_DIR")}
-    env["PIPELINE_CONFIG"] = str(tmp_path / "no_config.sh")
-    found = subprocess.run(["bash", str(runner)], cwd=tmp_path, env=env, capture_output=True, text=True, check=False)
-    assert found.returncode == 1
-    assert f"Samples table not found: {tmp_path}/output/alternative_get_panloci/samples.tsv" in found.stderr
-
-    wrong = subprocess.run(
-        ["bash", str(runner)],
-        cwd=tmp_path,
-        env={**env, "PIPELINE_DIR": str(tmp_path)},
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    assert wrong.returncode == 1
-    assert "pipeline not found - export PIPELINE_DIR" in wrong.stderr

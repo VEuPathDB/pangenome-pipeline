@@ -12,22 +12,23 @@ def get_python_version():
 
 
 def get_source_dirs():
-    """Every folder holding Python: the src/ package, species_specific/ and scripts/.
+    """Every folder holding pipeline code: the numbered steps, the alternative pipeline, species_specific/, scripts/ and lib/.
 
-    workflow/ holds only shell job scripts, docs/ only Markdown; results/ only holds snapshot
-    copies of pipeline scripts.
+    There is no single package here, so this replaces the PACKAGE_NAME target. results/ only holds
+    snapshot copies of pipeline scripts.
     """
-    dirs = [Path("species_specific"), Path("scripts"), Path("src")]
+    dirs = sorted(p for p in Path(".").glob("[0-9][0-9]_*") if p.is_dir())
+    dirs += [Path("Alternative_Get_PanLoci_pipeline/scripts"), Path("species_specific"), Path("scripts"), Path("lib")]
     return [str(d) for d in dirs if d.is_dir()]
 
 
 def get_script_dirs():
-    """mypy targets: the src/ package as one, plus every other folder that directly contains .py files.
+    """Every folder that directly contains .py files, for per-folder mypy runs.
 
-    Loose scripts outside the package are checked one folder at a time, as some basenames repeat.
+    Scripts import their siblings via sys.path (e.g. plot_occupancy), and some basenames repeat
+    across steps, so mypy is run once per folder to avoid duplicate-module errors.
     """
-    loose = {str(p.parent) for d in SOURCE_DIRS if d != "src" for p in Path(d).rglob("*.py")}
-    return ["src", *sorted(loose)]
+    return sorted({str(p.parent) for d in SOURCE_DIRS for p in Path(d).rglob("*.py")})
 
 
 def get_toml_files():

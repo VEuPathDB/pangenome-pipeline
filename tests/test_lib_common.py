@@ -1,13 +1,10 @@
-"""src/pangenome_pipeline/common - helpers shared across steps."""
+"""lib/pangenome_common - helpers shared across step scripts."""
 
 from pathlib import Path
 
 import pytest
 
-from pangenome_pipeline.common.gff import (
-    DBXREF_RE,
-    ID_RE,
-    PARENT_RE,
+from pangenome_common.gff import (
     biotype_category,
     find_gff,
     gene_description,
@@ -15,8 +12,8 @@ from pangenome_pipeline.common.gff import (
     infer_biotype,
     parse_attributes,
 )
-from pangenome_pipeline.common.intervals import merged_len, segments_overlap_bp
-from pangenome_pipeline.common.io import load_extra_genes, read_id_list, read_paf, read_strains
+from pangenome_common.intervals import merged_len, segments_overlap_bp
+from pangenome_common.io import read_id_list, read_paf, read_strains
 
 
 def test_merged_len_half_open():
@@ -138,17 +135,3 @@ def test_gene_description_first_non_empty_and_decoded():
     assert gene_description({"description": "", "product": "kinase"}) == "kinase"
     assert gene_description({"Name": "abc"}) == "abc"
     assert gene_description({}) == ""
-
-
-def test_attribute_regexes_match_whole_keys_only():
-    attrs = "ID=g1.t1;Parent=g1;Dbxref=InterPro:IPR1,PFAM:PF2;orig_ID=x"
-    assert ID_RE.search(attrs).group(1) == "g1.t1"
-    assert PARENT_RE.search(attrs).group(1) == "g1"
-    assert DBXREF_RE.search(attrs).group(1) == "InterPro:IPR1,PFAM:PF2"
-    assert ID_RE.search("orig_ID=x;Name=y") is None
-
-
-def test_load_extra_genes_pairs(tmp_path):
-    tsv = tmp_path / "extra.tsv"
-    tsv.write_text("# genome\tgene\nAF293\tAfu1g001\n\nA1163\tg2\n")
-    assert load_extra_genes(tsv) == {("AF293", "Afu1g001"), ("A1163", "g2")}

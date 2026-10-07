@@ -6,14 +6,12 @@ broken imports (including the sibling-script imports), syntax errors and argpars
 
 import os
 import py_compile
-import shutil
 import subprocess
 import sys
 import warnings
 from pathlib import Path
 
 import pytest
-from conftest import module_name
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -44,15 +42,9 @@ def test_python_compiles(path, tmp_path):
 def test_python_help(path):
     script = REPO_ROOT / path
     env = {**os.environ, "MPLBACKEND": "Agg", "PYTHONDONTWRITEBYTECODE": "1"}
-    # package modules run the way the jobs run them; loose scripts from their own folder
-    cmd, cwd = (
-        ([sys.executable, "-m", module_name(path)], REPO_ROOT)
-        if module_name(path)
-        else ([sys.executable, script.name], script.parent)
-    )
     result = subprocess.run(
-        [*cmd, "--help"],
-        cwd=cwd,
+        [sys.executable, script.name, "--help"],
+        cwd=script.parent,
         env=env,
         capture_output=True,
         text=True,
@@ -66,14 +58,3 @@ def test_python_help(path):
 def test_shell_syntax(path):
     result = subprocess.run(["bash", "-n", str(REPO_ROOT / path)], capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr
-
-
-def test_uv_lock_matches_pyproject():
-    """Jobs run the Python code from a venv made with `uv sync --frozen` - uv.lock must be current."""
-    uv = shutil.which("uv")
-    if uv is None:
-        pytest.skip("uv not installed")
-    result = subprocess.run(
-        [uv, "lock", "--check", "--offline"], cwd=REPO_ROOT, capture_output=True, text=True, check=False
-    )
-    assert result.returncode == 0, "uv.lock is out of date - run `uv lock`:\n" + result.stderr

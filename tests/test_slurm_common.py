@@ -2,22 +2,11 @@
 
 import os
 import subprocess
-from pathlib import Path
 
 import pytest
 from conftest import REPO_ROOT
 
 COMMON = REPO_ROOT / "lib" / "slurm_common.sh"
-
-# How every job script finds the pipeline (see lib/slurm_common.sh). tests/test_workflow_layout.py
-# checks that each job under workflow/ starts with it.
-PREAMBLE = (
-    '_pd="${PIPELINE_DIR:-$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)}"\n'
-    '[[ -f "$_pd/lib/slurm_common.sh" ]] || { _pd="${SLURM_SUBMIT_DIR:-$PWD}"; '
-    'while [[ "$_pd" != / && ! -f "$_pd/lib/slurm_common.sh" ]]; do _pd="$(dirname "$_pd")"; done; }\n'
-    'source "$_pd/lib/slurm_common.sh" || '
-    '{ echo "ERROR: pipeline not found - export PIPELINE_DIR=/path/to/pangenome-pipeline" >&2; exit 1; }\n'
-)
 
 
 def _bash(script, cwd, **env):
@@ -28,96 +17,38 @@ def _bash(script, cwd, **env):
 
 @pytest.fixture
 def project(tmp_path):
-    """A species project folder: inputs only, no pipeline code in it."""
-    project = tmp_path / "project"
-    project.mkdir()
-    (project / "genome_order.txt").write_text("ME49\n")
-    return project
+    """A project folder laid out like a real one: the pipeline's lib/ and a step folder in it."""
+    (tmp_path / "lib").symlink_to(REPO_ROOT / "lib")
+    step = tmp_path / "05_step" / "scripts"
+    step.mkdir(parents=True)
+    (step / "tool.py").write_text("")
+    return tmp_path
 
 
-def _job(folder, body):
-    """A job script at folder/slurm_script that starts with the standard preamble."""
-    folder.mkdir(parents=True, exist_ok=True)
-    job = folder / "slurm_script"
-    job.write_text(f"#!/bin/bash\nset -euo pipefail\n{PREAMBLE}{body}\n")
-    return job
-
-
-def _run_job(job, cwd, **env):
-    env = {k: v for k, v in {**os.environ, **env}.items() if v is not None}
-    return subprocess.run(["bash", str(job)], cwd=cwd, env=env, capture_output=True, text=True, check=False)
-
-
-def test_job_finds_pipeline_from_pipeline_dir(project, tmp_path):
-    """Under sbatch the job runs from a spool copy, so it needs PIPELINE_DIR (passed through by sbatch)."""
-    job = _job(tmp_path / "spool", 'echo "$PIPELINE_DIR|$PROJECT_DIR|$OUTPUT_DIR|$STEP05_OUT"')
-    result = _run_job(job, project, PIPELINE_DIR=str(REPO_ROOT), SLURM_SUBMIT_DIR=str(project))
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == (
-        f"{REPO_ROOT}|{project}|{project}/output|{project}/output/step05_cross_genome_annotation_integration"
+def test_find_script_from_submit_dir(project, tmp_path_factory):
+    """Under sbatch the wrapper runs from a spool copy, so the path comes from SLURM_SUBMIT_DIR."""
+    spool = tmp_path_factory.mktemp("spool")
+    job = spool / "slurm_script"
+    job.write_text(
+        '#!/bin/bash\nset -euo pipefail\nsource "${SLURM_SUBMIT_DIR:-$PWD}/lib/slurm_common.sh" || exit 1\n'
+        'find_script PY 05_step/scripts/tool.py\necho "$PY"\n'
     )
-
-
-def test_job_finds_pipeline_from_its_own_location(project, tmp_path):
-    """Run directly with bash, a job under workflow/stepNN_*/ finds the checkout it sits in."""
-    checkout = tmp_path / "checkout"
-    (checkout / "lib").mkdir(parents=True)
-    (checkout / "lib" / "slurm_common.sh").write_text(COMMON.read_text())
-    job = _job(checkout / "workflow" / "step01_x", 'echo "$PIPELINE_DIR"')
-    result = _run_job(job, project, PIPELINE_DIR=None, SLURM_SUBMIT_DIR=None)
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == str(checkout)
-
-
-def test_job_finds_pipeline_above_the_submit_folder(tmp_path):
-    """A checkout cloned into the project root is still found from the submit folder."""
-    project = tmp_path / "clone"
-    (project / "lib").mkdir(parents=True)
-    (project / "lib" / "slurm_common.sh").symlink_to(REPO_ROOT / "lib" / "slurm_common.sh")
-    job = _job(tmp_path / "spool", 'echo "$PROJECT_DIR"')
-    result = _run_job(job, project, PIPELINE_DIR=None, SLURM_SUBMIT_DIR=str(project))
-    assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == str(project)
-
-
-def test_job_without_pipeline_stops(tmp_path):
-    job = _job(tmp_path / "spool", "echo still-running")
-    result = _run_job(job, tmp_path, PIPELINE_DIR=None, SLURM_SUBMIT_DIR=str(tmp_path))
-    assert result.returncode == 1
-    assert "export PIPELINE_DIR" in result.stderr
-    assert "still-running" not in result.stdout
-
-
-def test_output_dir_setting(project):
-    script = f'source {COMMON}; echo "$OUTPUT_DIR|$STEP01_OUT|$STEP08_OUT|$ALT_PANLOCI_OUT"'
-    relative = _bash(script, project, OUTPUT_DIR="run1").stdout.strip()
-    assert relative == (
-        f"{project}/run1|{project}/run1/step01_genome_selection_qc|"
-        f"{project}/run1/step08_pangenome_visualisation|{project}/run1/alternative_get_panloci"
+    result = subprocess.run(
+        ["bash", str(job)],
+        cwd=spool,
+        env={**os.environ, "SLURM_SUBMIT_DIR": str(project)},
+        capture_output=True,
+        text=True,
+        check=False,
     )
-    absolute = _bash(script, project, OUTPUT_DIR="/scratch/x", STEP08_OUT="/elsewhere").stdout.strip()
-    assert absolute == "/scratch/x|/scratch/x/step01_genome_selection_qc|/elsewhere|/scratch/x/alternative_get_panloci"
-
-
-def test_project_config_overrides_pipeline_config(project, tmp_path):
-    pipeline_cfg = tmp_path / "cfg.sh"
-    pipeline_cfg.write_text("GET_PANGENES_ENV=/from/pipeline\nENV_SYNTENY=pipeline_synteny\n")
-    (project / "pipeline_config.sh").write_text("ENV_SYNTENY=project_synteny\nOUTPUT_DIR=/proj/out\n")
-    script = f'source {COMMON}; echo "$GET_PANGENES_ENV $ENV_SYNTENY $STEP04_OUT"'
-    result = _bash(script, project, PIPELINE_CONFIG=str(pipeline_cfg))
-    assert result.stdout.strip() == "/from/pipeline project_synteny /proj/out/step04_interproscan"
-
-
-def test_find_script_resolves_from_the_pipeline_root(project):
-    result = _bash(f'source {COMMON}; find_script F lib/slurm_common.sh; echo "$F"', project)
     assert result.returncode == 0, result.stderr
-    assert result.stdout.strip() == f"{REPO_ROOT}/lib/slurm_common.sh"
+    assert result.stdout.strip() == f"{project}/05_step/scripts/tool.py"
 
 
 def test_find_script_missing_stops_the_job(project):
-    result = _bash(f"set -u; source {COMMON}; find_script PY workflow/nope.py; echo still-running", project)
+    result = _bash(f"set -u; source {COMMON}; find_script PY 05_step/scripts/nope.py; echo still-running", project)
     assert result.returncode == 1
-    assert "cannot find workflow/nope.py in the pipeline" in result.stderr
+    assert "cannot find nope.py (submit from the project folder)" in result.stderr
     assert "still-running" not in result.stdout
 
 
@@ -162,84 +93,9 @@ def test_activate_env_keeps_nounset_setting(project, fake_micromamba, tmp_path, 
 
 
 def test_activate_env_errors(project, fake_micromamba, tmp_path):
-    micromamba = {"ENV_BACKEND": "micromamba", "PIPELINE_VENV": "/nonexistent"}
-    no_config = _bash(f"source {COMMON}; activate_env x", project, MAMBA_EXE="", MAMBA_ROOT_PREFIX="", **micromamba)
+    no_config = _bash(f"source {COMMON}; activate_env x", project, MAMBA_EXE="", MAMBA_ROOT_PREFIX="")
     assert no_config.returncode == 1 and "MAMBA_EXE MAMBA_ROOT_PREFIX not set" in no_config.stderr
 
-    env = {"MAMBA_EXE": str(fake_micromamba), "MAMBA_ROOT_PREFIX": str(tmp_path), **micromamba}
+    env = {"MAMBA_EXE": str(fake_micromamba), "MAMBA_ROOT_PREFIX": str(tmp_path)}
     missing = _bash(f"source {COMMON}; activate_env missing", project, **env)
     assert missing.returncode == 1 and "could not activate micromamba environment 'missing'" in missing.stderr
-
-    bad = _bash(f"source {COMMON}; activate_env x", project, ENV_BACKEND="docker")
-    assert bad.returncode == 1 and "ENV_BACKEND must be" in bad.stderr
-
-    no_image = _bash(f"source {COMMON}; activate_env x", project, ENV_BACKEND="container", CONTAINER_DIR=str(tmp_path))
-    assert no_image.returncode == 1 and "no container for 'x'" in no_image.stderr
-
-
-def _no_envs(tmp_path):
-    """Settings with no micromamba, conda or containers configured."""
-    path = ":".join(d for d in os.environ["PATH"].split(":") if not (Path(d) / "conda").exists())
-    return {"MAMBA_EXE": "", "CONDA_EXE": "", "CONTAINER_DIR": "", "PIPELINE_VENV": "/nonexistent", "PATH": path}
-
-
-def test_activate_env_falls_back_to_path(project, tmp_path):
-    """Nothing configured: the job uses what's already on PATH (modules etc.) and says so."""
-    result = _bash(f"set -u; source {COMMON}; activate_env synteny", project, **_no_envs(tmp_path))
-    assert result.returncode == 0, result.stderr
-    assert "activate_env synteny: path" in result.stderr
-
-
-def test_activate_env_puts_venv_python_on_path(project, tmp_path):
-    venv = tmp_path / "venv"
-    (venv / "bin").mkdir(parents=True)
-    (venv / "bin" / "python3").write_text("#!/bin/bash\necho venv-python\n")
-    (venv / "bin" / "python3").chmod(0o755)
-    env = {**_no_envs(tmp_path), "PIPELINE_VENV": str(venv)}
-    result = _bash(f"source {COMMON}; activate_env synteny; python3", project, **env)
-    assert result.stdout.strip() == "venv-python", result.stderr
-
-
-@pytest.fixture
-def fake_apptainer(tmp_path):
-    """A stand-in for apptainer: `exec IMG sh -c ...` lists the image's tools (the image file's lines);
-    `exec --bind B IMG TOOL ARGS` prints what would run."""
-    bindir = tmp_path / "bin"
-    bindir.mkdir()
-    exe = bindir / "apptainer"
-    exe.write_text(
-        "#!/bin/bash\n"
-        '[[ "$1" == --silent ]] && shift; shift\n'
-        'if [[ "$1" == --bind ]]; then echo "bind=$2 img=$(basename "$3") ${*:4}"; else cat "$1"; fi\n'
-    )
-    exe.chmod(0o755)
-    return bindir
-
-
-def test_activate_env_container(project, tmp_path, fake_apptainer):
-    """A folder of images per environment: each image's tools get a wrapper, the first image wins."""
-    images = tmp_path / "containers" / "synteny"
-    images.mkdir(parents=True)
-    (images / "a_minimap2.sif").write_text("minimap2\nsamtools\nbash\n")
-    (images / "b_skani.sif").write_text("skani /opt/skani/skani\nsamtools\nbad|name\n")
-    env = _no_envs(tmp_path)
-    env.update(
-        CONTAINER_DIR=str(tmp_path / "containers"),
-        PATH=f"{fake_apptainer}:{env['PATH']}",
-        TMPDIR=str(tmp_path),
-        CONTAINER_BINDS="/data",
-    )
-    script = f"source {COMMON}; activate_env synteny; minimap2 -x asm10; samtools faidx; skani dist"
-    result = _bash(script, project, **env)
-    assert result.returncode == 0, result.stderr
-    assert "activate_env synteny: container" in result.stderr
-    shims = Path(
-        _bash(f"source {COMMON}; activate_env synteny; dirname $(command -v minimap2)", project, **env).stdout.strip()
-    )
-    assert not (shims / "bash").exists(), "the host's own programs are not wrapped"
-    binds = f"{project},{REPO_ROOT},{project}/output,/data"
-    assert result.stdout.splitlines() == [
-        f"bind={binds} img=a_minimap2.sif minimap2 -x asm10",
-        f"bind={binds} img=a_minimap2.sif samtools faidx",
-        f"bind={binds} img=b_skani.sif /opt/skani/skani dist",  # called at its real path
-    ]

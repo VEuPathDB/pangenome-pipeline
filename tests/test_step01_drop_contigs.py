@@ -1,11 +1,11 @@
-"""step01_genome_selection_qc/drop_contigs.py - removing contigs from assemblies and GFFs."""
+"""01_Genome_Selection_QC/scripts/drop_contigs.py - removing contigs from assemblies and GFFs."""
 
 import io
 
 import pytest
 from conftest import gff_line
 
-SCRIPT = "src/pangenome_pipeline/step01_genome_selection_qc/drop_contigs.py"
+SCRIPT = "01_Genome_Selection_QC/scripts/drop_contigs.py"
 
 
 @pytest.fixture(scope="module")
@@ -57,30 +57,3 @@ def test_filter_gff_drops_features_pragmas_and_embedded_fasta(dc, write_file):
 def test_gff_seqids_reads_columns_pragmas_and_fasta(dc, write_file):
     text = "##sequence-region chrA 1 5\n" + gff_line("chrB", "gene", 1, 5, "+", "ID=g") + "##FASTA\n>chrC\nAC\n"
     assert dc.gff_seqids(write_file("g.gff3", text)) == {"chrA", "chrB", "chrC"}
-
-
-def test_drop_contigs_job_reads_the_list_from_step01_out(run_job, tmp_path):
-    """Submitted from a project folder: the list is in output/step01_*/, genomes/ + gff_originals/ edited in place."""
-    project = tmp_path / "project"
-    (project / "genomes").mkdir(parents=True)
-    (project / "gff_originals").mkdir()
-    (project / "genomes" / "G1.fna").write_text(">chr1\nACGT\n>mito\nAAAA\n")
-    (project / "gff_originals" / "G1.gff3").write_text(
-        gff_line("chr1", "gene", 1, 4, "+", "ID=g1") + gff_line("mito", "gene", 1, 4, "+", "ID=g2")
-    )
-    step_out = project / "output" / "step01_genome_selection_qc"
-    step_out.mkdir(parents=True)
-    (step_out / "drop_contigs.txt").write_text("G1 mito\n")
-
-    result = run_job("workflow/step01_genome_selection_qc/drop_contigs_slurm.sh", project)
-    assert result.returncode == 0, result.stderr
-    assert (project / "genomes" / "G1.fna").read_text() == ">chr1\nACGT\n"
-    assert "g2" not in (project / "gff_originals" / "G1.gff3").read_text()
-
-
-def test_drop_contigs_job_without_list_names_the_new_path(run_job, tmp_path):
-    project = tmp_path / "project"
-    project.mkdir()
-    result = run_job("workflow/step01_genome_selection_qc/drop_contigs_slurm.sh", project)
-    assert result.returncode == 1
-    assert f"{project}/output/step01_genome_selection_qc/drop_contigs.txt not found" in result.stderr
