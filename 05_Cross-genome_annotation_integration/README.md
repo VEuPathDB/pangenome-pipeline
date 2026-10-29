@@ -1,882 +1,711 @@
-# 05 – Cross-genome annotation integration (all-vs-all approach)
+# 05 – Cross-genome annotation integration
 
-***Purpose:*** To obtain accurate and consistent gene annotations across all genome assemblies, reducing annotation-related biases in the pangenome analysis.
+***Purpose***: give every genome of the panel a **consistent annotation**, built **gene by gene for the whole panel**:
+every gene gets one model, chosen once with the evidence of all genomes, and the same model is used in every genome
+where it fits.
 
+Pangenome analysis assumes the annotation is consistent across genomes: a gene present in a genome should be called
+there. But the genomes' annotations come from different groups and methods, so the same gene can be called in one
+strain and missed in another, split in one and fused in another, or start at a different codon. This step transfers
+every genome's genes onto every other genome (all-vs-all Liftoff), groups the versions of each gene across genomes
+(**baskets**), chooses one model per gene, and writes each genome's annotation from those models.
 
-A key premise of pangenome analysis is that gene annotation has to be **consistent across
-every genome** in the set. If a gene is genuinely present in a genome, its annotation should
-call it - a real locus missing from the pangenome matrix just because one genome's annotation
-happened to miss it is an artefact, not biology. In practice, genome annotations
-are frequently produced by different research groups using different tools and methodologies,
-and depending on the tool/evidence used, the same real gene can get called in one strain's
-annotation and missed in another's - not because the gene is truly absent, but because of how
-it was annotated. 
-
-We therefore developed a pipeline to **transfer and integrate gene
-annotations**, producing a more consistent annotation across genomes of the same species.
-
-Nevertheless, this approach has important limitations. Even when a transferred gene model contains a valid open reading frame, the pipeline cannot determine whether the gene is active or functional. A gene may have its expression affected by mutations in regulatory regions that are not evaluated by the pipeline. Moreover, pseudogenes are also considered in the pipeline; although disrupted genes may contain a genuine loss-of-function mutation, the apparently disruption could also be result from a sequencing or assembly error. Distinguishing among these possibilities is not trivial and is beyond the scope of this pipeline at this moment. Therefore, the presence of an annotated gene model should not necessarily be interpreted as evidence that the gene is functional.
-
-This pipeline builds that consistent annotation around an **all-vs-all Liftoff transfer**:
-every genome's genes get transferred onto every other genome. The **reference** - the one
-genome whose annotation you trust the most, picked before anything else runs - is transferred
-first as the trusted `main` layer. Then **two distinct
-approaches exist to build the final annotation**, complementing each
-genome's annotation with its own original annotation or the ones coming from other strains' genomes. In summary, the approaches are:
-
-- [Step 5](#step-5-build-each-genomes-final-annotation-priority-order) - a fixed priority order
-  of sources: only the reference's "good" transfers first (valid gene model, high enough
-  coverage and sequence identity), then that genome's own original annotation, then every other
-  genome's transfers - "good" ones before low-confidence leftovers - so one genome's weak
-  transfer never blocks a better version of the same gene coming from a different genome.
-- [Step 8](#step-8-build-each-genomes-final-annotation-best-model) - SADIK TO WRITE HERE
-
-
-
+A **basket** holds all the versions of one gene across the panel: each genome's own gene at that place, and the
+transfers that land on it from the other genomes. One basket = one gene of the panel; its chosen model (the
+**winner**) is the gene each genome takes. The details are in [The idea](#the-idea).
 
 ## Table of contents
 
-1. [Native annotation check](#step-1-native-annotation-check)
-2. [Remove specific genes from the GFFs (optional, manual kill list)](#step-2-remove-specific-genes-from-the-gffs-optional-manual-kill-list)
-3. [Prepare the GFFs for Liftoff](#step-3-prepare-the-gffs-for-liftoff)
-4. [Liftoff](#step-4-liftoff)
-5. [Build each genome's final annotation (priority order)](#step-5-build-each-genomes-final-annotation-priority-order)
-6. [Built annotation check (if using Step 5)](#step-6-built-annotation-check-if-using-step-5)
-7. [Final annotation (if using Step 5, pre-get_pangenes)](#step-7-final-annotation-if-using-step-5-pre-get_pangenes)
-   - [7a. Filter (drop unsupported genes before get_pangenes)](#7a-filter-drop-unsupported-genes-before-get_pangenes)
-   - [7b. No filtering (tag, decide after get_pangenes)](#7b-no-filtering-tag-decide-after-get_pangenes)
-8. [Build each genome's final annotation (best model)](#step-8-build-each-genomes-final-annotation-best-model)
+- [05 – Cross-genome annotation integration](#05--cross-genome-annotation-integration)
+  - [Table of contents](#table-of-contents)
+  - [Rationale](#rationale)
+  - [Dependencies](#dependencies)
+  - [Step 1: Native annotation check](#step-1-native-annotation-check)
+  - [Step 2: Remove specific genes (optional, manual kill list)](#step-2-remove-specific-genes-optional-manual-kill-list)
+  - [Step 3: Prepare the GFFs for Liftoff](#step-3-prepare-the-gffs-for-liftoff)
+  - [Step 4: Liftoff, all against all](#step-4-liftoff-all-against-all)
+  - [Step 5: Basket annotation](#step-5-basket-annotation)
+    - [The idea](#the-idea)
+    - [What step 5 does](#what-step-5-does)
+    - [Genes in tandem arrays](#genes-in-tandem-arrays)
+    - [No gene is lost without a reason](#no-gene-is-lost-without-a-reason)
+    - [Settings](#settings)
+    - [Running it](#running-it)
+    - [Outputs](#outputs)
+    - [Attributes written in the GFFs](#attributes-written-in-the-gffs)
+    - [Scripts](#scripts)
+
+## Rationale
+
+Genes are products of evolution. Strains of the same species share most of their genes, and the structure of a gene (its
+exons and introns) is expected to be largely conserved among them. How much sequence varies depends on the species (how
+long ago its lineages diverged, its genetic diversity, recombination and population structure). But even in diverse
+species, most genes are under negative (purifying) selection, which conserves both their protein sequence and their
+structure: a mutation that broke or rearranged such a gene would probably be eliminated by selection. Real differences
+in sequence and structure between strains are expected mainly in genes under diversifying selection, such as surface
+antigens (e.g. the S-antigen of *Plasmodium*, whose orthologs can diverge so much that they are assigned to different
+pangenes or orthogroups) and fast-evolving multigene families.
+
+Gene content can also differ between strains, and finding these differences, which genes are shared by all strains and
+which are present in only some of them, is the main reason to build a pangenome. It is therefore essential that a gene
+reported as present or absent in a strain is really so. New genes arise in a limited number of ways: duplication of an
+existing gene followed by divergence, horizontal gene transfer, introgression from a divergent lineage, or *de novo*
+origin from non-coding sequence. A gene can also be lost in some lineages. In eukaryotes, where horizontal gene transfer
+is rare (unlike in prokaryotes, whose gene content can vary widely even between close strains), strains of one species
+have diverged only recently, so few genes are expected to have been gained or lost since the strains diverged from each
+other. A gene found in only some strains is therefore worth checking, and if it is real it should still look like a
+gene: a valid ORF, and often a protein domain or a homologue in other organisms.
+
+So most genes are expected in every strain, with the same gene model. The available annotations, however, often show the
+same gene modelled differently in different strains, or present in some strains and missing in others. These differences
+usually come from how the strains were annotated and assembled, not from biology. The strains were annotated at
+different times, with different methods and different evidence, and their genome assemblies differ in quality: some are
+more fragmented, so genes fall at contig ends or in gaps, and some have more sequencing errors, such as indels that
+break the reading frame. When these annotations are brought together (this step transfers every strain's genes onto every
+other genome), the differences between them show up as differences between the strains. Some problems in the annotations
+became visible this way.
+
+**Gene models that differ between strains.** The same gene can be modelled differently in different strains: split into
+two or more pieces, missing an exon, with a shifted start or stop, truncated, or fused with a neighbouring gene. For
+most genes, such differences among strains are much more likely artefacts than biology: a difference in how the strains
+were annotated, a limitation of Liftoff, or a sequencing or assembly error in that region (for example an indel that
+shifts the reading frame). These artefacts also affect the pangenome: the same gene, modelled differently in different
+strains, can be split across separate pangenes, so that it looks absent or partial in some strains.
+
+**False genes.** Each strain's annotation contains some potentially false gene models, which may not encode a real
+protein. Because the genes of every strain are transferred onto every genome, a false gene from one annotation ends up
+in all the strains, and the final panel accumulates many of them. A red flag is the number of genes added to the
+reference: in *T. gondii*, the curated ME49 annotation has about 8,000 protein-coding genes, and when every strain's genes
+are simply transferred onto it, the ME49 genome holds 9,348, about 1,300 more.
+
+Telling a false gene from a real one is not easy. A protein domain supports a gene, but its absence does not make the
+gene false, because many real proteins have no conserved domain.
+
+Tools that score how likely a sequence is to be a genuine protein-coding region could help further: PSAURON ([Sommer et
+al. 2025, NAR Genom. Bioinform. 7:lqae189](https://doi.org/10.1093/nargab/lqae189)), for example, assigns such a score
+to a coding DNA or protein sequence; it is used in this pipeline (scores computed in step 04).
+
+Except in the rare cases of a gene that arose *de novo* from non-coding sequence in one strain, a gene that is real in
+one strain is expected to be real in the other strains as well. The opposite is also true: if a gene is thought to be
+false in one strain, it is probably false in all of them.
+
+**Overlapping genes.** Each strain's own annotation has few genes that overlap in their coding regions, but the
+annotation integration creates many. Such an overlap is a strong clue that one of the two gene models is false.
+
+Overlapping genes appear to be much less common in eukaryotes than in prokaryotes and viruses, but they do not seem to
+be that rare when UTRs and introns are considered: in vertebrates, 5-14% of genes were found to overlap another gene,
+most of them through their UTRs ([Makałowska et al. 2007, BMC Evol. Biol.
+7:193](https://doi.org/10.1186/1471-2148-7-193)). UTR overlaps can be frequent in compact genomes: in the microsporidian
+*Antonospora locustae* and in the nucleomorphs (relict algal nuclei) of *Guillardia theta* and *Bigelowiella natans*,
+the mRNA of a gene often continues into the neighbouring gene, on the same or the opposite strand, so that the UTR of
+one gene covers part of its neighbour; the authors also found a few such transcripts among ESTs of the apicomplexan
+*Cryptosporidium* ([Williams et al. 2005, PNAS 102:10936](https://doi.org/10.1073/pnas.0501321102)). Genes nested within
+an intron of another gene also seem to be relatively common in some eukaryotes (about 0.5% of human genes, 2% of
+*Caenorhabditis elegans* genes and 5% of *Drosophila melanogaster* genes; [Kumar 2009, Eukaryot. Cell
+8:1321](https://doi.org/10.1128/EC.00143-09)). **An overlap of UTRs or a gene inside an intron is therefore not
+necessarily a sign of a false gene.**
+
+A real gene inside an intron, however, is not always a gene of interest for the pangenome. In some eukaryotes, genes
+related to transposable elements seem to be often found inside introns, which may act as a safe haven for insertions
+(these genes should have been removed in the [TE clean-up step](../02_TE_annotation_Clean_Up/README.md), but some may
+have remained). In *T. gondii*, we also observed some genes of mitochondrial origin inside introns, probably because of
+the massive insertion of organellar DNA into its nuclear genome: most of these insertions lie within or near genes
+([Namasivayam et al. 2023, PNAS 120:e2308569120](https://doi.org/10.1073/pnas.2308569120)). Neither kind of gene is of
+interest for this pangenome, so both can be removed with no harm to the analysis.
+
+Overlaps that involve the coding sequence, however, seem to be much rarer: among 13,484 human genes with a mouse
+orthologue, about 9% overlap another gene, but only 51 pairs of genes overlap in their coding exons ([Sanna et al. 2008,
+BMC Genomics 9:169](https://doi.org/10.1186/1471-2164-9-169)). Surveys like this were hard to find for fungi and
+protists: most reports describe single cases or antisense transcripts rather than overlapping coding sequences, which
+may itself suggest that such overlaps are uncommon. Because of codon usage, however, the opposite strand of a coding
+sequence is statistically likely to contain open reading frames by chance: even simple eukaryotic genomes contain a very
+large number of such antisense ORFs, most of which do not encode proteins ([Kumar
+2009](https://doi.org/10.1128/EC.00143-09)). False gene models on the opposite strand of a real gene are therefore not
+unexpected.
+
+Antisense transcription also seems to be common in eukaryotes: natural antisense transcripts, mostly non-coding, were
+found on every chromosome of *Toxoplasma gondii* ([Gou et al. 2025, Exp. Parasitol.
+271:108931](https://doi.org/10.1016/j.exppara.2025.108931)), in *Plasmodium falciparum* ([Sorber et al. 2011, Nucleic
+Acids Res. 39:3820](https://doi.org/10.1093/nar/gkq1223)) and in the fungus *Aspergillus nidulans*, where 75% of the
+annotated genes show some antisense transcription ([Sibthorp et al. 2013, BMC Genomics
+14:847](https://doi.org/10.1186/1471-2164-14-847)). An antisense transcript is not the same as a protein-coding gene on
+the opposite strand, but such transcripts may be used as evidence for gene prediction; if so, they may lead to false
+gene models on the opposite strand of real genes, which could explain part of the many overlapping genes we found.
+
+In this pipeline, only overlaps of the coding region are used to flag potential false genes: the coding region of a
+gene spans from its first to its last CDS, introns included, so a gene nested in an intron of another also counts as an
+overlap. Only overlaps on opposite strands are used: two models on the same strand at the same place are versions of
+one gene, settled when its model is chosen. UTR overlaps are not used at the moment.
+
+Whatever the reason a gene is considered false (it loses an overlap with a gene on the opposite strand, the curation of
+the reference removed it, or, not annotated in the reference, it has no protein domain and no valid ORF of at least
+100 aa with a high PSAURON score), it was also transferred to the other strains, so it should be
+removed from all of them, even from the strains where it shows no problem. This is why false genes are removed per
+basket: a basket groups the versions of one gene across the strains, so a false gene can be removed from all of them
+at once.
 
 ## Dependencies
 
 | Program | Used by | Suggestion |
 |---|---|---|
-| AGAT | Step 2, Step 5 | micromamba env (`bioinfo` here) |
-| python3 (standard library only) | Step 3, Step 7a (filter itself), Step 7b | `module load python/3.11.9` (or any python3 on the PATH - nothing else needed) |
-| python3 + pandas + matplotlib | Step 1, Step 6, Step 7a (QC plot) | micromamba env (`synteny` here), already installed if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies) |
-| Liftoff | Step 4 | `module load liftoff` (or your cluster's own) |
+| python3 + pandas + matplotlib | steps 1, 5 | micromamba env (`synteny` here), as for [step 01](../01_Genome_Selection_QC/README.md#dependencies) |
+| python3 (standard library) | steps 2, 3 | any python3 on the PATH |
+| Liftoff | step 4 | `module load liftoff/1.6.3` |
+| blastn, makeblastdb | step 5 | in the `synteny` env |
+| minimap2 | step 5 (comparing models) | in the env, or a module (`MINIMAP2_MODULE`) |
+| miniprot | step 5 (repair) | `module load miniprot/0.18` |
+| PSAURON | step 4 (and step 5 with `RUN_PSAURON="yes"`) | a Singularity container with PSAURON (`.sif`), run with `singularity exec` |
 
-These are hardcoded in each script's `### ADAPT ###` block - edit that block to point to your
-own.
+Each job script loads them in its `### ADAPT ###` block: edit that block for your cluster.
 
-## Steps
+Every job is submitted **from the project folder**: the scripts read and write their folders relative to it.
 
+Rational 
 
-### Step 1: Native annotation check
+## Step 1: Native annotation check
 
-**In short:**
-- Reads every genome's own GFF, **before Liftoff runs** - each genome's annotation exactly as
-  its own source produced it (plus InterPro/PFAM evidence added by step 04).
-- Classifies every gene into protein-coding / pseudogene / tRNA / rRNA / other non-coding /
-  unclassified, whatever naming convention the source annotation used.
-- Checks how many protein-coding genes carry domain evidence.
-- Counts overlapping gene pairs per genome, same-strand vs. opposite-strand, at three levels of
-  strictness, plus a minor/substantial/contained severity breakdown.
-- Read-only - never edits any GFF.
+Reads every genome's own GFF **with step 04's InterPro/Pfam hits** ([step 04](../04_Protein_evidence/README.md)) and
+writes, for every gene, what it is (protein-coding, pseudogene, tRNA, rRNA, other non-coding, unclassified) and whether
+it has a protein domain. Step 5 reads these tables (`<genome>_gene_classification.tsv`, column `has_domain`).
+Read-only: no GFF is changed.
 
-Scripts: [`scripts/analyze_input_gffs_job.sh`](scripts/analyze_input_gffs_job.sh) ·
-[`scripts/analyze_input_gffs.py`](scripts/analyze_input_gffs.py). Read-only - it never edits any GFF.
-Run once, after [step 04 - InterProScan](../04_InterProScan/README.md) - the domain-evidence
-columns and plots (`has_domain`) only mean anything once InterPro/PFAM hits are written into the
-GFFs.
+- **Classification**: by feature type (`protein_coding_gene`, `pseudogene`, `tRNA_gene`, ...), else by attribute
+  (`gene_biotype=`, `biotype=`), else by what is nested under the gene (a `CDS` makes it protein-coding, a
+  `pseudogenic_transcript` a pseudogene, ...). A gene none of these settles is reported as unclassified.
+- **Domain**: a protein-coding gene has a domain when one of its CDS lines carries an `InterPro:` or `PFAM:` entry in
+  `Dbxref=`.
+- **Overlapping genes**: per genome, protein-coding and pseudogene pairs that overlap, same or opposite strand, at three
+  levels (gene span, CDS/exon span, CDS-to-CDS), with the CDS overlaps graded minor (< 20% of the smaller gene's CDS),
+  substantial (20-80%) or contained (>= 80%).
 
-**How genes are classified.** Different sources describe genes differently - one might call a
-protein-coding gene `protein_coding_gene` directly, another plain `gene` with a
-`gene_biotype=protein_coding` attribute, another neither - so this also doubles as a check that
-this project's downstream scripts are actually reading each genome's gene calls correctly. For
-each gene-level feature (any feature type containing "gene" - `gene`, `protein_coding_gene`,
-`pseudogene`, `tRNA_gene`, ...), in order:
-1. **By feature type**, if it's one of the specific ones above (`protein_coding_gene`,
-   `pseudogene`, `tRNA_gene`, `rRNA_gene`, `ncRNA_gene`, ...) - no ambiguity, done.
-2. Otherwise (plain `gene`, or anything else not in that list), **by attribute** -
-   `gene_biotype=` (NCBI/GenBank-style) or `biotype=` (Ensembl-style).
-3. Otherwise, **by its own children** - if it has a `CDS` descendant anywhere below it, it's
-   protein-coding; a `tRNA`/`rRNA` descendant makes it that; a `pseudogenic_transcript`
-   descendant makes it a pseudogene; other non-coding RNA descendant types
-   (`ncRNA`/`lnc_RNA`/`snRNA`/`snoRNA`/`miRNA`/`misc_RNA`) bucket together as "other
-   non-coding."
-4. If none of the above gives an answer, the gene is **unclassified** - flagged so it gets a
-   manual look rather than being silently miscounted as something it might not be.
+Scripts: [`analyze_input_gffs_job.sh`](scripts/analyze_input_gffs_job.sh) · [`analyze_input_gffs.py`](scripts/analyze_input_gffs.py)
 
-Every distinct (genome, feature type, how it was classified) combination found is written to
-`feature_attribute_table.tsv` - check this first if a genome's numbers look off, or if any
-gene came back unclassified. A genome reporting zero gene-level features at all means its GFF
-doesn't use "gene" anywhere in its feature type names - a convention this script doesn't
-recognize, worth a manual look at that genome's GFF directly.
-
-**Domain evidence** is the same check the filter ([step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes)) itself uses: a protein-coding
-gene "has a domain" if any of its CDS lines carries an `InterPro:`/`PFAM:` hit in `Dbxref=`.
-Because this check reads step 04's output, that evidence is this project's own InterProScan
-result for every genome. Genes without a hit are not necessarily wrong - many real genes have no
-recognisable domain - but the numbers give a baseline for the "protein domain" evidence that
-the filter step relies on, and `has_domain` in `cds_overlapping_pairs.tsv` helps decide which
-gene of an overlapping pair is the more credible one.
-
-**Overlapping genes** - protein-coding and pseudogene genes only (overlap between two
-non-coding RNA genes, or between a non-coding and a coding one, isn't the
-same-locus-consistency problem this pipeline is checking for) - counted per genome, split by
-whether the pair is on the same strand or opposite strands, at three levels:
-
-- **gene overlap** - do the two genes overlap at all, using the raw `gene` line's own
-  start/end (this includes any annotated UTR);
-- **core-span overlap** - same question, but using only the extent of each gene's CDS/exon
-  (UTR excluded - ignores introns within either gene, just their outer boundary);
-- **CDS-to-CDS collision** - do their actual CDS segments overlap.
-
-
-**CDS-overlap severity.** For every CDS-collision pair, severity is based on how much of the
-overlap covers the ***smaller*** gene's own CDS:
-
-- **minor** (< 20%): likely just gene-model boundary noise, not necessarily a wrong call;
-- **substantial** (20-80%): ambiguous, worth a look;
-- **contained** (≥ 80%): one gene is essentially sitting inside the other - a strong candidate
-  for one of the two being a spurious/duplicate call.
-
-Same rule and thresholds as step 05's own `plot_final_annotation_qc.py` (post-Liftoff build), so
-the two are directly comparable.
-
-#### Running it
-
-**Edit the settings at the top of `analyze_input_gffs_job.sh`**:
-
-| Variable | Default | Meaning |
+| Setting | Default | Meaning |
 |---|---|---|
-| `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line (e.g. `genome_order.txt`) |
-| `GFF_DIR` | `gff_with_interpro` | Directory with every genome's `<genome>.gff3`/`.gff` including InterPro evidence |
-| `OUT_DIR` | `annotation_check` | Where to write the tables and plots |
+| `GENOMES` | `genome_order.txt` | genome names, comma-separated, or a file with one per line |
+| `GFF_DIR` | `gff_with_interpro` | every genome's GFF with step 04's InterPro hits |
+| `OUT_DIR` | `annotation_check` | where the tables and plots go (step 5's `DOMAIN_DIR`) |
 
-**Run:**
 ```bash
-sbatch analyze_input_gffs_job.sh
+sbatch 05_Cross-genome_annotation_integration/scripts/analyze_input_gffs_job.sh
 ```
 
-**Output**, in `OUT_DIR`:
+Output, in `OUT_DIR`: `<genome>_gene_classification.tsv` (one row per gene: ID, type, category, how it was
+classified, `has_domain`, coordinates), `gene_biotype_counts.tsv`, `feature_attribute_table.tsv` (every feature type
+found and how it was classified: look here first if a genome's numbers look wrong), `overlap_counts.tsv`,
+`cds_overlapping_pairs.tsv`, and the plots `01`-`06`.
 
-| File | Shows |
-|---|---|
-| `feature_attribute_table.tsv` | every distinct (genome, feature type, how it was classified) combination found, with a count - start here if a genome's numbers look wrong |
-| `gene_biotype_counts.tsv` | per genome: protein-coding (split by domain evidence present/absent), pseudogene, tRNA, rRNA, other non-coding, unclassified |
-| `overlap_counts.tsv` | per genome: overlapping protein-coding/pseudogene pairs, split same-strand/opposite-strand, for the raw gene-overlap count, the core-span overlap count, and the CDS-collision count - plus, for the CDS-collision pairs, a minor/substantial/contained severity breakdown (both strands combined) |
-| `<genome>_gene_classification.tsv` | one row per gene - id, feature type, category, how it was classified, domain evidence, coordinates |
-| `cds_overlapping_pairs.tsv` | one row per CDS-overlapping gene pair, across every genome - both genes' id, description, coordinates, CDS length and domain evidence (has_domain), plus the overlap in bp and its severity |
-| `01_gene_counts_protein_coding.png` | protein-coding genes (split: has domain evidence / doesn't) + pseudogenes, per genome, with totals labeled on top of each bar |
-| `02_gene_biotype_breakdown.png` | every gene category found, per genome, totals on top |
-| `03_gene_overlap_counts.png` | any overlap at all (raw `gene` line span, UTR included), per genome, split same-strand/opposite-strand, totals on top |
-| `04_core_overlap_counts.png` | core-span (CDS/exon extent, UTR excluded) overlapping gene pairs, per genome, split same-strand/opposite-strand, totals on top - a subset of 03's counts, usually much smaller |
-| `05_cds_overlap_counts.png` | actual CDS-to-CDS collisions, per genome, split same-strand/opposite-strand, totals on top - a subset of 04's counts, shown as its own plot since stacking all three together would make the smaller ones invisible |
-| `06_cds_overlap_severity.png` | the same CDS-collision pairs as 05, both strands combined, split minor/substantial/contained - the pre-Liftoff baseline to compare against step 05's later post-Liftoff `plot_final_annotation_qc.py` output |
+## Step 2: Remove specific genes (optional, manual kill list)
 
-`cds_overlapping_pairs.tsv`'s `gene*_description` comes from `description=` on the gene line
-itself (FungiDB-style) or, if that's absent, `product=` on a descendant CDS/mRNA (NCBI-style) -
-whichever this genome's source annotation actually used. `gene*_has_domain` is blank for a
-pseudogene (not tracked for that category, same as `gene_biotype_counts.tsv`) - for a
-protein-coding gene it can be `False` even when the description itself reads like a real
-function (e.g. "Has domain(s) with predicted role in..."): that description is this genome's
-own prior functional annotation, while `has_domain` here is strictly whether this project's own
-InterProScan run (or the original annotation) left an `InterPro:`/`PFAM:` hit in this gene's
-`Dbxref=` - see the "Known limitation" further down for why a genome's original annotation
-alone can show 0% (which is why this check runs on step 04's output).
+Genes known to be wrong (e.g. genes the reference's curators flagged) are deleted before Liftoff, with every feature
+nested under them. Every genome is copied to `OUT_DIR` (unchanged when it has nothing on the list), so `OUT_DIR`
+replaces the input folder for step 3. Skip this step when there is nothing to remove.
 
-### Step 2: Remove specific genes from the GFFs (optional, manual kill list)
+Kill list: a TSV without header, one gene per line, `genome<TAB>gene_id` (the gene's `ID=`); `#` lines are ignored.
 
-If some genes are confirmed to be wrong and must be deleted (e.g. 5 genes that are known to be wrong in *T. gondii* M49 last annotation), strip them out before Liftoff.
+Scripts: [`remove_genes_from_gff_job.sh`](scripts/remove_genes_from_gff_job.sh) · [`remove_genes_from_gff.py`](scripts/remove_genes_from_gff.py)
 
-Scripts: [`scripts/remove_genes_from_gff_job.sh`](scripts/remove_genes_from_gff_job.sh) ·
-[`scripts/remove_genes_from_gff.py`](scripts/remove_genes_from_gff.py)
-
-- Removing a gene removes every feature nested under it too (mRNA, exon, CDS, UTR, ...), so
-  no orphaned child lines are left behind.
-- The input GFFs are never edited. Every genome in the genome list gets a copy in `OUT_DIR`,
-  with the kill-listed genes stripped from it (a genome with nothing on the list is copied
-  unchanged), so `OUT_DIR` is a complete drop-in replacement for the input directory - point
-  the following steps at it.
-
-**Kill list**: a TSV with no header, one gene per line, two columns - `genome<TAB>gene_id`
-(`#` lines and blank lines are ignored). The ID has to match the gene's `ID=` attribute in
-that genome's GFF; a gene ID only applies to the genome named on its own line.
-
-```
-# kill_list_manual.tsv
-ME49	TGME49_242250
-ME49	TGME49_224780
-```
-
-**Edit the settings at the top of `remove_genes_from_gff_job.sh`**:
-
-| Variable | Default | Meaning |
+| Setting | Default | Meaning |
 |---|---|---|
-| `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line (e.g. `genome_order.txt`) |
-| `GFF_DIR` | `gff_with_interpro` | Directory with every genome's GFF to remove genes from |
-| `KILL_LIST` | `kill_list_manual.tsv` | The kill list TSV described above |
-| `OUT_DIR` | `gff_curated` | Where to write the curated GFFs - must differ from `GFF_DIR` |
+| `GENOMES` | `genome_order.txt` | genome names, comma-separated, or a file with one per line |
+| `GFF_DIR` | `gff_with_interpro` | the GFFs to remove genes from (never edited) |
+| `KILL_LIST` | `kill_list_manual.tsv` | the list above |
+| `OUT_DIR` | `gff_curated` | the curated GFFs, one per genome |
 
-**Run:**
 ```bash
 sbatch 05_Cross-genome_annotation_integration/scripts/remove_genes_from_gff_job.sh
 ```
 
-**Output** - everything goes to `OUT_DIR` (default **`gff_curated/`**, next to `gff_with_interpro/`, in the
-project folder):
+Output: `gff_curated/<genome>.gff3` and `gff_curated/removed_genes_report.tsv` (one row per removed gene). The log
+warns about any ID not found (a typo, or the wrong genome on that line).
 
-| File | What it is |
-|---|---|
-| `gff_curated/<genome>.gff3` | one GFF **per genome in the list** - the kill-listed genes (and everything nested under them) removed; genomes with nothing on the kill list are identical copies. Same file name as the input, so it is a drop-in replacement for `gff_with_interpro/` |
-| `gff_curated/removed_genes_report.tsv` | one row per removed gene: genome, gene ID, feature type, number of GFF lines removed |
-| `remove_genes_from_gff_<jobid>.out` / `.err` | the job logs, in the folder you submitted from (not in `gff_curated/`) |
+## Step 3: Prepare the GFFs for Liftoff
 
-`gff_with_interpro/` itself is never changed. [Step 3](#step-3-prepare-the-gffs-for-liftoff) reads
-`gff_curated/`; if you skip this step (no genes to remove), point step 3 at `gff_with_interpro/` instead.
+Two changes, on copies (the input GFFs are never edited):
 
-**Checking it worked:** the job's `.err` log has one block per genome with kill-listed genes -
-how many genes and GFF lines were removed, per gene - and a `WARNING` for any ID that wasn't
-found (a typo in the ID, or the wrong genome name on that line; nothing is removed for it).
-`<OUT_DIR>/removed_genes_report.tsv` has the same numbers as a table.
+1. **What Liftoff transfers.** Liftoff only transfers the top-level types listed with `-f` (exact match). Each gene is
+   classified (same rules as step 1) and protein-coding genes and pseudogenes are written as `protein_coding_gene`,
+   the type listed in `liftoff_feature_types.txt`. **Non-coding RNA genes** (tRNA, rRNA, other ncRNA) are **removed**,
+   with everything under them: the pangenome is built from protein-coding genes. A gene that cannot be classified is
+   left as it is and reported. Only the type changes: every attribute is kept.
+2. **No UTRs.** Every transcript is reduced to its coding sequence: UTR lines are deleted, the mRNA and its exons are
+   clipped to the CDS extent (an exon outside it is deleted), and each gene is shrunk to its transcripts. Pseudogenes
+   without CDS are not touched.
 
-### Step 3: Prepare the GFFs for Liftoff
+Scripts: [`prepare_for_liftoff_job.sh`](scripts/prepare_for_liftoff_job.sh) · [`prepare_for_liftoff.py`](scripts/prepare_for_liftoff.py)
 
-Scripts: [`scripts/prepare_for_liftoff_job.sh`](scripts/prepare_for_liftoff_job.sh) ·
-[`scripts/prepare_for_liftoff.py`](scripts/prepare_for_liftoff.py)
-
-Two things, done on a copy - the input GFFs are never edited.
-
-**1. Choose what Liftoff transfers.** Liftoff only transfers top-level features whose type is in
-its list: `gene` by default, plus whatever a `-f` types file adds - the match is exact, so
-`protein_coding_gene`, `pseudogene` or `ncRNA_gene` are not transferred unless listed.
-
-Different sources name genes differently (FungiDB: `protein_coding_gene`, `ncRNA_gene`; NCBI:
-plain `gene` for everything, told apart only by `gene_biotype=`). So each gene is first
-classified - same rules as the [native annotation check](#step-1-native-annotation-check): by
-feature type, else `gene_biotype=`/`biotype=`/`ebi_biotype=`, else by what's nested under it -
-then retyped:
-
-- **Protein-coding genes and pseudogenes** get their feature type (column 3) rewritten to
-  `protein_coding_gene`, which is then written into `liftoff_feature_types.txt` - the list
-  passed to Liftoff with `-f`. That's what makes these genes the ones Liftoff transfers.
-- **Non-coding RNA genes** (tRNA, rRNA, other ncRNA) are **removed** from the prepared GFF,
-  with every transcript and exon under them. They are not kept because
-  [step 5](#step-5-build-each-genomes-final-annotation-priority-order)'s AGAT step retypes a
-  `tRNA_gene` as a plain `gene`, which `get_pangenes` would then cluster as if it were a
-  protein-coding gene. The final annotations therefore have no non-coding RNA genes; the
-  original GFF still has them.
-
-A gene that can't be classified at all is left as it is and reported (if it's typed `gene`,
-Liftoff's default would still transfer it).
-
-For protein-coding genes only the feature type changes - every attribute, including the
-biotype, is kept.
-
-**2. Remove the UTRs.** To simplify the GFF before Liftoff, UTR regions are excluded - every
-gene is reduced to just its coding sequence, taken directly from each transcript's `CDS` lines.
-This works whether an annotation lists UTRs explicitly or leaves them implicit (an exon reaching
-past the CDS). For every transcript that has CDS lines:
-
-- UTR lines under it are deleted;
-- the transcript (mRNA) is shrunk to the CDS extent;
-- each exon is clipped to the CDS extent, and an exon entirely outside it (a UTR-only exon) is
-  deleted; exons inside the CDS extent, and all CDS lines, are untouched;
-- each gene is then shrunk to cover its transcripts.
-
-Pseudogenes with no CDS are not touched by this part.
-
-**Edit the settings at the top of `prepare_for_liftoff_job.sh`**:
-
-| Variable | Default | Meaning |
+| Setting | Default | Meaning |
 |---|---|---|
-| `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line |
-| `GFF_DIR` | `gff_curated` | GFFs to prepare - the kill-list output (step 2), or `gff_with_interpro` if step 2 was skipped |
-| `OUT_DIR` | `gff_for_liftoff` | Where to write the prepared GFFs - must differ from `GFF_DIR` |
+| `GENOMES` | `genome_order.txt` | genome names, comma-separated, or a file with one per line |
+| `GFF_DIR` | `gff_curated` | step 2's output, or `gff_with_interpro` if step 2 was skipped |
+| `OUT_DIR` | `gff_for_liftoff` | the prepared GFFs (step 4's input, and step 5's `NATIVE_DIR`) |
 
-**Run:**
 ```bash
 sbatch 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh
 ```
 
-**Output**, in `OUT_DIR`:
+Output, in `OUT_DIR`: one prepared GFF per genome, `liftoff_feature_types.txt`, and `prepare_for_liftoff_report.tsv`
+(per genome: UTRs, exons and genes changed, genes retyped and removed).
 
-- one prepared GFF per genome;
-- `liftoff_feature_types.txt` - the type to transfer;
-- `prepare_for_liftoff_report.tsv` - per genome: UTR lines/exons/genes affected, and how many
-  genes of each type were retyped.
+## Step 4: Liftoff, all against all
 
-### Step 4: Liftoff
+Every genome's prepared annotation is transferred onto every other genome
+([Liftoff](https://github.com/agshumate/Liftoff)): N × (N - 1) pairs. A pair whose result already exists is skipped,
+so the job is safe to resubmit; **to redo a run, move the old `liftoff_output/` aside first**.
 
-Lifts every genome's own annotation onto every other genome's FASTA, all-against-all.
+Script: [`liftoff_all_vs_all.sh`](scripts/liftoff_all_vs_all.sh)
 
-Script: [`scripts/liftoff_all_vs_all.sh`](scripts/liftoff_all_vs_all.sh). It runs
-[Liftoff](https://github.com/agshumate/Liftoff) once per source-target pair, skipping any pair
-whose result already exists, so it is safe to resubmit.
-
-**Edit the settings at the top of `liftoff_all_vs_all.sh`**:
-
-| Variable | Default | Meaning |
+| Setting | Default | Meaning |
 |---|---|---|
-| `GENOMES` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line |
-| `GFF_DIR` | `gff_for_liftoff` | The prepared GFFs - [step 3](#step-3-prepare-the-gffs-for-liftoff)'s output |
-| `FEATURE_TYPES` | `gff_for_liftoff/liftoff_feature_types.txt` | Which types Liftoff transfers - also step 3's output |
-| `FASTA_DIR` | `genomes` | Every genome's own FASTA |
-| `OUT_DIR` | `liftoff_output` | Where to write the pair results |
+| `GENOMES` | `genome_order.txt` | genome names, comma-separated, or a file with one per line |
+| `GFF_DIR` | `gff_for_liftoff` | step 3's GFFs |
+| `FEATURE_TYPES` | `gff_for_liftoff/liftoff_feature_types.txt` | the types to transfer (step 3) |
+| `FASTA_DIR` | `genomes` | every genome's FASTA (after the contig removal of step 01) |
+| `OUT_DIR` | `liftoff_output` | the results |
 
-**LiftOff parameters**
+Liftoff parameters, set in the script:
 
-The Liftoff call itself also has these parameters, hardcoded in the script rather than exposed
-as settings above - edit them directly in `liftoff_all_vs_all.sh` if you want to change one,
-otherwise every run uses:
-
-| Flag | Liftoff's own default | Our value | What it does |
+| Flag | Liftoff default | Here | What it does |
 |---|---|---|---|
-| `-p` | `1` | `16` | Threads to use |
-| `-polish` | not included | always included | **Do not remove this one** - it is essential to get more genes with valid ORFs |
-| `-copies` | not included | always included | Also search the rest of the target genome for additional copies of each gene - this is what produces `extra_copy_number`; can find real new genes, but adds extra ones that need checking |
-| `-sc` (minimum identity for `-copies` to count a copy) | `1.0` | `0.9` | How similar an extra copy must be to the original to be reported |
-| `-flank` | `0.0` | `0.1` | Amount of flanking sequence to align, as a fraction of gene length. It can improve gene alignment where gene structure differs between target and reference |
-| `-mismatch` | `2` | `1` | Allows more variation in size and sequence - useful for divergent genomes, but not essential for most |
-| `-gap_open` | `2` | `1` | same as above |
-| `-gap_extend` | `1` | `1` | unchanged from Liftoff's own default |
-| `-f liftoff_feature_types.txt` | `gene` only | `protein_coding_gene` | Which top-level feature types to transfer - written by [step 3](#step-3-prepare-the-gffs-for-liftoff), so non-coding RNA genes (given a different type there) are not transferred. **If step 3 wasn't run, you must build this file yourself** and decide which feature types to list - e.g. a previous pipeline used `gene`, `pseudogene` and `protein_coding_gene` together |
-| `-dir` | one shared `intermediate_files/` | one folder per pair | Liftoff writes temporary files (some with a fixed name, e.g. `polish.sam`) here - two Liftoff runs sharing a folder would overwrite each other, so every pair gets its own (`liftoff_output/tmp/<source>_onto_<target>`), removed when the pair finishes; a folder left there means that pair failed |
-___
+| `-p` | 1 | 16 | threads |
+| `-polish` | off | on | re-aligns exons to restore valid ORFs: **keep it** |
+| `-copies` | off | on | also finds extra copies of a gene in the target (`extra_copy_number`); step 5 uses only the primary copy |
+| `-sc` | 1.0 | 0.9 | minimum identity of an extra copy |
+| `-flank` | 0.0 | 0.1 | flanking sequence aligned, as a fraction of the gene length |
+| `-mismatch`, `-gap_open` | 2, 2 | 1, 1 | more tolerant of divergence |
+| `-gap_extend` | 1 | 1 | unchanged |
+| `-f` | `gene` | `liftoff_feature_types.txt` | the types to transfer (step 3) |
+| `-dir` | shared | one folder per pair | `liftoff_output/tmp/<source>_onto_<target>`, removed when the pair ends (a folder left behind = that pair failed) |
 
-Liftoff's own coverage/identity scores (`coverage=`, `sequence_ID=`) on the output are what
-the "build final annotation" step's quality filter (`get_good_transfer_ids.py`) and the
-filter step's overlap resolution both read - nothing recomputes them independently later.
+Run as one job per source genome, in parallel (the log folder must exist before submitting):
 
-**Run** from the project folder. Job logs go to `liftoff_output/logs/` (one per array task), which has
-to exist before submitting - SLURM does not create it, and without it the job leaves no log. Either as one
-job (sequential):
-```bash
-mkdir -p liftoff_output/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
-```
-or one job per source genome, in parallel (much faster; N = number of genomes):
 ```bash
 mkdir -p liftoff_output/logs
 N=$(grep -c . genome_order.txt)
 sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
 ```
 
-**Output**, in `liftoff_output/`:
+Steps 3 and 4 can be chained (Liftoff starts when the preparation has finished without error):
 
-- `polished/<source>_onto_<target>_liftoff.gff3_polished` - one per pair, the file step 5 reads
-  with `PAIR_SUFFIX="_liftoff.gff3_polished"`;
-- `<source>_onto_<target>_unmapped.txt` - one per pair.
-
-### Step 5: Build each genome's final annotation (priority order)
-
-This is to construct the final GFF annotation of each genome - by a strict
-priority order of sources. [Step 6](#step-6-built-annotation-check-if-using-step-5) and
-[Step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes) are tied to this step.
-**Want a different methodology - deciding by whichever transferred gene model is individually
-best-supported, regardless of source? See
-[Step 8](#step-8-build-each-genomes-final-annotation-best-model)** - not written yet, so
-following it end to end isn't possible yet.
-
-Scripts: [`scripts/build_final_annotation_basic.sh`](scripts/build_final_annotation_basic.sh) ·
-[`scripts/build_final_annotation.sh`](scripts/build_final_annotation.sh) ·
-[`scripts/get_good_transfer_ids.py`](scripts/get_good_transfer_ids.py) ·
-[`scripts/check_final_annotations_job.sh`](scripts/check_final_annotations_job.sh)
-
-The pipeline is built around AGAT's `agat_sp_complement_annotations.pl`, which only adds a
-source's genes if they don't overlap a CDS already placed by an earlier source in the same
-strand. We run it several times in a row, once per source, in priority order - each round
-complements whatever the previous rounds already placed, so what actually decides the outcome
-is the order the sources are added in.
-
-The **reference genome always goes first**, since by definition it's the annotation you trust
-most for the whole project - it's the **base GFF for round 1**: the reference's own Liftoff
-transfer onto this genome, filtered down to its **"good" transfers** (valid ORF, ≥90% coverage,
-≥90% identity, and the primary copy, not a Liftoff-detected duplicate) - tagged `main`. Every
-source that follows complements that base, one round at a time.
-
-Next, wherever `main` left a locus blank, the genome's own **original annotation** gets a
-chance to fill it in. This layer is tagged with the genome's own original source, e.g. `Genbank`.
-
-After that, every **other** genome in your list takes a turn too, in the order you listed
-them, twice over:
-- first, round 1, only with their own **good** transfers (the same valid-ORF/≥90%
-coverage/≥90% identity/primary-copy definition used for `main` above) - so no genome's weak
-evidence can occupy a locus before a stronger version from somewhere else gets a fair shot at
-it - tagged `good_<genome>`. 
-- Only once every genome has had that first,
-high-confidence turn does the process go around a second time (round 2), this time taking
-each genome's entire transfer regardless of quality - a last resort for whatever's still
-blank - tagged `rescued_<genome>` (the reference's own leftovers go first here too).
-Whatever's still blank after all of that just isn't in this genome's final annotation - no
-genome, including the reference, offered anything usable for that locus.
-
-```mermaid
-flowchart TD
-    Start(["Building this genome's final annotation"]) --> Ref{"Is this genome<br/>the reference?"}
-    Ref -->|yes| L1a["Layer 1: use its own annotation<br/>(no filtering needed)"]
-    Ref -->|no| L1b["Layer 1: only the reference's<br/>good Liftoff transfers"]
-    L1a --> T1(["tagged main"])
-    L1b --> T1
-
-    T1 --> L2["Layer 2: + this genome's own original annotation<br/>fills whatever Layer 1 left blank<br/>(skipped for the reference)"]
-    L2 --> T2(["tagged with its own source,<br/>e.g. Genbank"])
-
-    T2 --> L3["Layer 3: + every OTHER genome, one at a time,<br/>in chosen order - only its good transfers,<br/>fills whatever's still blank"]
-    L3 --> T3(["tagged good_&lt;genome&gt;"])
-
-    T3 --> L4["Layer 4: + every OTHER genome again, same order -<br/>now its full, unfiltered transfer,<br/>fills whatever's still blank<br/>(reference's leftovers first)"]
-    L4 --> T4(["tagged rescued_&lt;genome&gt;"])
-
-    T4 --> Final(["&lt;this genome&gt;_final_annotation.gff"])
+```bash
+mkdir -p liftoff_output/logs
+jid=$(sbatch --parsable 05_Cross-genome_annotation_integration/scripts/prepare_for_liftoff_job.sh)
+sbatch --dependency=afterok:$jid --array=1-$(grep -c . genome_order.txt) 05_Cross-genome_annotation_integration/scripts/liftoff_all_vs_all.sh
 ```
 
-The result, `<genome>_final_annotation.gff` (one per genome), has one row's `source` value
-telling you exactly where every gene came from:
+Output: `liftoff_output/polished/<source>_onto_<target>_liftoff.gff3_polished` (one per pair: step 5's
+`TRANSFER_DIR`) and `liftoff_output/<source>_onto_<target>_unmapped.txt`. Check: `ls liftoff_output/polished | wc -l`
+should be N × (N - 1).
 
-| `source` value | Meaning |
-|---|---|
-| `main` | The reference's own annotation as-is (for the reference itself), or its high-confidence transfer onto this genome |
-| *(this genome's own original source, e.g. `Genbank`)* | This genome's own independent gene call - skipped for the reference, nothing to add |
-| `good_<genome>` | That genome's high-confidence transfer onto this one |
-| `rescued_<genome>` | That genome's full, unfiltered transfer, added only as a last resort |
+## Step 5: Basket annotation
 
-Everything is done with AGAT's `complement` tool, which only *adds* genes at empty loci - it
-never merges or reshapes an existing gene model.
+The genes of all genomes are grouped into baskets, one model is chosen per basket, and each genome's final GFF is
+written. Inputs: step 1's domain tables, step 3's GFFs, step 4's transfers and the genomes.
 
-#### Dependencies
+The version described here is in [`scripts_keep_all_genes/`](scripts_keep_all_genes/). It adds the copy rule (point 1),
+the genes left without a model (point 4) and the check that no gene is lost without a reason (point 9) to the version in
+[`scripts/`](scripts/), which lost genes without writing why (see
+[No gene is lost without a reason](#no-gene-is-lost-without-a-reason)). Both are kept until the new one replaces the old.
 
-- **AGAT**, specifically `agat_sp_filter_feature_from_keep_list.pl` and
-  `agat_sp_complement_annotations.pl`. `build_final_annotation_basic.sh` activates it with
-  `micromamba activate bioinfo` - change that one line if your cluster's AGAT environment has
-  a different name.
-- **Python 3**, standard library only - nothing to install.
+### The idea
 
-#### Running it
+- For closely related strains, most genes should have the **same structure** and **similar sequences**, due to
+  purifying selection.
+- Yet the strains' annotations, made with different methods, differ: the same gene is split into pieces in one genome,
+  fused with its neighbour in another, or has a different start. These **differences** in the gene models are
+  probably an **artefact**, not biology.
 
-**Edit the settings at the top of `build_final_annotation_basic.sh`** (defaults are set for the
-standard layout of this pipeline - `gff_for_liftoff/`, `liftoff_output/polished/`, `genome_order.txt`):
+So the genes are first grouped across genomes (**baskets**: one basket = one gene of the panel), one model is chosen for
+each basket, and every genome takes that model.
 
-| Variable | Default | Meaning |
+**The reference annotation wins**: when a basket holds a reference gene, the reference gene wins. Without a
+reference gene, the winner is the version with a protein domain, then the best PSAURON score, then the one whose
+transfers work (valid ORF) in the most genomes and that agrees with the most annotations. A gene not annotated in the
+reference enters the panel only if it has a protein domain, or a valid ORF of at least 100 aa with a high PSAURON
+score.
+
+### What step 5 does
+
+*The figures use* T. gondii *strains as examples (reference ME49).*
+
+0. **The reference's pseudogenes.** A pseudogene of the reference without a CDS gets its span, start to end, as CDS,
+   so the next steps can use it: it wins its basket like every reference gene, is written back as gene + transcript +
+   exon (`pseudogene=True`), so it enters get_pangenes, and is not sent to miniprot (`orf_status=pseudogene`). Its
+   copies in the other genomes are transferred models like any other (ORF checked, miniprot). The other genomes'
+   pseudogenes are left out: a singleton pseudogene adds nothing to the pangenome, and where another genome
+   has the gene, its transfer covers that place, so it is expected to be represented anyway.
+1. **Baskets.** Every gene of every genome's own annotation is a member. In the example below (*T. gondii*, reference
+   ME49), gene X is annotated whole in ME49 and GT1, in two pieces in RH88 and as two overlapping models in FOU; GT1
+   also has a similar gene on another contig.
+
+   ![Gene X in four strains: whole in ME49 and GT1, in two pieces in RH88, two overlapping models in FOU, and a similar GT1 gene on another contig](figures/basket_example_gene_x.png)
+
+   Two genes are linked when they lie at the same place on the same strand: the Liftoff transfer of one lies over the
+   other by at least 20 bp of CDS span. Two genes of the same genome that overlap are linked too. Genes on opposite
+   strands are never linked.
+
+   ![The transfer of GT1's gene X onto RH88 lies over both RH88 pieces](figures/basket_edge_transfer.png)
+
+   *The transfer of GT1's gene X onto RH88 lies over both pieces of RH88's model: one link to each.*
+
+   A basket is a group of genes connected by links. Pieces, fused models and duplicate models of a gene therefore end in
+   the same basket and compete. A single link can also bring in a gene from elsewhere: here, the transfer of the GT1 gene
+   from the other contig happened to land on RH88's piece 2.
+
+   ![The links between the versions of gene X, and the single link that brings in the GT1 copy](figures/basket_graph.png)
+
+   So each member is then placed on the reference genome, by its own position (a reference gene) or by its transfer onto
+   the reference. Members whose places overlap stay together; a member that lands at another place (a copy, e.g. a
+   paralogue) leaves and forms a basket of its own. A member with no transfer onto the reference is checked the same way
+   on the next genome of the list where it has a transfer. Only when no genome places it is it judged by its
+   neighbouring genes (synteny): the baskets of the 3 nearest genes on each side of it, in its own genome, are compared
+   with those of the members that keep the basket; it leaves when it shares fewer than 2 of them (its surroundings are
+   different), and stays otherwise, or when it has fewer than 2 neighbour baskets to compare. In the example, the
+   versions of gene X overlap on ME49 and stay together, while the GT1 copy from the other contig lands at another
+   locus of ME49: it leaves gene X's basket and goes to a basket of its own.
+
+   ![Each member placed on ME49: the versions of gene X overlap and stay together, the GT1 copy lands at another locus and leaves](figures/basket_place_check.png)
+
+   **Copies in one genome.** The place check does not separate two copies of a gene that land at the same place of the
+   reference, e.g. a gene duplicated in one strain only. So, before the place check, two genes of the same genome in
+   one basket are compared with each other when they lie at two places of that genome (they do not overlap, and they
+   are not neighbours at most 3 genes apart, which are left to the [tandem arrays](#genes-in-tandem-arrays)):
+   - their proteins align (blastp identity >= 70% over >= 70% of the shorter): they are **two copies**. The copy whose
+     neighbouring genes match those of the other genomes' members less leaves and forms a basket of its own
+     (`copies_split.tsv`), so it gets its own model;
+   - their proteins do not align: they are **pieces** of one gene (different parts of it), and stay together.
+
+   The reference genome's own genes are never split. In *T. gondii*, RH88's `TGRH88_027580` and `TGRH88_018210` (99%
+   identical, on two chromosomes) are two copies; ARI's `TGARI_368320` and `TGARI_219540A/B` (the start and the rest of
+   one gene, cut by a contig end) are pieces.
+
+2. **Winners.** Each basket has one or more winners: usually one, more when it holds several reference genes or a
+   member that does not lie over the winner (another gene), and none when no member passes the filter (below). Each
+   winner is an original gene (a gene of one genome's own annotation); its model is considered the correct one and
+   is used in point 4. ORFs are checked on the CDS extracted from the genome sequence.
+
+   There are two kinds of baskets, with different rules:
+
+   **1) Baskets with a reference gene.** Every reference gene wins. Each other member is compared with the winners, in
+   every genome where both have a model (their own gene or a transfer): when their models lie over each other (20 bp or
+   more, same strand) in at least half of these genomes, the member is a version of the winner; otherwise it is another
+   gene, and wins too if it passes the filter of 2). Asking for half of the genomes keeps one or two badly transferred
+   models from deciding.
+
+   ![A basket with an ME49 gene: the ME49 model wins; FOU's model covers it and the VEG gene next to it](figures/winners_with_reference.png)
+
+   *FOU's model covers both the ME49 gene and the gene next to it: it is a version of the ME49 gene. The VEG gene does
+   not lie over the ME49 gene: it is another gene, and wins if it passes the filter.*
+
+   ![The clash rule: a GT1 gene lies over the ME49 gene in 5 of 5 genomes (a version); a VEG gene next to it in 1 of 5 (another gene)](figures/winners_clash_rule.png)
+
+   *The 20 bp is checked in each genome; the answer must be yes in at least half of the genomes where both have a
+   model. A single transfer that landed too long (RH88, case 2) does not make two genes one: the VEG gene becomes a
+   potential second winner of the basket (it wins if it passes the filter).*
+
+   **2) Baskets without a reference gene.** Here no member is right by default, so the best one is chosen in two
+   steps.
+
+   First, a filter keeps, in each basket, only the members that can be trusted to be a real gene. A member passes if
+   it has a protein domain, or if it looks like a real protein-coding gene: a valid ORF in at least one genome (its
+   own model or a transfer), a protein of at least `MIN_AA` aa (100), and a high enough PSAURON score (0.9 when its
+   transfer onto the reference genome works, 0.7 when it is transferred only to other strains). A copy split off by the
+   copy rule needs 0.7: the reference annotates the gene (the other copy).
+
+   ![The filter: a domain, or a valid ORF in at least one strain, at least 100 aa and a high PSAURON score](figures/winners_allowed_filter.png)
+
+   Then the members that pass are ranked, and the first one wins. The ranking prefers, in this order: a model with no
+   N in its CDS, a protein domain, a higher PSAURON score, more **valid votes** (genomes whose own gene matches it and
+   has a valid ORF), more **valid transfers** (genomes where its transfer has a valid ORF), and finally a length close
+   to the basket's median. The other members at the same place become versions of the winner; a member at another
+   place is another gene, and wins too if it passes the filter.
+
+   ![Example: GT1 and RH88 both have a domain; GT1 wins on PSAURON; VEG is not allowed](figures/winners_example_two_domains.png)
+
+   *GT1 and RH88 both have a domain; GT1 is first on PSAURON (0.95 against 0.80). VEG does not pass the filter (PSAURON
+   0.40). RH88, FOU and VEG are at the same place: versions of GT1's gene.*
+
+   When no member passes the filter, the basket has no winner and its genes are not written (`not_eligible.tsv` lists
+   why).
+
+   ![Example: a gene deleted from ME49 by the ToxoDB curation; all versions have PSAURON close to 0; no winner](figures/winners_example_no_winner.png)
+
+   *A T. gondii gene deleted from ME49 by the ToxoDB curation: its versions in the other strains have a valid ORF of
+   154 aa but a PSAURON score close to 0, so none passes the filter and the gene is written in no strain.*
+
+3. **Curation (optional).** Often only the reference annotation has been curated by hand: the curators deleted genes
+   they judged false, based on evidence. The other strains were not curated, so those genes are still in their
+   annotations, and their transfers would bring them back into the reference and the panel. To keep these false genes
+   out, every panel gene at the place of a gene deleted by the curators is removed from all strains. This needs the
+   curators' list of deleted genes, and the reference GFF from before the curation, which gives their places
+   (`CURATION_REMOVED_LIST`, `OLD_REFERENCE_GFF`).
+4. **Each genome's model.** This is where the gene model of each strain is chosen: for each winner, every genome gets
+   one model, and the idea is that it should be the model most similar to the winner's. The candidates in a genome are
+   the winner's transfer, the genome's own genes in the basket, and the transfers of the other members, all at the
+   winner's place. Each candidate is compared with the winner's CDS (minimap2; blastn for CDS shorter than 300 bp). A
+   model with an N in its CDS or within 1 kb of a contig end counts as valid, because the assembly, not the model,
+   breaks its ORF.
+
+   There are two modes, chosen with `MODES` (both by default; set `MODES="prefer_panel_model"` to write, check and
+   plot only that one), each written to `gff_<mode>_final`. **`prefer_panel_model`** follows the rules below.
+   **`keep_similar`** was also developed, for when changing the existing models as little as possible is a priority: a
+   genome keeps its own model whenever it is similar to the winner's (it covers >= 80% of the winner's CDS, is at most
+   120% of its length, has >= 95% identity and a valid ORF), and the rules below apply only when it is not. The
+   identity also counts the real sequence differences between the strains, so in a more diverse species fewer own
+   models pass the 95%.
+
+   In `prefer_panel_model`, each genome takes, in this order:
+
+   ![The choice of each strain's model in prefer_panel_model, with one example strain per outcome](figures/strain_model_choice.png)
+
+   - the **valid model most similar to the winner's**, covering >= `MIN_COV` (70%) of the winner's CDS and at most
+     120% of its length (highest coverage, then identity, then the length closest to the winner's; on a tie, the
+     winner's transfer);
+   - otherwise, the **winner's transfer without a valid ORF**, when its coverage is >= `MIN_TCOV` (70%): kept, and
+     sent to miniprot (point 5);
+   - otherwise, a **rescue**: the most similar valid model covering >= `MIN_COV_RESCUE` (50%) of the winner's CDS
+     (`model_origin=rescued`);
+   - otherwise, its **own model**, when the genome annotated the gene itself;
+   - otherwise the gene is **absent** from that genome (`decide/absent.tsv` says why).
+
+   A winner always keeps its own model in its own genome. A transfer is only used at the winner's place (one that lies
+   over a gene of another basket is not used), and a model that lies under two winners (a fusion) is never kept. One
+   place holds one gene: of two models on the same strand overlapping >= 50%, the one of the reference basket, with a
+   valid ORF, present in more genomes, is kept.
+
+   **Genes left without a model.** After the models are chosen, each genome's genes in a basket that no model of the
+   basket covers are checked:
+   - the basket has a model in this genome: the gene is a **piece** of that gene (e.g. the small piece left over when
+     a broken gene is replaced by one model). It is not written: broken genes do not come back;
+   - the basket has **no** model in this genome (the transfer was not used or was set aside, e.g. Liftoff put it on a
+     similar neighbouring gene): the genome's own gene comes back as it is in its annotation
+     (`model_origin=original_other_place`), if it has a domain, or a valid ORF (an N or a contig end within 1 kb counts
+     as valid), >= `MIN_AA` aa and PSAURON >= 0.7. With several such genes, the one with the best PSAURON, then the
+     largest protein, comes back, and the others are pieces of it.
+
+   Every gene not written is listed in `left_out.tsv` with the reason. In *T. gondii* ARI, Liftoff swapped the
+   neighbouring genes SAG2D and SAG2C (each landed on the other), so both transfers were set aside; ARI's own
+   `TGARI_370450` (SAG2D) and `TGARI_370480` (SAG2C) now come back.
+5. **Repair with miniprot.** Every gene still with an invalid ORF is aligned again, except selenoproteins (whose
+   internal TGA is read as selenocysteine), the reference's pseudogenes, and genes broken by the assembly (an N in the
+   CDS, or within 1 kb of a contig end: `orf_status=invalid_assembly_gap` / `invalid_near_contig_end`, not sent). It is
+   aligned with miniprot from the winner's protein. A full model with a valid ORF, with the panel model's exon structure
+   (same exons, each within 10 bp) and canonical splice sites (GT/GC...AG), replaces it
+   (`model_origin=repaired_miniprot`, so a repaired model can always be found); otherwise the gene is flagged with what breaks it (frameshift, internal stop, lost start or stop codon, partial
+   alignment).
+6. **Overlapping genes.** When two winners lie over each other on **opposite strands** (CDS spans, introns included,
+   by 20 bp or more), one of them is probably false. The two are compared in each genome where both are present, and
+   one loses when:
+   - one is a reference gene and the other has no protein domain: the other loses;
+   - only one has a protein domain: the one without loses;
+   - neither has a domain: the one with the lower PSAURON score loses, then the one with a valid ORF in fewer
+     genomes, present in fewer genomes, with the shorter CDS.
+
+   Neither loses when both are reference genes, both have a domain, or one is a reference gene and the other has a
+   domain. A gene that loses in at least `OVERLAP_MIN_STRAINS` genomes (2; 1 for a gene present in a single genome) is
+   considered false and removed from every genome. This step runs last, so that the genes already removed and the
+   miniprot repairs count. Overlaps on the same strand are not considered here: two models at the same place on the
+   same strand are versions of one gene, settled before (points 2 and 4).
+
+   Removing a false gene can free a place. In point 4, when the models of two winners fall at the same place in a
+   genome (same strand, overlapping by 50% or more), only one is kept and the other is set aside. If the one kept is
+   later removed here as false, the model set aside gets its place back: it is written again, tagged
+   `restored_after_removal_of=<the removed gene>`. Otherwise that genome would miss a gene only because a false gene
+   had taken its place first.
+
+   ![A model set aside comes back when the gene that took its place is removed as false](figures/overlap_restored_model.png)
+7. **Checks.** The final GFFs are checked before they go to get_pangenes; the log ends with `all checks passed`, or
+   lists the problems found:
+   - every gene ID is unique across all genomes (get_pangenes needs it);
+   - every gene has a CDS (except the reference's pseudogenes), and its transcript, exons and CDS lie inside it, on
+     its contig and strand;
+   - no two genes of a genome sit at the same place (same strand, CDS spans overlapping by 50% or more of the smaller):
+     one place, one gene;
+   - every protein-coding gene of the reference annotation is written in the reference genome, unless it was removed
+     on purpose (curation or overlap rule).
+8. **Plots** of the results, the modes of `MODES` side by side (listed in [Outputs](#outputs)). They can be redone
+   alone, for example for one mode only, without running the step again (see [Running it](#running-it)).
+9. **Gene fate.** Every gene of every genome's own annotation is accounted for (`gene_fate_<mode>.tsv`): the final
+   model at its place, or the record that explains why it has none (not eligible, left out, panel gene removed by the
+   curation or the overlap rule, one place one gene). The job stops with an error when a gene has neither.
+
+
+### Genes in tandem arrays
+
+Some gene families have several copies next to each other (tandem arrays), and the number of copies can differ between
+strains (e.g. ROP5 in *T. gondii*). The transfers of one copy land on the neighbouring copies too, so all the copies end
+up in one basket. Without a special case, a strain would keep one model per winner and lose its extra copies.
+
+A basket holds a tandem array when, in at least one genome, two or more of its own genes:
+- lie on the same strand, without overlapping each other, at most 3 genes apart;
+- have proteins of similar length, and similar to each other (blastp identity >= 70%, covering >= 70% of each).
+
+Two pieces of one gene do not pass this test, because each piece covers only part of the other.
+
+Each genome first gets its models as for any other basket (points 2-4). Then the copies are added on top:
+- the genome's own genes that passed the test (`model_origin=original`);
+- the transfer of another genome's copy, if it has a valid ORF, covers >= 70% of the copy (`MIN_TCOV`), and lands
+  where the genome has no gene of the basket (`model_origin=filled`).
+
+A copy is added only at a free place: it must not overlap, on the same strand, a model already written for the basket
+or another added copy. A transferred copy is also not added where it would lie over (by 50% or more) a gene of another
+basket. The added copies are tagged `tandem_array_copy=True`.
+
+### No gene is lost without a reason
+
+Comparing each genome's own annotation with its final GFF showed that the version in `scripts/` left genes out without
+writing why: in *T. gondii*, 358 genes had no model at their place and no record in any table. The decision for a
+genome only used the genome's genes that lay under the winner's transfer, so a gene of the basket elsewhere was
+forgotten:
+- **a copy** of the gene at another place (e.g. RH88 `TGRH88_027580`);
+- **the right gene, when the transfer landed elsewhere** (e.g. ARI SAG2D and SAG2C, swapped by Liftoff), or was set
+  aside by "one place, one gene" (e.g. `TGARI_257925`);
+- **a piece** of a broken gene (e.g. `TGARI_250500A`, and pieces cut by a contig end such as `TGARI_368320`).
+
+The copy rule (point 1) and the genes left without a model (point 4) bring back the first two kinds; pieces stay out,
+with their reason. Gene fate (point 9) makes sure it does not happen again.
+
+*T. gondii* run with `scripts_keep_all_genes/` (cluster, 2026-10-28, job 1723523), compared with the `scripts/` run
+(the same input, `gene_fate.py` on both): genes without a record 378 -> 0; 39 genes got their model back; 13 lost it
+(no valid ORF in any strain, < 100 aa, invalid ORF, or PSAURON 0.064; each with its reason); 143 copies split off
+(81 won as panel genes); panel genes 8,289 -> 8,355. Second run (2026-10-29, job 1723532), with the PSAURON 0.7 for
+split copies and the best PSAURON first for genes coming back: the same genes kept and lost, 91 split copies won,
+panel genes 8,365. *A. fumigatus* has not been run with this version.
+
+### Settings
+
+All settings are at the top of [`scripts_keep_all_genes/basket_annotation_job.sh`](scripts_keep_all_genes/basket_annotation_job.sh), between the
+`Edit these` lines. Each one can also be set on the command line, without editing the script (see
+[Running it](#running-it)); the value in the script is then the default.
+
+| Setting | Default | What to put |
 |---|---|---|
-| `INPUT_DIR` | `gff_for_liftoff` | Directory with every genome's own GFF - the prepared GFFs (step 3) |
-| `PAIRWISE_DIR` | `liftoff_output/polished` | Directory with your Liftoff output |
-| `OUTPUT_DIR` | `expanded_annotation` | Where to write the final annotations |
-| `ORDER` | `genome_order.txt` | The same file from [step 01](../01_Genome_Selection_QC/README.md#6-the-genome-list-genome_ordertxt), reused as-is - no need to create a new one. Comma-separated genome names, **first one = the reference** you trust most (e.g. `"AF293,strain2,strain3"`), or a path to a file with one genome name per line |
-| `ORIGINAL_SUFFIX` | `.gff3` | Filename suffix for each genome's own GFF in `INPUT_DIR` (the prepare step always writes `.gff3`) |
-| `PAIR_SUFFIX` | `_liftoff.gff3_polished` | Filename suffix of the Liftoff output |
-| `MIN_COVERAGE` | `0.9` | Minimum Liftoff coverage for a transfer to count as "good" (round 1) instead of falling back to a low-confidence "rescue" (round 2) |
-| `MIN_IDENTITY` | `0.9` | Minimum Liftoff sequence identity for a "good" transfer, same idea |
+| `GENOMES` | `genome_order.txt` | the genome list, **the reference first** (it defines the reference and the genome index of the new IDs) |
+| `NATIVE_DIR` | `gff_for_liftoff` | step 3's prepared GFFs: the annotations given to Liftoff, so they match the transfers |
+| `TRANSFER_DIR` | `liftoff_output/polished` | step 4's transfers, `<source>_onto_<target>_liftoff.gff3_polished` |
+| `DOMAIN_DIR` | `annotation_check` | step 1's `<genome>_gene_classification.tsv` tables (column `has_domain`) |
+| `GENOME_DIR`, `GENOME_SUFFIX` | `genomes`, `.fna` | the genome FASTA files given to Liftoff |
+| `OLD_REFERENCE_GFF` | `""` (none) | the reference GFF from before a manual curation of the reference |
+| `CURATION_REMOVED_LIST` | `""` (none) | the curators' list of the genes they deleted (one ID of `OLD_REFERENCE_GFF` per line); only these genes count as deleted, the old GFF gives their places. Without it, every old gene whose ID is no longer in the reference GFF counts as deleted, which also catches renamed genes and genes removed for other reasons (in *T. gondii*: 1,319 genes instead of the 268 of the list) |
+| `ID_PREFIX` | `""` (**required**) | prefix of the new gene IDs (e.g. `Tg` gives `Tg1g00001`) |
+| `MODES` | `"keep_similar prefer_panel_model"` | both modes, or only one of them: only its GFFs, checks and plots are made |
+| `MIN_COV` | `0.7` | each genome's model: share of the winner's CDS a valid model must cover |
+| `MIN_TCOV` | `0.7` | the winner's transfer without a valid ORF is kept for miniprot from this Liftoff coverage |
+| `MIN_COV_RESCUE` | `0.5` | rescue before absent: share of the winner's CDS a valid model must cover |
+| `MINIMAP2_MODULE` | `""` | the module that loads minimap2; `""` if it is already on the PATH |
+| `MIN_AA` | `100` | shortest protein a gene not annotated in the reference (and without a domain) can win with |
+| `PSAURON_DIR` | `psauron` | where the PSAURON scores come from: the folder written by step 04 ([`psauron_array_job.slurm.sh`](../04_Protein_evidence/scripts/psauron_array_job.slurm.sh)). A candidate without a score there stops the job. Set `""` only if step 04 did not score the proteins |
+| `RUN_PSAURON` | `no` | used only when `PSAURON_DIR` is `""`: `yes` makes this job score the genes it needs itself; `no` means no scores, so the filter does not use PSAURON |
+| `PSAURON_CMD` | `singularity exec <container>.sif psauron` | the command that runs PSAURON (a container with PSAURON; set the path to yours), used with `RUN_PSAURON="yes"` |
+| `PSAURON_MIN_IN_REF`, `PSAURON_MIN` | `0.9`, `0.7` | minimum PSAURON score: when the gene's transfer onto the reference works, and when it is transferred only to other strains |
+| `OVERLAP_MIN_STRAINS` | `2` | genomes in which a gene must lose an opposite-strand overlap to be removed |
+| `RUN_MINIPROT` | `yes` | `yes` repairs the genes with an invalid ORF with miniprot (point 5); `no` skips that point |
+| `MINIPROT_MODULE` | `miniprot/0.18` | the module that loads miniprot; `""` if it is already on the PATH |
+| `PLOT_LABEL` | `panel` | prefix of the plot files |
+| the `ADAPT` block | | how python3, blastn, minimap2 and miniprot are put on the PATH on your cluster |
 
-Also check the `#SBATCH` lines at the very top (`--time` especially - building every genome
-one after another can take a while with a lot of genomes) and the `micromamba activate
-bioinfo` line (change the environment name if your cluster's AGAT isn't called that).
+### Running it
 
-**Run** from the project folder. Job logs go to `expanded_annotation/logs/`, which has to exist before
-submitting (SLURM does not create it). Either every genome in one job:
 ```bash
-mkdir -p expanded_annotation/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
-```
-or one job per genome, in parallel (each genome's build is independent; N = number of genomes):
-```bash
-mkdir -p expanded_annotation/logs
-N=$(grep -c . genome_order.txt)
-sbatch --array=1-${N} 05_Cross-genome_annotation_integration/scripts/build_final_annotation_basic.sh
-```
-
-#### Output, in `OUTPUT_DIR`
-
-| File | Shows |
-|---|---|
-| `<genome>_final_annotation.gff` | one independent file per genome - the final built annotation. This GFF has no non-coding RNA genes and no UTRs - both were removed by [step 3](#step-3-prepare-the-gffs-for-liftoff) |
-
-#### Checking it worked
-
-- `<OUTPUT_DIR>/<genome>_final_annotation.gff` should exist for every genome once the job
-  finishes. To check all of them at once, run from the project folder:
-  ```bash
-  bash 05_Cross-genome_annotation_integration/scripts/check_final_annotations_job.sh
-  ```
-  It prints `OK`, `RUNNING` (the job is still in the queue or running) or `MISSING` per genome. For each
-  missing genome it says how far the build got (main, round 1 or round 2), shows the end of that job's
-  `.err` log, names the AGAT log to read, and prints the `sbatch --array=...` command that rebuilds only
-  those genomes. It exits with an error if any genome is missing, and asks you to run it again if some
-  are still running.
-- `expanded_annotation/logs/build_final_annotation_<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error`
-  lines at the top; one pair per genome when run as an array) has one `=== Genome N/total: <genome> ===` block per genome as it works through
-  `ORDER`, and ends with `All genomes processed.` or an `ERROR:` line.
-
-### Step 6: Built annotation check (if using Step 5)
-
-> Written against this step's own [Step 5](#step-5-build-each-genomes-final-annotation-priority-order) output
-> specifically - its `source` tiers (`main`/`good_<genome>`/`rescued_<genome>`/own-annotation)
-> drive several of the checks below. 
-
-Scripts: [`scripts/plot_final_annotation_qc_job.sh`](scripts/plot_final_annotation_qc_job.sh) ·
-[`scripts/plot_final_annotation_qc.py`](scripts/plot_final_annotation_qc.py)
-
-Once every genome has its `_final_annotation.gff`, this gives a first look at the raw build's
-quality - before any filtering, which is [step 7](#step-7-final-annotation-if-using-step-5-pre-get_pangenes).
-
-**Edit the settings at the top of `plot_final_annotation_qc_job.sh`**:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `STRAINS` | `genome_order.txt` | Comma-separated genome names, or a path to a file with one per line - **first one = the reference**, same as the build step's `ORDER` |
-| `FINAL_DIR` | `expanded_annotation` | The build step's `OUTPUT_DIR` |
-| `GENOME_DIR` | `gff_for_liftoff` | Directory with every genome's own annotation, to compare the gene counts with |
-| `GENOME_SUFFIX` | `.gff3` | Filename suffix for each genome's own GFF in `GENOME_DIR` |
-| `OUT_DIR` | `final_annotation_qc_plots` | Where to write the plots and `summary.tsv` |
-
-It needs Python 3 + matplotlib; the job activates the `synteny` micromamba environment, which
-has both (same env as [step 01](../01_Genome_Selection_QC/README.md#dependencies)).
-
-**Run** from the project folder. The job log goes to `final_annotation_qc_plots/logs/`, which has to
-exist before submitting (SLURM does not create it):
-```bash
-mkdir -p final_annotation_qc_plots/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/plot_final_annotation_qc_job.sh
+mkdir -p basket_annotation_keep_all_genes/logs
+sbatch 05_Cross-genome_annotation_integration/scripts_keep_all_genes/basket_annotation_job.sh
 ```
 
-Produces, in `OUT_DIR` (`final_annotation_qc_plots/`):
+The output goes to `basket_annotation_keep_all_genes/` (`OUT_DIR`), so the results of `scripts/` (`basket_annotation/`,
+run with `scripts/basket_annotation_job.sh`) are not overwritten.
 
-| File | Shows |
-|---|---|
-| `01_gene_counts.png` | protein-coding genes: own original annotation vs. this pipeline's output, per genome |
-| `02_extra_copies.png` | extra-copy genes, split by valid ORF, per genome |
-| `03_overlap_severity.png` | CDS-overlap severity (minor/substantial/contained), per genome |
-| `04_source_composition.png` | where the genes came from (`main`/original/`good_*`/`rescued_*`), per genome |
-| `05_overlap_strand.png` | the same pairs as `03_overlap_severity.png`, split same-strand vs opposite-strand instead of by severity |
-| `06_overlap_domain_support.png` | the same pairs as `03_overlap_severity.png`, split by domain evidence on both genes / one / neither |
-| `07_minor_overlap_position.png` | `minor`-severity pairs only (domain evidence not considered here), split by `flank`/`inside`/`single_exon` - see `minor_position` above |
-| `summary.tsv` | the numbers behind every plot above, one genome per row, plus two columns not in any plot: `n_same_strand_overlap`/`n_opposite_strand_overlap` - the same pairs behind `03_overlap_severity.png`/`05_overlap_strand.png` - and `n_genes_in_overlap`, the number of *distinct* genes involved in at least one of those pairs (a gene in 3 pairs counts once, so this is always ≤ `2 × n_overlap_pairs`) |
-| `extra_copy_genes.tsv` | every extra-copy gene behind `02_extra_copies.png` - genome, ID, description, location, source, `extra_copy_number`, `copy_num_ID` (groups every copy of the same locus), valid ORF, and Liftoff's own `coverage`/`sequence_ID` for that copy. Sorted per genome, most-duplicated locus first, so a genome standing out in the plot can be traced back to which genes are actually piling up copies |
-| `cds_overlapping_pairs.tsv` | one row per CDS-overlapping gene pair behind `03_overlap_severity.png`, across every genome - same columns as [step 1](#step-1-native-annotation-check)'s own `cds_overlapping_pairs.tsv` (strand, severity, overlap bp, each gene's ID/description/coordinates/CDS length/domain evidence), plus `gene1_valid_ORF`/`gene2_valid_ORF` (`NA`, not `False`, for a gene that never went through Liftoff - see [step 5](#step-5-build-each-genomes-final-annotation-priority-order)), `gene1_source`/`gene2_source` - which layer each half of the pair actually came from (`main`, its own original annotation, `good_<genome>`, `rescued_<genome>`) - and, for `minor`-severity pairs only, `minor_position` (see below) |
-| `overlap_domain_summary.tsv` | per genome: of the pairs in `cds_overlapping_pairs.tsv`, how many have InterPro/PFAM domain evidence on both genes, on only one, or on neither (count and %), plus `n_genes_in_overlap` again for convenience |
-___
-`07_minor_overlap_position.png` and the `minor_position` column above are based on this:
-
-**`minor_position` - where a `minor` overlap sits in the bigger gene's own exon structure, not
-just how big it is.** Blank for `substantial`/`contained` pairs (only computed for `minor`, where
-the position matters most - see below). One of:
-- `flank` - the overlap sits on the bigger gene's own first or last CDS segment (its outermost
-  exon on either side) - the overlap is near where the bigger gene's own model could legitimately
-  be a bit off, or where a genuinely separate adjacent gene could sit just outside its real
-  boundary. Most likely just gene-model boundary imprecision - **both genes are probably real**.
-- `inside` - the overlap sits on one of the bigger gene's *internal* CDS segments, meaning the
-  smaller gene's own body mostly sits inside one of the bigger gene's introns and only its CDS
-  reaches into a middle exon. Much harder to explain as boundary noise - **the smaller gene is
-  more likely spurious**.
-- `single_exon` - the bigger gene has only one CDS segment (no introns). `flank`/`inside` isn't
-  a meaningful distinction here: without an intron, there's no "middle" of the gene to be
-  buried inside of, separate from its "edge".
-___
-**`03_overlap_severity.png`
-
-AGAT's complement step ([step 5](#step-5-build-each-genomes-final-annotation-priority-order))
-only ever rejects a new gene for colliding with a **same-strand** CDS already placed. So a same-strand pair always means overlapping genes in the same strand are coming from the origi`main` annotation. Opposite-strand pairs are the expected. 
-
-**How minor/substantial/contained works.** Only CDS-to-CDS collisions count (UTR/intron-only
-overlap doesn't); for multi-exon genes, overlap bp is summed across every exon. Severity is the
-overlap as a % of the **smaller** gene's own CDS, sized against the smaller one on purpose -
-same rule as step 1: **contained** ≥ 80%, **substantial** 20-80%, **minor** < 20%. For a gene
-with multiple isoforms, only the longest-CDS one is used.
-___
-
-### Step 7: Final annotation (if using Step 5, pre-get_pangenes)
-
-
-Building each genome's final annotation this way (Step 5) is expected to include some genes
-that aren't well supported - extra copies from Liftoff's `-copies` search, and genes
-that overlap another gene's CDS in ways that shouldn't happen (see
-[Background](#background-what-needs-resolving) below). Two alternative approaches resolve this,
-both starting from [step 6](#step-6-built-annotation-check-if-using-step-5)'s
-`<genome>_final_annotation.gff` files:
-
-- **7a** filters these unsupported genes out now, before `get_pangenes` runs, using coverage,
-  identity, overlap severity, and domain evidence. The signals are meaningful, but the cutoffs
-  are still arbitrary choices, so it can still keep a spurious gene or drop a real one.
-- **7b** doesn't filter anything yet - it tags every gene with main information and passes
-  everything through unfiltered, leaving that filtering decision for after `get_pangenes` has
-  run, when a pangene's real presence/absence pattern across the whole panel is known.
-
-#### Background: what needs resolving
-
-##### Extra copies
-With the all-vs-all approach above, every gene from every genome gets transferred onto every
-other genome. With `-copies` enabled, we can see a high number of extra copies - and some
-genomes end up with far more than others. These extra copies might be real genes that were
-never annotated in the original source (Note that every extra-copy gene is only ever added in
-the rescue round, meaning the gene was not originally annotated). A genome with much more copies than the rest might also
-be suspicious - it could be an assembly artefact, for example. Eliminating only the extra copies
-with invalid ORFs (as the current rule in 7b) doesn't seem like enough; ideally these should be investigated case by case
-before deciding on a filtering rule.
-
-
-##### Rescued genes
-
-The last round of complementation in Step 5's build adds every gene that isn't a "good gene" -
-unfiltered, tagged `rescued_<genome>`. Since a "good gene" is a stringent bar 
-(≥90% coverage, ≥90% identity, valid ORF, primary copy),
-a "bad gene" actually spans a huge range of quality - some are nearly as strong as a good gene,
-just short of the cutoff; others are barely more than noise. Ideally, we'd want to eliminate the very bad ones. As a first step, every `rescued_<genome>`
-gene below `--min-rescued-coverage` (default 0.5) 
-
-##### Overlapping genes
-
-We observed that after obtaining the final annotation, several genes are found to be
-overlapping. Overlaps under a minimum bp floor (default 20bp) are treated as boundary-rounding
-noise, not real overlaps, and ignored entirely. Of what's
-left, severity is scored against whichever gene's CDS is smaller (sizing against the bigger
-gene alone can make a real problem look tiny), split into minor/substantial/contained as
-explained above. 
-For eukaryotic genomes, we don't expect many genes to overlap in their coding regions, so
-several of these overlapping pairs are probably false calls. But telling the real gene apart
-from the spurious one isn't simple. A minor overlap in a gene's flanking region could just be a
-slightly wrong gene model boundary. But a minor overlap sitting inside the gene (as if it were
-mostly in the other gene's intron) doesn't make sense that way. So overlap % alone isn't enough
-to say whether both genes are real or one is false. Protein domain presence can help decide, but
-many proteins don't have any domain at all.
-Moreover, due to the liftoff process that can predict slightly different gene models across the strains, the same genes might. overlap in only a single strain for example. 
-
-### 7a. Filter (drop unsupported genes before get_pangenes)
-
-Scripts: [`scripts/filter_final_annotation_job.sh`](scripts/filter_final_annotation_job.sh) ·
-[`scripts/filter_final_annotation.py`](scripts/filter_final_annotation.py) ·
-[`scripts/plot_filter_qc_job.sh`](scripts/plot_filter_qc_job.sh) ·
-[`scripts/plot_filter_qc.py`](scripts/plot_filter_qc.py)
-
-
-A gene is never partially removed: it's dropped from **every** genome's output or from none -
-never kept in one genome and dropped in another, even though its own local copy in some genome
-never overlapped anything. To make that possible, this script reads **all** genomes'
-`<genome>_final_annotation.gff` in one run and decides one global verdict per gene (by its
-original ID, shared across every genome that carries it) before writing any output.
-
-**Step 1 - panel-wide stats.** A first pass over every genome's raw genes counts, for every
-gene: how many genomes in the panel carry it (`present_in`); how many of those are
-`good_<genome>` (high-confidence) transfers; and, from a first CDS-overlap scan of every genome,
-how many genomes it has a *qualifying* overlap in (`collides_in` - a "minor + flank" overlap,
-auto-kept below, doesn't count). No decisions are made yet - this pass only counts.
-
-**Step 2 - overlap resolution**, decided globally per gene, using every genome's full raw gene
-set (including genes that would later fail the extra-copy/rescue-coverage checks in step 3 - an
-overlap dispute is settled first, before those checks ever run).
-
-*Minor overlap* (< 20% of the smaller gene's own CDS):
-
-| Position on the bigger gene | Result |
-|---|---|
-| Flank (outermost CDS segment) | Keep both, done |
-| Not flank (an internal segment) | Falls through to the table below, same as substantial/contained |
-
-*Substantial or contained overlap* (≥ 20%, or minor-but-not-flank):
-
-A gene **has evidence** if it has a protein domain (InterPro/PFAM) or a specific description
-(anything other than a generic one: "hypothetical protein", "hypothetical protein, conserved",
-"conserved hypothetical protein", "unspecified product", "unknown function", "unnamed protein
-product", or empty).
-(`--require-domain-only` turns off the description part, domain-only, the way this script used
-to work.)
-
-| Gene A | Gene B | Result |
-|---|---|---|
-| `main` | `main` | Keep both |
-| `main` | has evidence | Keep both |
-| `main` | no evidence | Drop B - subject to the panel check below |
-| has evidence | no evidence | Drop B - subject to the panel check below |
-| has evidence | has evidence | Keep both |
-| no evidence | no evidence | Drop whichever gene has fewer `good_<genome>` transfers panel-wide (tie: drop the one with the shorter CDS). No panel check |
-
-**Panel check** - applied only to the two "Drop B" rows above:
-
-| Panel-wide presence | Result |
-|---|---|
-| Present in ≤ 2 genomes | Dropped - too little support to weigh against anything else |
-| Present in more than 2 genomes, with a qualifying overlap in only 1 of them | **Not dropped** - more likely a Liftoff boundary glitch specific to that one genome than real evidence the gene is spurious |
-| Present in more than 2 genomes, with a qualifying overlap in at least `--min-overlap-genomes` (default `2`) of them | Dropped - a real, recurring conflict |
-
-**Step 3 - extra copies and the rescue-coverage floor**, only among genes that survived step 2:
-- **Extra-copy genes** (`extra_copy_number > 0`, from Liftoff's `-copies` search) are kept only
-  if they have a valid ORF - dropped otherwise (`--extra-copy-require-valid-orf`, on by
-  default).
-- **`rescued_<genome>` genes** with Liftoff coverage under `--min-rescued-coverage` (default
-  `0.5`) are dropped.
-
-**Steps 4-5.** Every kept protein-coding gene (and pseudogene) is retyped as `gene`, and its
-`pseudogenic_transcript` child, if any, as `transcript` - the one thing `get_pangenes` requires.
-Non-coding RNA genes are left as they are. Every kept gene's ID is renumbered to
-`<id-prefix><strain-index>g<00001, ...>` in genomic order (original ID kept in `original_ID=`).
-Full rule details are in `filter_final_annotation.py`'s own header comment.
-
-**Known limitation - domain evidence on a transferred gene reflects the *original* gene, not
-necessarily the transferred copy.** InterProScan (step 04) only ever runs on each genome's own
-original proteins. A `good_<genome>`/`rescued_<genome>` gene's domain evidence is looked up from
-its *source* genome's original protein, by `protein_id` - never re-checked against the
-transferred copy's own sequence as it ended up in this genome. For a `good_<genome>` transfer
-(already passed the ≥90% coverage/identity/valid-ORF bar) that's a safe enough assumption. For a
-`rescued_<genome>` transfer it isn't - that's exactly the tier that failed that quality bar, so the transferred
-copy's real sequence (ORF, coverage) may no longer match what the domain call was made on. For
-now this is accepted as good enough for the intermediate builds; the plan is to re-run domain
-detection for real, on the actual final protein set, when the final GFF is assembled for
-publication (the same pass that cleans up the internal `source=` tags).
-
-**Known limitation - "protein domain" is only as good as the source annotation.** Domain
-evidence is detected purely by scanning a gene's own CDS lines for an InterPro/PFAM hit in
-`Dbxref=` - nothing more, no external database lookup. If a genome's *original* annotation
-never recorded that field at all, every gene sourced from that genome (`main`,
-`good_<genome>`, `rescued_<genome>`) will test as having no domain,
-unconditionally - not because those genes lack real domains, but because that annotation
-source never recorded them. This project's own reference (AF293/FungiDB) is exactly this
-case: 0 of its ~32,000 CDS lines carry an InterPro/PFAM hit - every gene sourced from it relies
-entirely on its description text (or, for `main`/being the reference, on not needing evidence
-at all) to survive an overlap dispute. That is why [step 04 - InterProScan](../04_InterProScan/README.md) runs
-before everything else in this step: it writes real domain evidence into every genome's GFF, so
-the rule works from each genome's own InterProScan result rather than whatever the source
-annotation happened to record. **[Step 1's native annotation check](#step-1-native-annotation-check)**, run on
-step 04's output, shows in `gene_biotype_counts.tsv` (the `protein_coding_with_domain`/
-`protein_coding_without_domain` columns) how much domain evidence each genome actually has.
-
-#### Dependencies
-
-- **Python 3**, standard library only, for filtering - `module load python/3.11.9` (or any
-  python3 on the PATH, nothing else needed).
-- **matplotlib** (+ pandas), for the QC plots only - micromamba env `synteny`, already
-  installed if you set it up for [step 01](../01_Genome_Selection_QC/README.md#dependencies).
-- No AGAT, no Liftoff needed for this step - those were only for the build step above.
-
-#### What you need before starting
-
-- Every genome's own `<genome>_final_annotation.gff`, from the build step's `OUTPUT_DIR`.
-- **The same genome order** used in the build step (`ORDER`, first = reference) - reused here
-  so strain-index numbering and the reference/`main` logic stay consistent.
-
-#### Running it
-
-**Edit the settings at the top of `filter_final_annotation_job.sh`**:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `STRAINS` | `genome_order.txt` | Comma-separated genome names or a file with one per line, **first = the reference**, same as the build step's `ORDER` |
-| `FINAL_DIR` | `expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `OUTPUT_DIR`) |
-| `OUT_DIR` | `filtered_annotation` | Where to write the filtered GFFs + `_filter_report.tsv` files |
-| `MIN_RESCUED_COVERAGE` | `0.5` | Every `rescued_<genome>` gene below this Liftoff coverage is dropped outright |
-| `MIN_OVERLAP_BP` | `20` | CDS-to-CDS overlaps under this many bp are ignored entirely |
-| `MIN_OVERLAP_GENOMES` | `2` | A gene present in more than 2 genomes needs a qualifying overlap in at least this many of them to count as a real, recurring conflict rather than an isolated Liftoff boundary glitch |
-| `EXTRA_COPY_REQUIRE_VALID_ORF` | `true` | `false` keeps every extra-copy gene regardless of ORF validity |
-| `REQUIRE_DOMAIN_ONLY` | `false` | `true` makes only a protein domain count as evidence, ignoring description text entirely |
-| `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
-
-**Run** (one single SLURM job, works through every genome in `STRAINS` in one Python process -
-the cross-genome case-6 pass needs all of them loaded together anyway):
+Any setting can be changed on the command line instead of in the script, for example:
 ```bash
-mkdir -p filtered_annotation/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/filter_final_annotation_job.sh
+sbatch --export=ALL,MIN_COV=0.8,MODES=prefer_panel_model 05_Cross-genome_annotation_integration/scripts_keep_all_genes/basket_annotation_job.sh
 ```
 
-Then, once that's done, **edit the settings at the top of `plot_filter_qc_job.sh`**
-(`STRAINS`, `ORIGINAL_DIR`, `FILTERED_DIR`, `GENOME_DIR`/`GENOME_SUFFIX`, `OUT_DIR`) and:
+The final GFFs are in `basket_annotation_keep_all_genes/gff_<mode>_final/`; they go to get_pangenes (step 06) as
+they are.
+
+To redo only the plots, for example for one mode, from the final GFFs already written (nothing else is run). They go
+to `basket_annotation/plots/` with the modes in their names (e.g. `<label>_prefer_panel_model_orf_quality.png`), so the
+job's own plots are not overwritten:
 ```bash
-sbatch 05_Cross-genome_annotation_integration/scripts/plot_filter_qc_job.sh
+sbatch --export=ALL,MODES=prefer_panel_model 05_Cross-genome_annotation_integration/scripts/plot_basket_annotation_job.sh
 ```
 
-**Output**, in `OUT_DIR`:
+### Outputs
 
-| File | Shows |
+| File | Content |
 |---|---|
-| `01_gene_counts.png` | total protein-coding genes, before vs. after filtering, per genome |
-| `02_extra_copies.png` | extra-copy genes remaining, before vs. after, per genome |
-| `03_removal_reasons.png` | why genes were removed, per genome (stacked by reason) |
-| `04_overlap_severity.png` | CDS-overlap severity (minor/substantial/contained), before vs. after |
-| `05_source_composition.png` | where the genes came from (`main`/original/`good_*`/`rescued_*`), before vs. after |
-| `summary.tsv` | the numbers behind every plot above, one genome per row |
+| `baskets_v2.tsv`, `winners.tsv` | each basket, its members and winners (empty for a basket without a winner); each panel gene with its support, the genomes it is in, its protein length and PSAURON score |
+| `tandem_arrays.tsv` | the baskets that hold a tandem array: their winners, the number of copies in each genome, and the copies |
+| `not_eligible.tsv` | members that could not win, and why (no valid ORF in any genome, too short, low PSAURON) |
+| `members.tsv` | every member: its basket's winners, protein length, own ORF (`valid`, `gap`, `end`, `invalid`), domain, PSAURON, and `keep_check` (empty = its own model may come back where its basket has no model; otherwise why not) |
+| `copies_split.tsv` | the copies split off into baskets of their own: the copy, its genome, and the copy that kept the basket |
+| `psauron_candidates.faa`, `psauron_candidates.csv` | with `RUN_PSAURON="yes"`: the proteins scored in the job and their scores (re-used by the next run) |
+| `decide/decisions.tsv`, `decide/summary.tsv` | what each genome takes for each panel gene, in both modes, and the ORF status of the model taken (`valid`, `gap`, `end`, `invalid`) |
+| `decide/absent.tsv` | each panel gene absent from a genome, and why: no transfer into the genome, transfers with low coverage, not at the place, no valid ORF, or valid models that cover too little of the panel gene; with the panel gene's transfer coverage and the closest model found |
+| `decide/array_models.tsv` | the tandem-array copies added to each genome: the basket's winners, the genome, the copy, own gene or transfer, its ORF status |
+| `decide/own_invalid_orf.tsv` | genes whose own model has an invalid ORF in their own genome, and why (start, stop, frame, internal stops); the reference genes are those of the first genome |
+| `gff_<mode>/<genome>_basket_annotation.gff` | the draft GFFs (before miniprot and the overlap rule) |
+| `gff_<mode>/summary.tsv` | genes per genome, by origin of the model |
+| `gff_<mode>/removed_panel_genes.tsv` | panel genes removed by the curation |
+| `gff_<mode>/stacked_dropped.tsv`, `<genome>_stacked_dropped.gff` | models not written because another panel gene's model was at the same place |
+| `gff_<mode>/left_out.tsv` | genes of a basket with a winner that no model covers and that are not written: piece of a gene that has its model here, or why its own model failed |
+| `gff_<mode>_miniprot/` | the GFFs after miniprot, and `miniprot_results.tsv` (one row per gene tried, with the result) |
+| `gff_<mode>_final/` | **the final GFFs**; `removed_panel_genes.tsv` (curation and overlap), `overlap_losses.tsv` (every panel gene that loses an overlap, in how many genomes, and against which genes), `restored_genes.tsv` |
+| `plots/<label>_*.png` | `model_origin`, `orf_quality`, `gene_counts`, `panel_genes`, `miniprot`, and `<label>_summary.tsv` with their numbers |
+| `gene_fate_<mode>.tsv` | every gene of every genome's own annotation: `kept` (with the final model at its place), `left out`, `not eligible`, `panel gene removed` or `one place, one gene` (with the reason); `NO RECORD` stops the job |
 
-#### Checking it worked
+### Attributes written in the GFFs
 
-- `<OUT_DIR>/<genome>_final_annotation_filtered.gff` should exist for every genome once the
-  job finishes.
-- `<OUT_DIR>/<genome>_filter_report.tsv` lists every removed gene and why - nothing is ever
-  silently dropped.
-- `<OUT_DIR>/filter_summary.tsv` - one row per genome: `n_original`/`n_kept`/`n_removed`.
-- The job's `..._<jobid>.out`/`.err` (from the `#SBATCH --output`/`--error` lines at the
-  top) reports the panel-wide presence/overlap-scan counts, then one summary line per genome
-  (`<genome>: N protein-coding genes -> M kept, K removed (%) -> <path>`), and ends with
-  `All genomes filtered. Outputs are in ...`.
+Every gene gets a new unique ID, `<ID_PREFIX><genome index>g<number>`, numbered along the genome. Every attribute of
+the source model is kept on its gene, mRNA, exon and CDS lines (e.g. the InterPro `Dbxref` of the CDS); only `ID` and
+`Parent` are replaced. A model repaired by miniprot keeps the attributes of the model it replaces, except Liftoff's ORF
+marks (`valid_ORF`, `valid_ORFs`, `missing_start_codon`, `missing_stop_codon`, `inframe_stop_codon`), which described the
+old model. The gene line also gets, in column 9:
 
-Once every genome has its `_final_annotation_filtered.gff` and the QC plots look right, move
-on to [step 06 - GET_PANGENES](../06_GET_PANGENES/README.md) to prepare and run
-`get_pangenes` itself.
-
-### 7b. No filtering (tag, decide after get_pangenes)
-
-Scripts: [`scripts/tag_final_annotation_job.sh`](scripts/tag_final_annotation_job.sh) ·
-[`scripts/tag_final_annotation.py`](scripts/tag_final_annotation.py)
-
-**Why this exists.** 7a's overlap-resolution rule can still be wrong in a specific way: if a
-gene overlaps something in only one genome of the panel because that one genome's `main`/other
-gene model has a locally bad Liftoff boundary - not because the gene itself is spurious -
-dropping it *in that one genome* would create a false gene-absence call for a real, panel-wide
-gene, right where `get_pangenes` needs presence/absence to be accurate. 7a's panel check already
-guards against exactly this - a gene present in more than 2 genomes is never dropped just for
-an isolated collision, across every case - but it's still a heuristic based on recurrence, not
-proof: a gene could still be genuinely spurious despite recurring evidence, or genuinely real
-despite an isolated one. 7b sidesteps the question entirely: don't decide at all, tag instead,
-and use `get_pangenes`' own pangene-level presence/absence pattern - much stronger evidence than
-anything computable pre-pangenome - to make the real call afterward.
-
-Every gene in every `<genome>_final_annotation.gff` gets one new attribute:
-
-| `intersect=` value | Meaning |
+| Attribute | Meaning |
 |---|---|
-| `NA` | No CDS-to-CDS overlap ≥ `--min-overlap-bp` with anything |
-| `with_main` | Overlaps the reference-derived `main` gene |
-| `with_other_with_domain` | Overlaps a non-`main` gene that itself has a protein domain |
-| `with_other_no_domain` | Overlaps a non-`main` gene with no protein domain either |
+| `original_ID` | the genome's own gene ID, when its gene was kept or replaced (absent when the gene was filled) |
+| `model_from` | the gene the model comes from |
+| `model_origin` | `original`, `original_divergent` (no transfer fitted), `original_other_place` (the genome's own gene, back because its basket had no model in the genome), `replaced`, `filled`, `alternative`, `rescued` (a valid model covering 50-70% of the panel gene), `target_invalid_orf`, `repaired_miniprot` |
+| `basket` | the panel gene (the basket's winner) |
+| `has_domain` | InterPro/Pfam domain of `model_from` |
+| `not_in_reference_annotation` | the panel gene has no gene in the reference annotation |
+| `orf_invalid` | the model has no valid ORF |
+| `low_coverage_transfer`, `transfer_coverage` | the transfer was used with a coverage below 80% |
+| `selenoprotein` | the description names a selenoprotein |
+| `pseudogene` | the model is an annotated pseudogene, written as gene + transcript + exon (no CDS) |
+| `frameshift`, `stop_codon`, `start_codon_lost`, `stop_codon_lost`, `partial_alignment`, `no_miniprot_hit`, `miniprot_repair_overlaps_another_gene`, `miniprot_repair_noncanonical_intron`, `miniprot_repair_structure_differs` | why miniprot could not repair it |
+| `tandem_array_copy` | an extra copy of a tandem array, added on top of the genome's model for the panel gene (`basket`) |
+| `restored_after_removal_of` | the model had lost its place to that panel gene, which the overlap rule removed later |
+| `orf_status` | one value per gene, to filter or colour by: `valid`, `repaired_miniprot`, `selenoprotein`, `pseudogene`, `invalid_assembly_gap` (an N in the CDS) or `invalid_near_contig_end` (within 1 kb of a contig end) - the assembly explains the broken ORF, so the gene is not sent to miniprot - and `invalid` (broken, not explained by the assembly) |
 
-If a gene overlaps more than one other gene, the tag is the single most informative of the
-above (priority `with_main` > `with_other_with_domain` > `with_other_no_domain`) - every
-partner is still listed, one row per pair, in `<genome>_intersect_pairs.tsv`. Nothing is
-removed, renumbered, or relabeled - every other line is byte-identical to the input.
+### Scripts
 
-`get_pangenes` doesn't read or preserve this attribute (it only looks at coordinates/feature
-type for its WGA-based clustering), so it isn't needed to survive into `get_pangenes`' own
-output - `get_pangenes`' `pangene_matrix.tab` references genes by their original gene ID, so
-the tag can be joined back onto each pangene cluster afterward by ID. That join, and the
-pangene-level confidence call it produces, isn't built yet - planned as part of
-[step 07 - Post-GET_PANGENES adjusting](../07_Post_GET_PANGENES_adjusting/README.md).
+Steps 1-4: the scripts named in each step. Step 5, run by
+[`scripts_keep_all_genes/basket_annotation_job.sh`](scripts_keep_all_genes/basket_annotation_job.sh), in order:
+[`prepare_pseudogenes.py`](scripts_keep_all_genes/prepare_pseudogenes.py),
+[`baskets_v2.py`](scripts_keep_all_genes/baskets_v2.py), [`decide_models.py`](scripts_keep_all_genes/decide_models.py),
+[`build_basket_annotation.py`](scripts_keep_all_genes/build_basket_annotation.py),
+[`repair_with_miniprot.py`](scripts_keep_all_genes/repair_with_miniprot.py),
+[`overlap_filter.py`](scripts_keep_all_genes/overlap_filter.py),
+[`check_basket_annotation.py`](scripts_keep_all_genes/check_basket_annotation.py),
+[`plot_basket_annotation.py`](scripts_keep_all_genes/plot_basket_annotation.py),
+[`gene_fate.py`](scripts_keep_all_genes/gene_fate.py). Only `baskets_v2.py`, `build_basket_annotation.py`,
+`plot_basket_annotation.py`, `gene_fate.py` and the job differ from [`scripts/`](scripts/).
+[`plot_basket_annotation_job.sh`](scripts/plot_basket_annotation_job.sh) redoes only the plots.
 
-#### Dependencies
+Reports of the results, not run by the job (run locally on the *T. gondii* and *A. fumigatus* results of `scripts/`):
+[`plot_not_eligible.py`](scripts/plot_not_eligible.py) (the genes that could not win, by reason and genome),
+[`report_not_eligible.py`](scripts/report_not_eligible.py) (one row per such gene, with its features and the genes
+really eliminated, with their reasons and PSAURON histograms) and
+[`plot_gene_balance.py`](scripts/plot_gene_balance.py) (why each genome has more or fewer genes than its own
+annotation: every own gene and every final gene accounted for).
+[`basket_overlaps.py`](scripts/basket_overlaps.py) (the overlap rule before the build, on both strands) is not run by the
+job; it counts how many genes each overlap threshold would remove.
+[`check_tandem_pairs.py`](scripts/check_tandem_pairs.py) ([`check_tandem_pairs_job.sh`](scripts/check_tandem_pairs_job.sh)) is not run by the job either;
+it lists every neighbouring pair compared for the tandem arrays, with its blastp identity and coverage.
+[`build_baskets.py`](scripts/build_baskets.py) holds the GFF reader they share, and [`check_orf.py`](scripts/check_orf.py)
+(a copy of step 07's ORF check) the ORF check used by `decide_models.py` and `repair_with_miniprot.py`.
 
-- **Python 3**, standard library only - `module load python/3.11.9` (or any python3 on the
-  PATH, nothing else needed).
-
-#### What you need before starting
-
-- Every genome's own `<genome>_final_annotation.gff`, from the build step's `OUTPUT_DIR`.
-- **The same genome order** used in the build step (`ORDER`, first = reference).
-
-#### Running it
-
-**Edit the settings at the top of `tag_final_annotation_job.sh`**:
-
-| Variable | Default | Meaning |
-|---|---|---|
-| `STRAINS` | `genome_order.txt` | Comma-separated genome names or a file with one per line, **first = the reference** |
-| `FINAL_DIR` | `expanded_annotation` | Directory with every genome's raw `<genome>_final_annotation.gff` (the build step's `OUTPUT_DIR`) |
-| `OUT_DIR` | `tagged_annotation` | Where to write the tagged GFFs + `_intersect_pairs.tsv` files |
-| `MIN_OVERLAP_BP` | `20` | CDS-to-CDS overlaps under this many bp are ignored entirely |
-| `ID_PREFIX` | `Afu` | Renamed gene IDs look like `<ID_PREFIX><strain-index>g<00001, ...>` - **edit this per species**, the default only makes sense for *A. fumigatus* (matches its reference's own native gene ID style, `Afu1g00100`) |
-
-**Run:**
-```bash
-mkdir -p tagged_annotation/logs
-sbatch 05_Cross-genome_annotation_integration/scripts/tag_final_annotation_job.sh
-```
-
-#### Checking it worked
-
-- `<OUT_DIR>/<genome>_final_annotation_tagged.gff` should exist for every genome, same gene
-  count as the input.
-- `<OUT_DIR>/<genome>_intersect_pairs.tsv` lists every overlapping pair behind each tag.
-- `<OUT_DIR>/tag_summary.tsv` - one row per genome: counts for `NA`/`with_main`/
-  `with_other_with_domain`/`with_other_no_domain`.
-- The job's log ends with `All genomes tagged (nothing removed). Outputs are in ...`.
-
-### Step 8: Build each genome's final annotation (best model)
-
-> ⚠️ **Not written yet** — placeholder.
-
-[Back to top level](../README.md)
+Exploration scripts, used to design the step and not run by the job: `choose_models.py`, `split_by_synteny.py`,
+`compare_models.py` (first versions of stages 2-4 of step 5), `plot_baskets.py`, `plot_overlap_case.py` (one basket or one overlap
+drawn in every genome), `plot_filling_position_check.py` (scheme).

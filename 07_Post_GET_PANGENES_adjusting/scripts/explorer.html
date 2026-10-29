@@ -1,0 +1,1510 @@
+<meta charset="utf-8">
+<title>__TITLE__</title>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: fixed header (title/stats/search) + left filter rail + virtualized row list filling
+   the remaining height; a row click opens a right-side slide-over with every strain's full
+   GFF record for that pangene. Rail collapses above the table at phone width. */
+:root{
+  --bg:#f5f6f4; --panel:#ffffff; --panel-2:#eef0ec; --border:#d9ddd6; --border-strong:#c3c9bf;
+  --fg:#1b231d; --fg-muted:#5c665f; --accent:#0f6b5c; --accent-fg:#ffffff;
+  --core:#0072b2; --softcore:#009e73; --shell:#e69f00; --cloud:#cc79a7;
+  --qhigh:#37474f; --qmedium:#78909c; --qlow:#c0392b; --qmixed:#90a4ae; --qnj:#cfd8dc;
+  --row-hover:#eef4f1; --mono-bg:#eef0ec;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#121613; --panel:#181d19; --panel-2:#1f2521; --border:#2c332d; --border-strong:#3c453e;
+    --fg:#e7ece7; --fg-muted:#9aa39b; --accent:#3ecdae; --accent-fg:#0a1512;
+    --core:#5aabe8; --softcore:#4fd6ac; --shell:#f2b940; --cloud:#e8a9cf;
+    --qhigh:#6b8494; --qmedium:#93a9b3; --qlow:#e2685c; --qmixed:#4f6272; --qnj:#3a474d;
+    --row-hover:#1e2622; --mono-bg:#1f2521;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#121613; --panel:#181d19; --panel-2:#1f2521; --border:#2c332d; --border-strong:#3c453e;
+  --fg:#e7ece7; --fg-muted:#9aa39b; --accent:#3ecdae; --accent-fg:#0a1512;
+  --core:#5aabe8; --softcore:#4fd6ac; --shell:#f2b940; --cloud:#e8a9cf;
+  --qhigh:#6b8494; --qmedium:#93a9b3; --qlow:#e2685c; --qmixed:#4f6272; --qnj:#3a474d;
+  --row-hover:#1e2622; --mono-bg:#1f2521;
+  color-scheme: dark;
+}
+*{box-sizing:border-box}
+body{
+  background:var(--bg); color:var(--fg); font-family:"IBM Plex Sans",system-ui,sans-serif;
+  height:100%; display:flex; flex-direction:column; overflow:hidden;
+}
+html{height:100%}
+.mono{font-family:"IBM Plex Mono",ui-monospace,monospace}
+.display{font-family:"Archivo",system-ui,sans-serif}
+::selection{background:var(--accent); color:var(--accent-fg)}
+
+/* ---------- header ---------- */
+header{
+  flex:0 0 auto; display:flex; align-items:center; gap:16px; flex-wrap:wrap;
+  padding:12px 16px; padding-top:calc(12px + env(safe-area-inset-top,0px));
+  border-bottom:1px solid var(--border); background:var(--panel);
+}
+header h1{
+  font-family:"Archivo",system-ui,sans-serif; font-weight:700; font-size:1.05rem; margin:0;
+  letter-spacing:-0.01em; white-space:nowrap;
+}
+header .sub{font-size:0.72rem; color:var(--fg-muted); margin-top:2px}
+.stat-strip{display:flex; gap:14px; flex-wrap:wrap; font-size:0.78rem; color:var(--fg-muted); margin-left:auto}
+.stat-strip b{color:var(--fg); font-variant-numeric:tabular-nums; font-weight:600}
+.search-wrap{position:relative; min-width:200px; flex:1 1 240px; max-width:420px}
+.search-wrap input{
+  width:100%; padding:8px 12px 8px 32px; border-radius:8px; border:1px solid var(--border-strong);
+  background:var(--panel-2); color:var(--fg); font-size:0.85rem; font-family:inherit;
+}
+.search-wrap input:focus{outline:2px solid var(--accent); outline-offset:-1px}
+.search-wrap svg{position:absolute; left:9px; top:50%; transform:translateY(-50%); opacity:0.55; pointer-events:none}
+
+/* ---------- body layout ---------- */
+.app{flex:1 1 auto; display:flex; min-height:0; overflow:hidden}
+
+/* ---------- filter rail ---------- */
+.rail{
+  flex:0 0 250px; border-right:1px solid var(--border); background:var(--panel);
+  overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:18px;
+}
+.rail > *{flex-shrink:0}   /* never squash a section - the rail scrolls instead */
+.rail h2{font-size:0.68rem; text-transform:uppercase; letter-spacing:0.06em; color:var(--fg-muted); margin:0 0 8px; font-weight:600}
+.chip-row{display:flex; flex-wrap:wrap; gap:6px}
+.chip{
+  border:1px solid var(--border-strong); background:var(--panel-2); color:var(--fg);
+  border-radius:999px; padding:4px 10px; font-size:0.74rem; cursor:pointer; display:inline-flex;
+  align-items:center; gap:6px; user-select:none; transition:background .12s,border-color .12s;
+}
+.chip:hover{border-color:var(--accent)}
+.chip[aria-pressed="true"]{background:var(--cat-color,var(--accent)); border-color:var(--cat-color,var(--accent)); color:#fff}
+.chip .dot{width:8px; height:8px; border-radius:50%; background:var(--cat-color,var(--fg-muted)); flex:0 0 auto}
+.chip[aria-pressed="true"] .dot{background:#fff}
+
+.genome-list{display:flex; flex-direction:column; gap:2px; max-height:340px; overflow-y:auto; padding-right:2px}
+.genome-toggle{
+  display:flex; align-items:center; justify-content:space-between; gap:8px; width:100%;
+  border:1px solid transparent; border-radius:6px; padding:5px 8px; background:none; cursor:pointer;
+  font-family:"IBM Plex Mono",monospace; font-size:0.76rem; color:var(--fg); text-align:left;
+}
+.genome-toggle:hover{background:var(--row-hover)}
+.genome-toggle .state{
+  font-family:"IBM Plex Sans",sans-serif; font-size:0.62rem; font-weight:600; letter-spacing:0.03em;
+  padding:2px 6px; border-radius:4px; text-transform:uppercase; color:var(--fg-muted); background:var(--panel-2);
+}
+.genome-toggle[data-state="present"]{border-color:var(--softcore); background:color-mix(in srgb, var(--softcore) 14%, transparent)}
+.genome-toggle[data-state="present"] .state{background:var(--softcore); color:#06281f}
+.genome-toggle[data-state="absent"]{border-color:var(--cloud); background:color-mix(in srgb, var(--cloud) 14%, transparent)}
+.genome-toggle[data-state="absent"] .state{background:var(--cloud); color:#3a0f2b}
+.genome-toggle[data-state="low"]{border-color:var(--qlow); background:color-mix(in srgb, var(--qlow) 14%, transparent)}
+.genome-toggle[data-state="low"] .state{background:var(--qlow); color:#fff}
+.genome-toggle[data-state="high"]{border-color:var(--qhigh); background:color-mix(in srgb, var(--qhigh) 14%, transparent)}
+.genome-toggle[data-state="high"] .state{background:var(--qhigh); color:#fff}
+.rail .hint{font-size:0.68rem; color:var(--fg-muted); line-height:1.4; margin-top:2px}
+
+.range-row{display:flex; align-items:center; gap:8px; font-size:0.78rem}
+.range-row input{
+  width:56px; padding:5px 6px; border-radius:6px; border:1px solid var(--border-strong);
+  background:var(--panel-2); color:var(--fg); font-family:"IBM Plex Mono",monospace; font-size:0.78rem;
+}
+select#sortSel{
+  width:100%; padding:6px 8px; border-radius:6px; border:1px solid var(--border-strong);
+  background:var(--panel-2); color:var(--fg); font-size:0.78rem; font-family:inherit;
+}
+.reset-btn{
+  border:1px solid var(--border-strong); background:none; color:var(--fg-muted); border-radius:6px;
+  padding:6px 10px; font-size:0.74rem; cursor:pointer; margin-top:auto;
+}
+.reset-btn:hover{color:var(--fg); border-color:var(--fg-muted)}
+
+/* ---------- table ---------- */
+.table-wrap{flex:1 1 auto; min-width:0; display:flex; flex-direction:column; overflow:hidden}
+.col-heads{
+  display:grid; grid-template-columns: 10px 118px 62px 1fr 168px; gap:10px; align-items:center;
+  padding:7px 16px; border-bottom:1px solid var(--border); font-size:0.66rem; text-transform:uppercase;
+  letter-spacing:0.05em; color:var(--fg-muted); font-weight:600; background:var(--panel-2); flex:0 0 auto;
+}
+@media (max-width:760px){ .col-heads{grid-template-columns:10px 100px 50px 1fr} .col-heads .col-strip{display:none} }
+.scroller{flex:1 1 auto; overflow-y:auto; position:relative}
+.spacer{position:relative; width:100%}
+.row{
+  position:absolute; left:0; right:0; display:grid; grid-template-columns: 10px 118px 62px 1fr 168px;
+  gap:10px; align-items:center; padding:0 16px; cursor:pointer; border-bottom:1px solid var(--border);
+  background:var(--panel);
+}
+@media (max-width:760px){ .row{grid-template-columns:10px 100px 50px 1fr} .row .presence-strip{display:none} }
+.row:hover{background:var(--row-hover)}
+.row .catdot{width:8px; height:8px; border-radius:50%; background:var(--cat-color)}
+.row .pid{font-family:"IBM Plex Mono",monospace; font-size:0.8rem}
+.row .occ{font-family:"IBM Plex Mono",monospace; font-size:0.76rem; color:var(--fg-muted); font-variant-numeric:tabular-nums}
+.row .desc{font-size:0.8rem; color:var(--fg-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0}
+.presence-strip{display:flex; gap:2px}
+.presence-strip i{width:8px; height:14px; border-radius:2px; background:var(--border-strong); display:block}
+.presence-strip i.on{background-color:var(--cat-color)}
+/* a strain whose gene has no valid ORF (Low): hollow square with a dashed red outline, in every colour mode
+   (same mark as explorer_filtered.html) */
+.presence-strip i.unknown{background:var(--panel); border:1.5px dotted var(--fg-muted); box-sizing:border-box; font-size:9px; line-height:11px; text-align:center; font-style:normal; color:var(--fg-muted)}
+.presence-strip i.dashed{background:var(--panel); border:1.5px dashed var(--qlow); box-sizing:border-box}
+.empty-state{padding:40px 16px; text-align:center; color:var(--fg-muted); font-size:0.85rem}
+
+/* ---------- loading skeleton ---------- */
+.skel-row{height:34px; margin:0 16px; border-radius:6px; background:linear-gradient(90deg,var(--panel-2),var(--border),var(--panel-2)); background-size:200% 100%; animation:shimmer 1.4s infinite}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+@media (prefers-reduced-motion:reduce){.skel-row{animation:none}}
+#loadMsg{padding:16px; font-size:0.82rem; color:var(--fg-muted)}
+
+/* ---------- detail panel ---------- */
+#scrim{position:fixed; inset:0; background:rgba(0,0,0,.35); opacity:0; pointer-events:none; transition:opacity .16s; z-index:20}
+#scrim.open{opacity:1; pointer-events:auto}
+#panel{
+  position:fixed; top:0; right:0; bottom:0; width:min(780px,100vw); background:var(--panel);
+  border-left:1px solid var(--border); transform:translateX(100%); transition:transform .18s ease; z-index:21;
+  display:flex; flex-direction:column; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+#panel.open{transform:translateX(0)}
+#panel.wide{width:min(1600px,100vw)}
+#panel .p-expand{background:none; border:1px solid var(--border-strong); border-radius:6px; color:var(--fg-muted); font-size:0.72rem; padding:3px 9px; cursor:pointer}
+#panel .p-expand:hover{color:var(--fg); border-color:var(--accent)}
+#panel .p-head{flex:0 0 auto; padding:16px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px}
+#panel .p-head-row{display:flex; align-items:flex-start; justify-content:space-between; gap:10px}
+#panel .p-id{font-family:"IBM Plex Mono",monospace; font-size:1rem; font-weight:600}
+#panel .p-close{background:none; border:none; color:var(--fg-muted); font-size:1.3rem; line-height:1; cursor:pointer; padding:2px 6px}
+#panel .p-close:hover{color:var(--fg)}
+.pill{display:inline-flex; align-items:center; gap:6px; padding:3px 9px; border-radius:999px; font-size:0.72rem; font-weight:600; color:#fff}
+#panel .p-body{flex:1 1 auto; overflow-y:auto; padding:14px 16px 28px}
+.copy-btn{background:none; border:1px solid var(--border-strong); border-radius:6px; color:var(--fg-muted); font-size:0.68rem; padding:3px 8px; cursor:pointer}
+.copy-btn:hover{color:var(--fg); border-color:var(--fg-muted)}
+.strain-card{border:1px solid var(--border); border-radius:10px; margin-bottom:12px; overflow:hidden}
+.strain-card .sc-head{display:flex; align-items:center; gap:8px; padding:9px 12px; background:var(--panel-2); flex-wrap:wrap}
+.strain-card .sc-genome{font-family:"IBM Plex Mono",monospace; font-weight:600; font-size:0.82rem}
+.layer-pill{font-family:"IBM Plex Mono",monospace; font-size:0.66rem; padding:2px 7px; border-radius:5px; background:var(--mono-bg); color:var(--fg-muted); border:1px solid var(--border)}
+.fields{display:grid; grid-template-columns: 118px 1fr; gap:4px 10px; padding:10px 12px; font-size:0.78rem}
+.fields dt{color:var(--fg-muted)}
+.fields dd{margin:0; font-family:"IBM Plex Mono",monospace; word-break:break-word}
+.domain-chip{display:inline-block; background:var(--mono-bg); border:1px solid var(--border); border-radius:5px; padding:1px 6px; font-size:0.7rem; margin:2px 4px 2px 0; font-family:"IBM Plex Mono",monospace}
+.absent-strip{display:flex; flex-wrap:wrap; gap:5px; font-size:0.7rem; color:var(--fg-muted)}
+.absent-strip span{font-family:"IBM Plex Mono",monospace; background:var(--mono-bg); border-radius:4px; padding:1px 6px}
+
+/* ---------- locus view ---------- */
+.locus-view{border:1px solid var(--border); border-radius:10px; margin-bottom:14px; padding:10px 10px 6px; background:var(--panel)}
+.locus-view h3{margin:0 0 4px; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--fg-muted)}
+.locus-view .lv-hint{font-size:0.7rem; color:var(--fg-muted); margin-bottom:6px}
+.locus-view svg{width:100%; height:auto; display:block}
+.locus-view svg text{font-family:"IBM Plex Mono",monospace; fill:var(--fg)}
+.locus-view .lv-gene{cursor:pointer}
+.locus-view .lv-gene:hover rect, .locus-view .lv-gene:hover polygon{opacity:0.75}
+.lv-legend{display:flex; flex-wrap:wrap; gap:6px 10px; font-size:0.7rem; margin-top:6px}
+.lv-legend span{display:inline-flex; align-items:center; gap:4px; font-family:"IBM Plex Mono",monospace}
+.lv-legend i{display:inline-block; width:12px; height:8px; border-radius:2px}
+.lv-zoom{display:flex; align-items:center; gap:6px; margin-bottom:6px}
+.lv-zoom button{min-width:28px; padding:2px 8px; border-radius:6px; border:1px solid var(--border-strong); background:var(--panel-2); color:var(--fg); cursor:pointer; font:inherit; font-size:0.78rem}
+.lv-zoom button:hover{border-color:var(--accent)}
+.lv-zoom .lv-zlabel{font-size:0.7rem; color:var(--fg-muted); font-family:"IBM Plex Mono",monospace}
+.locus-view .lv-svg{cursor:grab; touch-action:pan-y}
+.lv-legend button{background:none; border:none; padding:0; font:inherit; color:var(--accent); cursor:pointer; text-decoration:underline}
+
+/* ---------- curation flags ---------- */
+.flag-icon{color:var(--qlow); font-size:0.72rem; line-height:1; flex:0 0 auto}
+.flag-pill{background:var(--qlow); color:#fff}
+.flag-box{margin:0 12px 12px; padding:9px 10px; border:1px dashed var(--border-strong); border-radius:8px; background:var(--panel-2)}
+.flag-box .flag-label{font-size:0.66rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--fg-muted); font-weight:600; margin-bottom:6px}
+.flag-row{display:flex; gap:6px; margin-bottom:6px; flex-wrap:wrap}
+.flag-row select, .flag-row input{
+  flex:1 1 140px; min-width:0; padding:5px 7px; border-radius:6px; border:1px solid var(--border-strong);
+  background:var(--panel); color:var(--fg); font-size:0.76rem; font-family:inherit;
+}
+.flag-box textarea{
+  width:100%; min-height:44px; padding:6px 7px; border-radius:6px; border:1px solid var(--border-strong);
+  background:var(--panel); color:var(--fg); font-size:0.76rem; font-family:inherit; resize:vertical; margin-bottom:6px;
+}
+.flag-actions{display:flex; align-items:center; gap:8px}
+.flag-save{background:var(--accent); color:var(--accent-fg); border:none; border-radius:6px; padding:6px 12px; font-size:0.76rem; font-weight:600; cursor:pointer}
+.flag-clear{background:none; border:1px solid var(--border-strong); color:var(--fg-muted); border-radius:6px; padding:6px 10px; font-size:0.76rem; cursor:pointer}
+.flag-status{font-size:0.7rem; color:var(--fg-muted)}
+.flags-toggle{display:flex; align-items:center; gap:7px; font-size:0.78rem; cursor:pointer; user-select:none}
+
+/* ---------- pangenome browser ---------- */
+#browser{padding:12px 16px}
+#browser[hidden]{display:none}
+.br-bar{display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-bottom:10px; font-size:0.8rem}
+.br-bar select, .br-bar input[type=text]{font:inherit; padding:4px 6px; border:1px solid var(--border-strong); border-radius:6px; background:var(--panel); color:var(--fg)}
+.br-bar button{font:inherit; padding:4px 10px; border:1px solid var(--border-strong); border-radius:6px; background:var(--panel); color:var(--fg); cursor:pointer}
+.br-bar input[type=range]{flex:1; min-width:160px}
+.br-where{font-family:"IBM Plex Mono",monospace; font-size:0.74rem; color:var(--fg-muted)}
+.br-grid{overflow-x:auto; background:var(--panel); border:1px solid var(--border); border-radius:8px; padding:6px}
+.br-legend{display:flex; flex-wrap:wrap; gap:14px; font-size:0.72rem; color:var(--fg-muted); margin-top:8px}
+.br-legend i{display:inline-block; width:12px; height:12px; margin-right:5px; vertical-align:-2px; border-radius:2px}
+#browserBtn{font:inherit; font-size:0.86rem; font-weight:600; padding:8px 16px; border:0; border-radius:8px; background:var(--accent); color:var(--accent-fg); cursor:pointer}
+</style>
+
+<header>
+  <div>
+    <h1>__TITLE__</h1>
+    <div class="sub">__SUBTITLE__</div>
+  </div>
+  <div class="search-wrap">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+    <input id="search" type="text" placeholder="Search pangene ID, gene ID, description or domain (InterPro/Pfam ID or name)..." autocomplete="off">
+  </div>
+  <button id="browserBtn" type="button" title="Walk along the chromosomes of one strain and see every strain at once">&#9654; Pangenome browser</button>
+  <div class="stat-strip" id="statStrip">Loading...</div>
+</header>
+
+<div class="app">
+  <nav class="rail" id="rail">
+    <div>
+      <h2>Category</h2>
+      <div class="chip-row" id="catChips"></div>
+    </div>
+    <div>
+      <h2>Pangene quality (ORF)</h2>
+      <div class="chip-row" id="qClassChips"></div>
+      <div class="hint">Majority of the judged genes (step 05 orf_status); tie = Mixed. ORFs broken by the assembly are not counted.</div>
+    </div>
+    <div>
+      <h2>Occupancy (genomes)</h2>
+      <div class="range-row">
+        <input type="number" id="occMin" min="0" max="15" placeholder="0">
+        <span style="color:var(--fg-muted)">-</span>
+        <input type="number" id="occMax" min="0" placeholder="">
+        <span style="color:var(--fg-muted)" id="occTotal"></span>
+      </div>
+      <label class="flags-toggle" style="margin-top:8px"><input type="checkbox" id="multiOnly"> Only pangenes with 2+ genes in a strain</label>
+      <label class="flags-toggle" style="margin-top:4px"><input type="checkbox" id="lowPsauronOnly"> Only pangenes with PSAURON &lt; 0.5</label>
+      <label class="flags-toggle" style="margin-top:4px"><input type="checkbox" id="likelyFalseOnly"> Only low confidence (invalid ORF in &gt; 50% of strains)</label>
+      <div class="hint" id="multiCount"></div>
+    </div>
+    <div>
+      <h2>Sort</h2>
+      <select id="sortSel">
+        <option value="matrix">Matrix order</option>
+        <option value="occ_desc">Occupancy, high -> low</option>
+        <option value="occ_asc">Occupancy, low -> high</option>
+        <option value="id">Pangene ID</option>
+      </select>
+    </div>
+    <div>
+      <h2>Presence strip color</h2>
+      <select id="colorSel">
+        <option value="category">Category (Core/Soft-core/Shell/Cloud)</option>
+        <option value="coverage">Liftoff coverage</option>
+        <option value="identity">Liftoff identity</option>
+        <option value="quality">Gene quality (ORF)</option>
+      </select>
+      <div class="hint" id="colorLegend">Every present strain in the pangene's category color.</div>
+    </div>
+    <div style="display:flex; flex-direction:column">
+      <h2>Strains - click to cycle</h2>
+      <div class="genome-list" id="genomeList"></div>
+      <div class="hint">Click to cycle: <b>present in</b> -> <b>absent from</b> -> <b>low</b> (has a gene with no valid ORF) -> <b>high</b> (has a gene with a valid ORF) -> clear. Combines across strains (AND).</div>
+    </div>
+    <div>
+      <h2>Curation</h2>
+      <label class="flags-toggle"><input type="checkbox" id="flaggedOnly"> Only flagged pangenes</label>
+      <div class="hint" id="flagCount"></div>
+      <div class="hint" id="flagModeHint"></div>
+      <button class="reset-btn" id="exportFlagsBtn" style="margin-top:6px">Export flags (JSON)</button>
+    </div>
+    <button class="reset-btn" id="resetBtn">Reset filters</button>
+  </nav>
+
+  <div class="table-wrap">
+    <div class="col-heads">
+      <span></span><span>Pangene</span><span>Occ.</span><span>Description</span><span class="col-strip" id="stripHead">Presence / quality - dashed = Low</span>
+    </div>
+    <div class="scroller" id="scroller">
+      <div id="loadMsg">Fetching pangenome data...</div>
+      <div class="skel-row" style="margin-top:8px"></div>
+      <div class="skel-row" style="margin-top:8px; width:80%"></div>
+      <div class="skel-row" style="margin-top:8px; width:90%"></div>
+    </div>
+  </div>
+</div>
+
+<section id="browser" hidden>
+  <div class="br-bar">
+    <label>Guide strain <select id="brGuide"></select></label>
+    <label id="brContigLab">Contig <select id="brContig"></select></label>
+    <button type="button" data-step="-1">&#9664;&#9664;</button><button type="button" data-step="-0.25">&#9664;</button>
+    <input type="range" id="brPos" min="0" value="0">
+    <button type="button" data-step="0.25">&#9654;</button><button type="button" data-step="1">&#9654;&#9654;</button>
+    <label>Columns <select id="brN"><option>30</option><option selected>60</option><option>100</option><option>150</option></select></label>
+    <input type="text" id="brFind" placeholder="Go to pangene or gene ID" size="22">
+    <input type="text" id="brDom" placeholder="Highlight domain (InterPro/Pfam ID or name)" size="30">
+    <button type="button" id="brDomPrev" title="Previous gene with this domain">&#9664; match</button><button type="button" id="brDomNext" title="Next gene with this domain">match &#9654;</button>
+    <label title="Show only the pangenes with this domain, side by side, whether the guide strain has them or not"><input type="checkbox" id="brDomOnly"> show only these</label>
+    <span class="br-where" id="brDomInfo"></span>
+    <span class="br-where" id="brWhere"></span>
+  </div>
+  <div class="br-grid" id="brGrid">Loading the gene order of every strain...</div>
+  <div class="br-legend">
+    <span><i style="background:var(--qhigh)"></i>gene, valid ORF</span>
+    <span><i style="background:var(--qlow); opacity:0.55"></i>gene, invalid ORF</span>
+    <span><i style="background:var(--qnj); font-style:normal; font-size:8px; font-weight:700; text-align:center; line-height:12px">N</i>gene with N (gap) in the CDS: sequence missing</span>
+    <span><i style="background:#e9c46a"></i>gene at a contig end: cut by the assembly</span>
+    <span><i style="border:1px solid var(--border-strong)"></i>absent (hover for the reason)</span>
+    <span><i style="border:1px dotted var(--fg-muted)"></i>? absent, maybe an assembly problem</span>
+    <span><i style="border:2px solid #e76f51"></i>pangene with the highlighted domain</span>
+    <span><i style="background:#f4a261; opacity:0.35"></i><em style="color:#c2410c">italic orange ID</em>: inserted column, a pangene the guide strain does not have, placed where other strains carry it</span>
+    <span><i style="background:#c0392b; width:3px"></i>order break: the strain's gene is not next to the previous one</span>
+    <span>Columns follow the guide strain's genes on that contig (plus the inserted ones); the strip on top is the pangene's category. Click a column to open its pangene; arrows / slider / keyboard &larr; &rarr; to move.</span>
+  </div>
+</section>
+
+<div id="scrim"></div>
+<aside id="panel" aria-hidden="true">
+  <div class="p-head">
+    <div class="p-head-row">
+      <div>
+        <div class="p-id" id="pId">-</div>
+        <div class="sub" id="pMeta" style="font-size:0.74rem; color:var(--fg-muted); margin-top:3px"></div>
+      </div>
+      <div style="display:flex; gap:6px; align-items:center"><button class="p-expand" id="pBrowse" type="button" title="Show this pangene in the pangenome browser">Browser</button><button class="p-expand" id="pExpand" type="button">Expand</button><button class="p-close" id="pClose" aria-label="Close">X</button></div>
+    </div>
+    <div id="pPanel" class="absent-strip"></div>
+    <div id="pAbsent" class="absent-strip"></div>
+    <div class="flag-box" id="pangeneFlagBox" style="margin:0">
+      <div class="flag-label">Pangene flag (applies to the whole pangene)</div>
+      <div class="flag-row">
+        <select class="flag-tag" id="pgFlagTag">
+          <option value="">No flag</option>
+          <option value="delete">Delete this pangene</option>
+          <option value="wrong_model">Wrong gene model</option>
+          <option value="note">Note</option>
+        </select>
+        <input class="flag-related" type="text" id="pgFlagRelated" placeholder="Related pangene ID (optional)">
+      </div>
+      <textarea class="flag-note" id="pgFlagNote" placeholder="Why? (optional)"></textarea>
+      <div class="flag-actions">
+        <button class="flag-save" type="button" id="pgFlagSave">Save flag</button>
+        <button class="flag-clear" type="button" id="pgFlagClear">Clear</button>
+        <span class="flag-status" id="pgFlagStatus"></span>
+      </div>
+    </div>
+  </div>
+  <div class="p-body" id="pBody"></div>
+</aside>
+
+<script>
+(function(){
+"use strict";
+var CAT_COLOR = {"Core":"var(--core)","Soft-core":"var(--softcore)","Shell":"var(--shell)","Cloud":"var(--cloud)"};
+var CAT_ORDER = ["Core","Soft-core","Shell","Cloud"];
+var ROW_H = 34;
+
+var state = {
+  genomes: [], fields: {}, pangenes: [], filtered: [],
+  search: "", cats: new Set(), qclasses: new Set(), occMin: null, occMax: null, sort: "matrix",
+  genomeState: {}, // genome -> "present" | "absent" | undefined
+  colorMode: "category",
+  flaggedOnly: false,
+  multiOnly: false, lowPsauronOnly: false, likelyFalseOnly: false,
+  flags: {},            // gene_id -> flag doc data
+  pangeneFlags: {},     // pangene_id -> flag doc data (whole-pangene flags)
+  flaggedPangenes: new Set()
+};
+var dbNS = null;
+var TAG_LABEL = {delete:"Delete this gene", wrong_model:"Wrong gene model", note:"Note"};
+
+// "Not judged" = ORF broken by the assembly (orf_status invalid_assembly_gap / invalid_near_contig_end)
+var QLABEL = {"Not judged": "ORF broken by assembly"};
+function qLabel(c){ return QLABEL[c] || c; }
+var QCLASS_COLOR = {"High":"var(--qhigh)", "Low":"var(--qlow)", "Not judged":"var(--qnj)", "All High":"var(--qhigh)", "All Low":"var(--qlow)", "Mixed":"var(--qmixed)"};
+var COLOR_LEGEND = {
+  category: "Every present strain in the pangene's category color.",
+  coverage: "Each strain's Liftoff coverage, amber (low) -> green (high). Grey = no Liftoff (reference layer or own annotation).",
+  identity: "Each strain's Liftoff identity, amber (low) -> green (high). Grey = no Liftoff (reference layer or own annotation).",
+  quality: "Each strain's gene (step 05 orf_status): <b style=\"color:var(--qhigh)\">High</b> = valid ORF (or repaired by miniprot), <b style=\"color:var(--qlow)\">Low</b> = invalid ORF or pseudogene, <b style=\"color:var(--qnj)\">Not judged</b> = ORF broken by the assembly (N in the CDS or contig end)."
+};
+
+function qualityColor(v){
+  if(v === undefined || v === null || v === "" || isNaN(+v)) return "var(--border-strong)";
+  var pct = Math.max(0, Math.min(1, +v)) * 100;
+  return "color-mix(in srgb, var(--softcore) "+pct.toFixed(0)+"%, var(--shell))";
+}
+function classColor(cls){
+  return QCLASS_COLOR[cls] || "var(--border-strong)";
+}
+
+/* ---------- data loading ---------- */
+function loadJSON(path){
+  return fetch(path).then(function(r){
+    if(!r.ok) throw new Error("HTTP "+r.status+" for "+path);
+    return r.json();
+  });
+}
+
+var loadMsg = document.getElementById("loadMsg");
+
+loadJSON("data/manifest.json").then(function(manifest){
+  state.genomes = manifest.genomes;
+  var nG = state.genomes.length;
+  document.getElementById("occTotal").textContent = "/ " + nG;
+  document.getElementById("occMax").max = nG; document.getElementById("occMax").placeholder = nG;
+  document.getElementById("stripHead").textContent = "Presence / quality ("+nG+" strains) - dashed = Low";
+  manifest.gene_fields.forEach(function(f,i){ state.fields[f] = i; });
+  var loaded = 0, total = manifest.chunks.length;
+  loadMsg.textContent = "Fetching pangenome data - 0/"+total+" files...";
+  return Promise.all(manifest.chunks.map(function(c){
+    return loadJSON("data/"+c).then(function(rows){
+      loaded++;
+      loadMsg.textContent = "Fetching pangenome data - "+loaded+"/"+total+" files...";
+      return rows;
+    });
+  }));
+}).then(function(chunks){
+  var all = [];
+  chunks.forEach(function(rows){ Array.prototype.push.apply(all, rows); });
+  var GB = {}; state.genomes.forEach(function(g,i){ GB[g] = 1<<i; });
+  all.forEach(function(p){
+    var mask = 0, texts = [p.id];
+    for(var g in p.genes){
+      mask |= GB[g];
+      p.genes[g].forEach(function(rec){
+        var desc = rec[state.fields.description];
+        var oid = rec[state.fields.original_ID];
+        if(desc) texts.push(desc);
+        if(oid) texts.push(oid);
+        (rec[state.fields.interpro] || []).forEach(function(x){ texts.push(x); });   // "IPR... name"
+        (rec[state.fields.pfam] || []).forEach(function(x){ texts.push("PF" + x); });
+      });
+    }
+    p._mask = mask;
+    p._multi = Object.keys(p.genes).some(function(g){ return p.genes[g].length > 1; });
+    // strain valid if >= 1 gene High, invalid if all its genes Low; low confidence = invalid in > 50% of judged strains
+    var nv = 0, ni = 0, ps = false;
+    for(var g2 in p.genes){
+      var cls = p.genes[g2].map(function(rec){ ps = ps || rec[state.fields.pseudogene] === "True"; return rec[state.fields.quality_class]; });
+      if(cls.indexOf("High") >= 0) nv++; else if(cls.every(function(c){ return c === "Low"; })) ni++;
+    }
+    p._invText = (nv + ni) ? "Invalid ORF in "+ni+" of "+(nv + ni)+" judged strains"+(ps ? " (reference pseudogene)" : "") : "";
+    p._likelyFalse = !ps && (nv + ni) > 0 && ni / (nv + ni) > 0.5;
+    p._lowPsauron = !!(p.panel_genes && p.panel_genes.length && p.panel_genes[0][1] !== "" && +p.panel_genes[0][1] < 0.5);
+    p._search = texts.join(" ").toLowerCase();
+  });
+  state.pangenes = all;
+  initUI();
+  applyFilters();
+}).catch(function(err){
+  loadMsg.textContent = "Could not load pangenome data: " + err.message;
+  console.error(err);
+});
+
+/* ---------- pangenome browser: one column per gene of a guide strain, one row per strain ---------- */
+var BR = {guide: null, contig: null, start: 0, n: 60, loci: null, pos: null, ready: false};
+function brPmap(){ if(!state.pmap){ state.pmap = {}; state.pangenes.forEach(function(q){ state.pmap[q.id] = q; }); } return state.pmap; }
+function openBrowser(pid){
+  document.querySelector(".app").style.display = "none";
+  document.getElementById("browser").hidden = false;
+  document.getElementById("browserBtn").innerHTML = "&#9664; Back to the list";
+  if(typeof closePanel === "function" && pid) { try { closePanel(); } catch(e){} }
+  var go = function(){ if(pid) brGoto(pid); else brRender(); };
+  if(BR.ready) return go();
+  Promise.all(state.genomes.map(loadLoci)).then(function(all){
+    BR.loci = {}; BR.pos = {};
+    state.genomes.forEach(function(g, i){ BR.loci[g] = all[i]; BR.pos[g] = all[i].idx; });
+    var gs = document.getElementById("brGuide");
+    gs.innerHTML = state.genomes.map(function(g){ return '<option>'+escapeHTML(g)+'</option>'; }).join("");
+    BR.guide = state.genomes[0];
+    brFillContigs();
+    BR.ready = true;
+    go();
+  });
+}
+function closeBrowser(){
+  document.getElementById("browser").hidden = true;
+  document.querySelector(".app").style.display = "";
+  document.getElementById("browserBtn").innerHTML = "&#9654; Pangenome browser";
+}
+function brFillContigs(){
+  var cs = BR.loci[BR.guide].contigs;
+  var names = Object.keys(cs).sort(function(a,b){ return cs[b].length - cs[a].length; });
+  document.getElementById("brContig").innerHTML = names.map(function(c){ return '<option value="'+escapeHTML(c)+'">'+escapeHTML(c)+' ('+cs[c].length+' genes)</option>'; }).join("");
+  document.getElementById("brGuide").value = BR.guide;
+  if(!BR.contig || !cs[BR.contig]) BR.contig = names[0];
+  document.getElementById("brContig").value = BR.contig;
+}
+// the columns of a guide contig: its genes, and between two of them the pangenes the guide strain does not have but
+// other strains carry there (inserted columns, r[2] = "ins"), in the order of the strain they come from
+function brCols(c){
+  var key = BR.guide + "\t" + c;
+  BR.colCache = BR.colCache || {};
+  if(BR.colCache[key]) return BR.colCache[key];
+  var L = BR.loci[BR.guide].contigs[c] || [], pm = brPmap(), out = [];
+  for(var i = 0; i < L.length; i++){
+    out.push(L[i]);
+    if(i + 1 >= L.length) break;
+    var pa = pm[L[i][6]], pb = pm[L[i+1][6]];
+    if(!pa || !pb) continue;
+    var seen = {}, order = [];
+    state.genomes.forEach(function(g){
+      if(g === BR.guide || !pa.genes[g] || !pb.genes[g]) return;
+      var A = BR.pos[g][pa.genes[g][0][state.fields.ID]], B = BR.pos[g][pb.genes[g][0][state.fields.ID]];
+      if(!A || !B || A[0] !== B[0]) return;
+      var d = B[1] - A[1];
+      if(Math.abs(d) < 2 || Math.abs(d) > 12) return;          // not neighbours in this strain: no insertion read
+      var LG = BR.loci[g].contigs[A[0]], st = d > 0 ? 1 : -1;
+      for(var k = A[1] + st; k !== B[1]; k += st){
+        var pid = LG[k][6];
+        if(!pid || !pm[pid] || pm[pid].genes[BR.guide] || seen[pid]) continue;
+        seen[pid] = 1; order.push(pid);
+      }
+    });
+    order.forEach(function(pid){ out.push(["", "", "ins", 0, 0, "", pid, [], -1]); });
+  }
+  BR.colCache[key] = out;
+  return out;
+}
+function brGoto(id){
+  var pm = brPmap(), p = pm[id], g0 = null, gid = null;
+  if(p){
+    var order = [BR.guide].concat(state.genomes.filter(function(g){ return g !== BR.guide; }));
+    for(var k = 0; k < order.length && !gid; k++){ if(p.genes[order[k]]){ g0 = order[k]; gid = p.genes[g0][0][state.fields.ID]; } }
+  } else {
+    for(var k2 = 0; k2 < state.genomes.length && !gid; k2++){ if(BR.pos[state.genomes[k2]][id]){ g0 = state.genomes[k2]; gid = id; } }
+  }
+  if(!gid){ document.getElementById("brWhere").textContent = "not found: " + id; return; }
+  var at = BR.pos[g0][gid];
+  BR.guide = g0; BR.contig = at[0]; brFillContigs();
+  var C = brCols(BR.contig), ci = 0;
+  C.forEach(function(r, i){ if(r[0] === gid) ci = i; });
+  BR.start = Math.max(0, ci - Math.floor(BR.n / 2));
+  brRender(gid);
+}
+function brDomains(p){
+  if(p._dom === undefined){
+    var t = [];
+    for(var g in p.genes) p.genes[g].forEach(function(rec){
+      (rec[state.fields.interpro] || []).forEach(function(x){ t.push(x); });
+      (rec[state.fields.pfam] || []).forEach(function(x){ t.push("PF" + x); });
+    });
+    p._dom = t.join(" | ").toLowerCase();
+  }
+  return p._dom;
+}
+function brMatch(pid){
+  var q = (document.getElementById("brDom").value || "").trim().toLowerCase(), p = brPmap()[pid];
+  return !!(q && p && brDomains(p).indexOf(q) >= 0);
+}
+function brDomInfo(){
+  var q = (document.getElementById("brDom").value || "").trim().toLowerCase(), el = document.getElementById("brDomInfo");
+  if(!q){ el.textContent = ""; return; }
+  var all = state.pangenes.filter(function(p){ return brDomains(p).indexOf(q) >= 0; });
+  var inGuide = all.filter(function(p){ return p.genes[BR.guide]; }).length;
+  el.textContent = all.length + " pangenes with it (" + inGuide + " in " + BR.guide + ")";
+}
+function brJump(dir){
+  var cs = BR.loci[BR.guide].contigs, names = Array.prototype.map.call(document.getElementById("brContig").options, function(o){ return o.value; });
+  var ci = names.indexOf(BR.contig), here = BR.start + Math.floor(BR.n / 2);
+  for(var step = 0; step <= names.length; step++){
+    var c = names[(ci + dir * step + names.length * 2) % names.length], L = brCols(c);
+    var idxs = []; L.forEach(function(r, i){ if(brMatch(r[6])) idxs.push(i); });
+    var cand = step === 0 ? idxs.filter(function(i){ return dir > 0 ? i > here : i < here; }) : idxs;
+    if(cand.length){
+      var i = dir > 0 ? cand[0] : cand[cand.length - 1];
+      BR.contig = c; brFillContigs(); BR.start = Math.max(0, i - Math.floor(BR.n / 2)); brRender(L[i][0] || L[i][6]); return;
+    }
+  }
+  document.getElementById("brDomInfo").textContent = "no gene of " + BR.guide + " has it";
+}
+// "show only these": every pangene with the domain, in the guide strain's order (contig by contig) when it has the
+// pangene, then the ones the guide strain does not have, by occupancy
+function brFiltered(){
+  var q = (document.getElementById("brDom").value || "").trim().toLowerCase(), pos = BR.pos[BR.guide], out = [], rest = [];
+  var names = Array.prototype.map.call(document.getElementById("brContig").options, function(o){ return o.value; });
+  state.pangenes.forEach(function(p){
+    if(brDomains(p).indexOf(q) < 0) return;
+    var g = p.genes[BR.guide], at = g ? pos[g[0][state.fields.ID]] : null;
+    if(at){ var r = BR.loci[BR.guide].contigs[at[0]][at[1]]; out.push({r: r, k: [names.indexOf(at[0]), at[1]], ctg: at[0]}); }
+    else rest.push({r: ["", "", "", 0, 0, "", p.id, [], -1], k: [1e9, -p.occupancy], ctg: "not in " + BR.guide});
+  });
+  out.sort(function(a, b){ return a.k[0] - b.k[0] || a.k[1] - b.k[1]; });
+  rest.sort(function(a, b){ return a.k[1] - b.k[1]; });
+  return out.concat(rest);
+}
+function brRender(mark){
+  var pm = brPmap(), nG = state.genomes.length;
+  var only = document.getElementById("brDomOnly").checked && (document.getElementById("brDom").value || "").trim();
+  var F = only ? brFiltered() : null;
+  var L = only ? F.map(function(f){ return f.r; }) : brCols(BR.contig);
+  document.getElementById("brContigLab").style.display = only ? "none" : "";
+  BR.n = +document.getElementById("brN").value;
+  BR.start = Math.max(0, Math.min(BR.start, Math.max(0, L.length - BR.n)));
+  var rng = document.getElementById("brPos"); rng.max = Math.max(0, L.length - BR.n); rng.value = BR.start;
+  var cols = L.slice(BR.start, BR.start + BR.n);
+  if(!cols.length){ document.getElementById("brGrid").textContent = only ? "No pangene with this domain." : "No genes on this contig."; return; }
+  var gc = cols.filter(function(r){ return r[0]; }), nIns = L.filter(function(r){ return r[2] === "ins"; }).length;
+  document.getElementById("brWhere").textContent = only ?
+    "only pangenes with \"" + document.getElementById("brDom").value.trim() + "\": " + (BR.start + 1) + "-" + (BR.start + cols.length) + " of " + L.length +
+      " | order: by the guide strain (its pangenes first, then the ones it does not have)" :
+    (gc.length ? BR.contig + ":" + gc[0][3].toLocaleString() + "-" + gc[gc.length-1][4].toLocaleString() : BR.contig) +
+    "  (columns " + (BR.start + 1) + "-" + (BR.start + cols.length) + " of " + L.length + "; " + nIns + " inserted: pangenes " + BR.guide + " does not have)";
+  var CW = 16, RH = 16, LW = 120, TOP = 74, W = LW + cols.length * CW + 10, H = TOP + nG * RH + 6;
+  var svg = ['<svg width="'+W+'" height="'+H+'" role="img" aria-label="Pangenome browser">'];
+  var rows = [BR.guide].concat(state.genomes.filter(function(g){ return g !== BR.guide; }));
+  cols.forEach(function(r, j){
+    var x = LW + j * CW, p = pm[r[6]];
+    var lab = r[6] || "(no pangene)";
+    svg.push('<g class="br-col" data-pid="'+escapeHTML(r[6])+'" style="cursor:'+(p?'pointer':'default')+'">');
+    svg.push('<rect x="'+x+'" y="0" width="'+CW+'" height="'+H+'" fill="transparent"/>');
+    if((r[0] && r[0] === mark) || (!r[0] && mark && r[6] === mark)) svg.push('<rect x="'+x+'" y="0" width="'+CW+'" height="'+H+'" fill="var(--accent)" opacity="0.15"/>');
+    if(!only && brMatch(r[6])) svg.push('<rect x="'+(x+0.5)+'" y="'+(TOP-12)+'" width="'+(CW-1)+'" height="'+(H-TOP+12)+'" fill="none" stroke="#e76f51" stroke-width="2" rx="3"/>');
+    svg.push('<rect x="'+(x+1)+'" y="'+(TOP-10)+'" width="'+(CW-2)+'" height="6" fill="'+(p ? CAT_COLOR[p.category] : 'var(--border)')+'"/>');
+    if(r[2] === "ins") svg.push('<rect x="'+x+'" y="'+TOP+'" width="'+CW+'" height="'+(H-TOP)+'" fill="#f4a261" opacity="0.13"/>');
+    svg.push('<text transform="translate('+(x+CW/2+3)+','+(TOP-13)+') rotate(-90)" font-size="8.5" font-family="IBM Plex Mono,monospace" fill="'+(r[2] === "ins" ? '#c2410c' : 'var(--fg-muted)')+'"'+(r[2] === "ins" ? ' font-style="italic"' : '')+'>'+escapeHTML(lab)+'</text>');
+    var tip = lab + (p ? " | " + p.category + ", " + p.occupancy + "/" + nG + " strains" : " | not in the pangenome") +
+              (r[0] ? " | " + BR.guide + " " + r[0] + " " + (only ? F[BR.start + j].ctg : BR.contig) + ":" + r[3] + "-" + r[4] + " (" + r[5] + ")" :
+               r[2] === "ins" ? " | not in " + BR.guide + ": inserted here because other strains have it between these genes" : " | not in " + BR.guide);
+    svg.push('<title>'+escapeHTML(tip)+'</title></g>');
+  });
+  rows.forEach(function(g, i){
+    var y = TOP + i * RH;
+    if(i % 2) svg.push('<rect x="0" y="'+y+'" width="'+W+'" height="'+RH+'" fill="var(--panel-2)"/>');
+    svg.push('<text x="4" y="'+(y+11)+'" font-size="10"'+(g === BR.guide ? ' font-weight="700"' : '')+'>'+escapeHTML(g)+'</text>');
+    var prev = null, prevJ = -1;
+    cols.forEach(function(r, j){
+      var x = LW + j * CW, p = pm[r[6]];
+      if(!p) return;
+      var recs = p.genes[g];
+      if(recs){
+        var q = recs.map(function(rec){ return rec[state.fields.quality_class]; });
+        var col = q.indexOf("High") >= 0 ? "var(--qhigh)" : q.every(function(c){ return c === "Low"; }) ? "var(--qlow)" : "var(--qnj)";
+        var op = col === "var(--qlow)" ? 0.55 : 1;
+        // ORF broken by the assembly: N in the CDS (missing sequence) or the gene at a contig end
+        var sts = recs.map(function(rec){ return rec[state.fields.orf_status]; });
+        var asm = col === "var(--qnj)" ? (sts.indexOf("invalid_assembly_gap") >= 0 ? "N" : sts.indexOf("invalid_near_contig_end") >= 0 ? "end" : "") : "";
+        if(asm === "end") col = "#e9c46a";
+        var ids = recs.map(function(rec){ return rec[state.fields.ID]; });
+        svg.push('<rect x="'+(x+1.5)+'" y="'+(y+2.5)+'" width="'+(CW-3)+'" height="'+(RH-5)+'" rx="2" fill="'+col+'" opacity="'+op+'"><title>'+escapeHTML(g+": "+ids.join(", ")+(recs.length > 1 ? " ("+recs.length+" genes)" : ""))+'</title></rect>');
+        if(recs.length > 1) svg.push('<text x="'+(x+CW/2)+'" y="'+(y+11)+'" font-size="8" text-anchor="middle" fill="var(--panel)">'+recs.length+'</text>');
+        else if(asm === "N") svg.push('<text x="'+(x+CW/2)+'" y="'+(y+11)+'" font-size="8" font-weight="700" text-anchor="middle" fill="var(--fg)">N</text>');
+        else if(asm === "end") svg.push('<text x="'+(x+CW/2)+'" y="'+(y+11)+'" font-size="7" text-anchor="middle" fill="var(--fg)">&#9664;&#9654;</text>');
+        var at = BR.pos[g][ids[0]];
+        if(at && prev && !only){
+          var gap = j - prevJ;
+          if(at[0] !== prev[0] || Math.abs(at[1] - prev[1]) > gap + 2){
+            svg.push('<rect x="'+(x-1.5)+'" y="'+(y+1)+'" width="3" height="'+(RH-2)+'" fill="#c0392b"><title>'+escapeHTML(g+": order break - this gene is not next to the previous one ("+(at[0] !== prev[0] ? "another contig: "+at[0] : (Math.abs(at[1]-prev[1])-1)+" genes in between")+")")+'</title></rect>');
+          }
+        }
+        if(at){ prev = at; prevJ = j; }
+      } else {
+        var code = p.absent && p.absent[g], unk = (p.unknown && p.unknown[g]) || code === "6" || code === "7";
+        var why = code ? (ABSENCE_CAT[code] || "not explained") : "no gene";
+        svg.push('<rect x="'+(x+2.5)+'" y="'+(y+3.5)+'" width="'+(CW-5)+'" height="'+(RH-7)+'" rx="2" fill="none" stroke="var(--border-strong)"'+(unk ? ' stroke-dasharray="2 2"' : '')+'><title>'+escapeHTML(g+": absent - "+why)+'</title></rect>');
+        if(unk) svg.push('<text x="'+(x+CW/2)+'" y="'+(y+11)+'" font-size="8" text-anchor="middle" fill="var(--fg-muted)">?</text>');
+      }
+    });
+  });
+  svg.push('</svg>');
+  var box = document.getElementById("brGrid");
+  box.innerHTML = svg.join("");
+  box.querySelectorAll(".br-col").forEach(function(n){
+    var pid = n.getAttribute("data-pid");
+    if(pid && pm[pid]) n.addEventListener("click", function(){ openPanel(pm[pid]); });
+  });
+}
+function brStep(f){ BR.start += Math.round(f * BR.n); brRender(); }
+document.getElementById("browserBtn").addEventListener("click", function(){
+  if(document.getElementById("browser").hidden) openBrowser(); else closeBrowser();
+});
+document.getElementById("brGuide").addEventListener("change", function(e){ BR.guide = e.target.value; BR.contig = null; BR.start = 0; brFillContigs(); brRender(); });
+document.getElementById("brContig").addEventListener("change", function(e){ BR.contig = e.target.value; BR.start = 0; brRender(); });
+document.getElementById("brN").addEventListener("change", function(){ brRender(); });
+document.getElementById("brPos").addEventListener("input", function(e){ BR.start = +e.target.value; brRender(); });
+document.querySelectorAll(".br-bar [data-step]").forEach(function(b){ b.addEventListener("click", function(){ brStep(+b.getAttribute("data-step")); }); });
+document.getElementById("brFind").addEventListener("keydown", function(e){ if(e.key === "Enter" && e.target.value.trim()) brGoto(e.target.value.trim()); });
+document.getElementById("brDom").addEventListener("keydown", function(e){ if(e.key === "Enter"){ brDomInfo(); if(document.getElementById("brDomOnly").checked) BR.start = 0; brRender(); } });
+document.getElementById("brDomOnly").addEventListener("change", function(){ brDomInfo(); BR.start = 0; brRender(); });
+document.getElementById("brDomNext").addEventListener("click", function(){ brDomInfo(); brJump(1); });
+document.getElementById("brDomPrev").addEventListener("click", function(){ brDomInfo(); brJump(-1); });
+document.addEventListener("keydown", function(e){
+  if(document.getElementById("browser").hidden || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if(e.key === "ArrowRight") brStep(0.25); else if(e.key === "ArrowLeft") brStep(-0.25);
+});
+document.getElementById("pBrowse").addEventListener("click", function(){ if(state.openPangeneId) openBrowser(state.openPangeneId); });
+
+/* ---------- curation flags: db capability, with a localStorage fallback ----------
+   The db capability only exists inside the real claude.ai artifact frame - a copy opened via
+   a plain local server (file:// or http://localhost/...) never gets it, so flags saved there
+   would silently go nowhere. LS_* below keep a same-shaped copy in this browser's own
+   localStorage so flagging still works from a local preview; it never syncs anywhere on its
+   own (per-browser, per-origin) - use "Export flags" to hand the data over for a real import
+   into the db later. */
+var LS_GENE_KEY = "pge_flags_v1", LS_PANGENE_KEY = "pge_pangene_flags_v1";
+
+function lsRead(key){
+  try { return JSON.parse(localStorage.getItem(key) || "{}"); }
+  catch(e){ return {}; }
+}
+function lsWrite(key, obj){
+  try { localStorage.setItem(key, JSON.stringify(obj)); return true; }
+  catch(e){ console.error("localStorage write failed", e); return false; }
+}
+
+function recomputeFlagged(){
+  var s = new Set();
+  Object.keys(state.flags).forEach(function(gid){
+    var pid = state.flags[gid].pangene_id; if(pid) s.add(pid);
+  });
+  Object.keys(state.pangeneFlags).forEach(function(pid){ s.add(pid); });
+  state.flaggedPangenes = s;
+  var fc = document.getElementById("flagCount");
+  if(fc) fc.textContent = Object.keys(state.flags).length + " gene flag(s), " +
+    Object.keys(state.pangeneFlags).length + " whole-pangene flag(s).";
+  renderRows();
+  if(state.flaggedOnly) applyFilters();
+  if(state.openPangeneId){
+    var p = state.pangenes.find(function(x){ return x.id === state.openPangeneId; });
+    if(p) openPanel(p);
+  }
+}
+
+function setFlagModeHint(){
+  var el = document.getElementById("flagModeHint");
+  if(!el) return;
+  el.innerHTML = state.flagMode === "db"
+    ? "Saving to the shared database (synced, Claude can read it back)."
+    : "No database in this view - saving to <b>this browser only</b> (not synced, won't reach Claude). Use Export to hand it over later.";
+}
+
+/* Hydrate from localStorage immediately - works with or without the db capability, so
+   flagging is usable right away from a local preview. */
+state.flags = lsRead(LS_GENE_KEY);
+state.pangeneFlags = lsRead(LS_PANGENE_KEY);
+state.flagMode = "local";
+recomputeFlagged();
+
+function initDb(){
+  if(!window.claude || !window.claude.use){ setFlagModeHint(); return; }
+  window.claude.use("db").then(function(ns){
+    if(!ns){ console.warn("db capability unavailable in this view"); setFlagModeHint(); return; }
+    dbNS = ns;
+    state.flagMode = "db";
+
+    dbNS.collection("flags").limit(1000).onSnapshot(function(snap){
+      var flags = {};
+      snap.docs.forEach(function(d){ if(d.exists) flags[d.id] = d.data(); });
+      state.flags = flags;
+      recomputeFlagged(); setFlagModeHint();
+    }, function(err){ console.error("flags subscription error", err); });
+
+    dbNS.collection("pangene_flags").limit(1000).onSnapshot(function(snap){
+      var pflags = {};
+      snap.docs.forEach(function(d){ if(d.exists) pflags[d.id] = d.data(); });
+      state.pangeneFlags = pflags;
+      recomputeFlagged(); setFlagModeHint();
+    }, function(err){ console.error("pangene_flags subscription error", err); });
+  }).catch(function(err){ console.error("claude.use(db) failed", err); setFlagModeHint(); });
+}
+initDb();
+setFlagModeHint();
+
+document.getElementById("exportFlagsBtn").addEventListener("click", function(){
+  var statusEl = document.getElementById("flagModeHint");
+  var payload = {
+    exported_at: new Date().toISOString(),
+    mode: state.flagMode,
+    flags: state.flags,
+    pangene_flags: state.pangeneFlags
+  };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], {type: "application/json"});
+
+  function localDownload(){
+    // No claude.ai frame around this page (a plain local server or file://) - an ordinary
+    // browser download works fine here; the sandboxed artifact frame is what blocks it.
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement("a");
+    a.href = url; a.download = "toxo_pangenome_flags.json";
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  if(window.claude && window.claude.use){
+    window.claude.use("downloads").then(function(dl){
+      if(!dl){ if(statusEl) statusEl.textContent = "Downloads aren't available in this view."; return; }
+      dl.save({filename: "toxo_pangenome_flags.json", data: blob})
+        .catch(function(err){ if(statusEl) statusEl.textContent = "Export failed: " + err.message; });
+    }).catch(localDownload);
+  } else {
+    localDownload();
+  }
+});
+
+/* ---------- UI init ---------- */
+function initUI(){
+  var catChips = document.getElementById("catChips");
+  CAT_ORDER.forEach(function(cat){
+    var b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.setAttribute("aria-pressed","false");
+    b.style.setProperty("--cat-color", CAT_COLOR[cat]);
+    b.innerHTML = '<span class="dot"></span>'+cat;
+    b.addEventListener("click", function(){
+      if(state.cats.has(cat)){ state.cats.delete(cat); b.setAttribute("aria-pressed","false"); }
+      else { state.cats.add(cat); b.setAttribute("aria-pressed","true"); }
+      applyFilters();
+    });
+    catChips.appendChild(b);
+  });
+
+  var qClassChips = document.getElementById("qClassChips");
+  ["High","Mixed","Low","Not judged"].forEach(function(cls){
+    var b = document.createElement("button");
+    b.className = "chip"; b.type = "button"; b.setAttribute("aria-pressed","false");
+    b.style.setProperty("--cat-color", classColor(cls));
+    b.innerHTML = '<span class="dot"></span>'+qLabel(cls);
+    b.addEventListener("click", function(){
+      if(state.qclasses.has(cls)){ state.qclasses.delete(cls); b.setAttribute("aria-pressed","false"); }
+      else { state.qclasses.add(cls); b.setAttribute("aria-pressed","true"); }
+      applyFilters();
+    });
+    qClassChips.appendChild(b);
+  });
+
+  var genomeList = document.getElementById("genomeList");
+  state.genomes.forEach(function(g){
+    var b = document.createElement("button");
+    b.className = "genome-toggle"; b.type = "button"; b.dataset.genome = g;
+    b.innerHTML = '<span>'+g+'</span><span class="state">any</span>';
+    b.addEventListener("click", function(){
+      var cur = state.genomeState[g];
+      var CYCLE = [undefined, "present", "absent", "low", "high"];
+      var next = CYCLE[(CYCLE.indexOf(cur) + 1) % CYCLE.length];
+      if(next === undefined) delete state.genomeState[g]; else state.genomeState[g] = next;
+      b.dataset.state = next || "";
+      b.querySelector(".state").textContent = next || "any";
+      applyFilters();
+    });
+    genomeList.appendChild(b);
+  });
+
+  document.getElementById("search").addEventListener("input", function(e){
+    state.search = e.target.value.trim().toLowerCase();
+    applyFilters();
+  });
+  document.getElementById("occMin").addEventListener("input", function(e){
+    state.occMin = e.target.value === "" ? null : +e.target.value; applyFilters();
+  });
+  document.getElementById("occMax").addEventListener("input", function(e){
+    state.occMax = e.target.value === "" ? null : +e.target.value; applyFilters();
+  });
+  document.getElementById("sortSel").addEventListener("change", function(e){
+    state.sort = e.target.value; applyFilters();
+  });
+  document.getElementById("multiCount").textContent = state.pangenes.filter(function(p){ return p._multi; }).length.toLocaleString() + " pangenes have 2+ genes in at least one strain.";
+  document.getElementById("likelyFalseOnly").addEventListener("change", function(e){
+    state.likelyFalseOnly = e.target.checked; applyFilters();
+  });
+  document.getElementById("lowPsauronOnly").addEventListener("change", function(e){
+    state.lowPsauronOnly = e.target.checked; applyFilters();
+  });
+  document.getElementById("multiOnly").addEventListener("change", function(e){
+    state.multiOnly = e.target.checked; applyFilters();
+  });
+  document.getElementById("flaggedOnly").addEventListener("change", function(e){
+    state.flaggedOnly = e.target.checked; applyFilters();
+  });
+  document.getElementById("colorSel").addEventListener("change", function(e){
+    state.colorMode = e.target.value;
+    document.getElementById("colorLegend").innerHTML = COLOR_LEGEND[state.colorMode];
+    renderRows();
+  });
+  document.getElementById("resetBtn").addEventListener("click", function(){
+    state.search = ""; state.cats.clear(); state.qclasses.clear(); state.occMin = null; state.occMax = null;
+    state.genomeState = {}; state.sort = "matrix"; state.colorMode = "category"; state.flaggedOnly = false; state.multiOnly = false; state.lowPsauronOnly = false; state.likelyFalseOnly = false;
+    document.getElementById("search").value = "";
+    document.getElementById("occMin").value = ""; document.getElementById("occMax").value = "";
+    document.getElementById("sortSel").value = "matrix";
+    document.getElementById("colorSel").value = "category";
+    document.getElementById("colorLegend").innerHTML = COLOR_LEGEND.category;
+    document.getElementById("flaggedOnly").checked = false;
+    document.getElementById("multiOnly").checked = false;
+    document.getElementById("lowPsauronOnly").checked = false;
+    document.getElementById("likelyFalseOnly").checked = false;
+    catChips.querySelectorAll(".chip").forEach(function(c){ c.setAttribute("aria-pressed","false"); });
+    qClassChips.querySelectorAll(".chip").forEach(function(c){ c.setAttribute("aria-pressed","false"); });
+    genomeList.querySelectorAll(".genome-toggle").forEach(function(b){
+      delete b.dataset.state; b.querySelector(".state").textContent = "any";
+    });
+    applyFilters();
+  });
+
+  document.getElementById("scroller").addEventListener("scroll", renderRows);
+  window.addEventListener("resize", renderRows);
+  document.getElementById("pClose").addEventListener("click", closePanel);
+  var pExpand = document.getElementById("pExpand"), panelEl = document.getElementById("panel");
+  function setWide(on){
+    panelEl.classList.toggle("wide", on); pExpand.textContent = on ? "Shrink" : "Expand";
+    try { localStorage.setItem("explorer_panel_wide", on ? "1" : "0"); } catch(e){}
+    if(state.lvRedraw) setTimeout(state.lvRedraw, 200);
+  }
+  var wide0 = false; try { wide0 = localStorage.getItem("explorer_panel_wide") === "1"; } catch(e){}
+  setWide(wide0);
+  pExpand.addEventListener("click", function(){ setWide(!panelEl.classList.contains("wide")); });
+  document.getElementById("scrim").addEventListener("click", closePanel);
+  document.addEventListener("keydown", function(e){ if(e.key === "Escape") closePanel(); });
+}
+
+/* ---------- filtering ---------- */
+function applyFilters(){
+  var presentMask = 0, absentMask = 0;
+  var GB = {}; state.genomes.forEach(function(g,i){ GB[g] = 1<<i; });
+  var qualWanted = [];
+  for(var g in state.genomeState){
+    var st = state.genomeState[g];
+    if(st === "present") presentMask |= GB[g];
+    else if(st === "absent") absentMask |= GB[g];
+    else qualWanted.push([g, st === "low" ? "Low" : "High"]);
+  }
+  var qi = state.fields.quality_class;
+  var out = state.pangenes.filter(function(p){
+    if(state.cats.size && !state.cats.has(p.category)) return false;
+    if(state.qclasses.size && !state.qclasses.has(p.quality_majority)) return false;
+    if(state.flaggedOnly && !state.flaggedPangenes.has(p.id)) return false;
+    if(state.multiOnly && !p._multi) return false;
+    if(state.lowPsauronOnly && !p._lowPsauron) return false;
+    if(state.likelyFalseOnly && !p._likelyFalse) return false;
+    if(state.occMin !== null && p.occupancy < state.occMin) return false;
+    if(state.occMax !== null && p.occupancy > state.occMax) return false;
+    if((p._mask & presentMask) !== presentMask) return false;
+    if((p._mask & absentMask) !== 0) return false;
+    for(var k=0;k<qualWanted.length;k++){
+      var recs = p.genes[qualWanted[k][0]];
+      if(!recs || !recs.some(function(r){ return r[qi] === qualWanted[k][1]; })) return false;
+    }
+    if(state.search && p._search.indexOf(state.search) === -1) return false;
+    return true;
+  });
+  if(state.sort === "occ_desc") out = out.slice().sort(function(a,b){ return b.occupancy - a.occupancy; });
+  else if(state.sort === "occ_asc") out = out.slice().sort(function(a,b){ return a.occupancy - b.occupancy; });
+  else if(state.sort === "id") out = out.slice().sort(function(a,b){ return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
+
+  state.filtered = out;
+  var nGenes = 0;
+  out.forEach(function(p){ for(var g in p.genes) nGenes += p.genes[g].length; });
+  document.getElementById("statStrip").innerHTML =
+    "<span><b>"+out.length.toLocaleString()+"</b> / "+state.pangenes.length.toLocaleString()+" pangenes</span>"+
+    "<span><b>"+nGenes.toLocaleString()+"</b> gene copies</span>";
+  setupScroller();
+}
+
+/* ---------- virtualized list ---------- */
+var scroller = document.getElementById("scroller");
+var spacer = null;
+
+function setupScroller(){
+  scroller.innerHTML = "";
+  if(state.filtered.length === 0){
+    var e = document.createElement("div");
+    e.className = "empty-state";
+    e.textContent = "No pangene matches these filters.";
+    scroller.appendChild(e);
+    spacer = null;
+    return;
+  }
+  spacer = document.createElement("div");
+  spacer.className = "spacer";
+  spacer.style.height = (state.filtered.length * ROW_H) + "px";
+  scroller.appendChild(spacer);
+  scroller.scrollTop = 0;
+  renderRows();
+}
+
+function fmtDesc(p){
+  for(var g in p.genes){
+    for(var i=0;i<p.genes[g].length;i++){
+      var d = p.genes[g][i][state.fields.description];
+      if(d && !/^(|hypothetical protein|protein of unknown function|unspecified product)$/i.test(d)) return d;
+    }
+  }
+  for(var g2 in p.genes){ var d2 = p.genes[g2][0][state.fields.description]; if(d2) return d2; }
+  return "";
+}
+
+function renderRows(){
+  if(!spacer) return;
+  var viewH = scroller.clientHeight;
+  var top = scroller.scrollTop;
+  var startIdx = Math.max(0, Math.floor(top / ROW_H) - 8);
+  var endIdx = Math.min(state.filtered.length, Math.ceil((top+viewH) / ROW_H) + 8);
+
+  Array.prototype.slice.call(spacer.querySelectorAll(".row")).forEach(function(r){ r.remove(); });
+
+  for(var i=startIdx;i<endIdx;i++){
+    var p = state.filtered[i];
+    var row = document.createElement("div");
+    row.className = "row";
+    row.style.top = (i*ROW_H)+"px"; row.style.height = ROW_H+"px";
+    row.style.setProperty("--cat-color", CAT_COLOR[p.category]);
+    var qf = state.fields.quality_class;
+    var strip = state.genomes.map(function(g){
+      if(!p.genes[g]){
+        var ac = p.absent && p.absent[g];
+        var at = ac ? ' title="'+g+': absent - '+(ABSENCE_CAT[ac]||"")+'"' : '';
+        return (p.unknown && p.unknown[g])
+          ? '<i class="unknown"'+(at || ' title="'+g+': absence not trusted (assembly, category '+p.unknown[g]+')"')+'>?</i>'
+          : '<i'+at+'></i>';
+      }
+      if(p.genes[g].some(function(r){ return r[qf] === "Low"; }))
+        return '<i class="dashed" title="'+g+': Low (no valid ORF)"></i>';
+      var low = '';
+      var tip = ' title="'+g+'"';
+      if(state.colorMode === "category") return '<i class="on'+low+'"'+tip+'></i>';
+      if(state.colorMode === "quality"){
+        var cls = p.genes[g][0][qf];
+        return '<i class="on'+low+'"'+tip+' style="background-color:'+classColor(cls)+'"></i>';
+      }
+      var f = state.colorMode === "coverage" ? state.fields.coverage : state.fields.sequence_ID;
+      var val = p.genes[g][0][f];
+      return '<i class="on'+low+'"'+tip+' style="background-color:'+qualityColor(val)+'"></i>';
+    }).join("");
+    var flagMark = state.flaggedPangenes.has(p.id) ? '<span class="flag-icon" title="Has a curation flag">[F]</span>' : '';
+    row.innerHTML =
+      '<span class="catdot"></span>'+
+      '<span class="pid">'+p.id+' '+flagMark+'</span>'+
+      '<span class="occ">'+p.occupancy+(p.unknown ? '+'+Object.keys(p.unknown).length+'?' : '')+'/'+state.genomes.length+'</span>'+
+      '<span class="desc">'+escapeHTML(fmtDesc(p))+'</span>'+
+      '<span class="presence-strip">'+strip+'</span>';
+    row.addEventListener("click", (function(pg){ return function(){ openPanel(pg); }; })(p));
+    spacer.appendChild(row);
+  }
+}
+
+function escapeHTML(s){
+  return String(s||"").replace(/[&<>"']/g, function(c){
+    return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c];
+  });
+}
+
+/* ---------- absence categories (step 07, audit_absences.py) ---------- */
+var ABSENCE_CAT = {
+  "moved":"the gene was moved to another pangene by step 07 (same gene, split by get_pangenes)",
+  "1a":"the same gene is there, but in another pangene",
+  "1b":"the same gene is there, in a pangene that also has other strains (a duplicate?)",
+  "1c":"the same gene is there, but in no pangene",
+  "2a":"other genes are in its place; this gene is not there",
+  "2b":"other genes are in its place, over a Liftoff copy of this gene",
+  "3":"a Liftoff copy of this gene is there, but was not used in the annotation",
+  "4":"the region is much shorter than in the other strains: probably deleted",
+  "5":"the region is there, with no gene and no Liftoff copy: lost or too different",
+  "6":"assembly problem: the gene would be at the end of a contig",
+  "7":"assembly problem: its neighbouring genes are on different contigs or far apart",
+  "8":"assembly problem: the whole region is missing"
+};
+
+/* ---------- detail panel ---------- */
+var FIELD_LABELS = {
+  source:"model origin", ID:"gene ID", original_ID:"original ID", model_from:"model from",
+  model_origin:"model origin", basket:"panel gene (step 05)", orf_status:"ORF status", description:"description",
+  ebi_biotype:"biotype", coverage:"coverage (Liftoff)", sequence_ID:"identity (Liftoff)",
+  tandem_array_copy:"tandem array copy", not_in_reference_annotation:"not in reference annotation",
+  pseudogene:"pseudogene", contig:"contig", start:"start", end:"end", strand:"strand", has_domain:"protein domain"
+};
+
+function openPanel(p){
+  state.openPangeneId = p.id;
+  document.getElementById("pId").textContent = p.id;
+  var pill = '<span class="pill" style="background:'+CAT_COLOR[p.category]+'">'+p.category+'</span>';
+  var qpill = '<span class="pill" style="background:'+classColor(p.quality_majority)+'" title="ORF-based quality (step 05 orf_status)">'+qLabel(p.quality_majority)+(p.quality_majority === "Not judged" ? '' : ' (ORF)')+'</span>';
+  document.getElementById("pMeta").innerHTML = pill+' '+qpill+' &nbsp; present in '+p.occupancy+' of '+state.genomes.length+' strains';
+
+  var pg = p.panel_genes || [];
+  document.getElementById("pPanel").innerHTML = pg.length ? "Panel gene (step 05), PSAURON of its model:<br>" + pg.map(function(x){
+    var sc = x[1] === "" ? "no score" : (+x[1]).toFixed(2);
+    var low = x[1] !== "" && +x[1] < 0.5;
+    return "<span"+(low ? ' style="color:var(--qlow); font-weight:600"' : "")+">"+escapeHTML(x[0])+" "+sc+"</span>"
+      + (pg.length > 1 ? " ("+x[2]+" genes)" : "");
+  }).join(" ") : "";
+  if(p._invText) document.getElementById("pPanel").innerHTML += (pg.length ? "<br>" : "") +
+    "<span"+(p._likelyFalse ? ' style="color:var(--qlow); font-weight:600"' : "")+">"+p._invText+"</span>";
+
+  var absentEl = document.getElementById("pAbsent");
+  var unk = p.unknown || {}, cats = p.absent || {};
+  var missing = state.genomes.filter(function(g){ return !p.genes[g]; });
+  var tag = function(g){ return "<span>"+g+(unk[g] ? " ?" : "")+"</span>"; };
+  if(!missing.length){ absentEl.innerHTML = ""; }
+  else if(Object.keys(cats).length){
+    var byCat = {};
+    missing.forEach(function(g){ var c = cats[g] || "-"; (byCat[c] = byCat[c] || []).push(g); });
+    absentEl.innerHTML = "Absent from:<br>" + Object.keys(byCat).sort().map(function(c){
+      return escapeHTML(ABSENCE_CAT[c] || "not explained") + ": " + byCat[c].map(tag).join(" ");
+    }).join("<br>");
+  } else {
+    var real = missing.filter(function(g){ return !unk[g]; }), notTrusted = missing.filter(function(g){ return unk[g]; });
+    absentEl.innerHTML = (real.length ? "Absent from: " + real.map(tag).join(" ") : "")
+      + (notTrusted.length ? (real.length ? "<br>" : "") + "Absent, but maybe only an assembly problem: " + notTrusted.map(tag).join(" ") : "");
+  }
+
+  var pgExisting = state.pangeneFlags[p.id];
+  document.getElementById("pgFlagTag").value = (pgExisting && pgExisting.tag) || "";
+  document.getElementById("pgFlagRelated").value = (pgExisting && pgExisting.related_pangene) || "";
+  document.getElementById("pgFlagNote").value = (pgExisting && pgExisting.note) || "";
+  document.getElementById("pgFlagStatus").textContent = pgExisting ? "Saved." : "";
+  document.getElementById("pgFlagClear").disabled = !pgExisting;
+  document.querySelector("#pangeneFlagBox .flag-label").innerHTML =
+    "Pangene flag (applies to the whole pangene)" + (pgExisting ? " - saved" : "");
+  document.getElementById("pgFlagSave").onclick = function(){
+    var statusEl = document.getElementById("pgFlagStatus");
+    var tag = document.getElementById("pgFlagTag").value;
+    if(!tag){ statusEl.textContent = "Pick a flag type first."; return; }
+    var body = {
+      pangene_id: p.id, tag: tag,
+      note: document.getElementById("pgFlagNote").value.trim(),
+      related_pangene: document.getElementById("pgFlagRelated").value.trim(),
+      updated_at: new Date().toISOString()
+    };
+    if(dbNS){
+      statusEl.textContent = "Saving...";
+      dbNS.collection("pangene_flags").doc(p.id).set(body)
+        .then(function(){ statusEl.textContent = "Saved."; })
+        .catch(function(err){ statusEl.textContent = "Could not save: " + err.message; });
+    } else {
+      var all = lsRead(LS_PANGENE_KEY); all[p.id] = body;
+      lsWrite(LS_PANGENE_KEY, all);
+      state.pangeneFlags = all;
+      recomputeFlagged();
+      statusEl.textContent = "Saved locally (this browser only).";
+    }
+  };
+  document.getElementById("pgFlagClear").onclick = function(){
+    var statusEl = document.getElementById("pgFlagStatus");
+    if(dbNS){
+      statusEl.textContent = "Clearing...";
+      dbNS.collection("pangene_flags").doc(p.id).delete()
+        .then(function(){ statusEl.textContent = "Cleared."; })
+        .catch(function(err){ statusEl.textContent = "Could not clear: " + err.message; });
+    } else {
+      var all = lsRead(LS_PANGENE_KEY); delete all[p.id];
+      lsWrite(LS_PANGENE_KEY, all);
+      state.pangeneFlags = all;
+      recomputeFlagged();
+      statusEl.textContent = "Cleared locally.";
+    }
+  };
+
+  var body = document.getElementById("pBody");
+  body.innerHTML = "";
+  var locusEl = document.createElement("div");
+  locusEl.className = "locus-view";
+  locusEl.innerHTML = '<h3>Locus view</h3><div class="lv-hint">Loading the genes around this pangene...</div>';
+  body.appendChild(locusEl);
+  renderLocus(p, locusEl);
+  state.genomes.forEach(function(g){
+    if(!p.genes[g]) return;
+    p.genes[g].forEach(function(rec, copyIdx){
+      var card = document.createElement("div");
+      card.className = "strain-card";
+      var src = rec[state.fields.source];
+      var qcls = rec[state.fields.quality_class];
+      var existingFlag = state.flags[rec[state.fields.ID]];
+      var head = document.createElement("div");
+      head.className = "sc-head";
+      head.innerHTML =
+        '<span class="sc-genome">'+g+(p.genes[g].length>1?' <span style="color:var(--fg-muted); font-weight:400">(copy '+(copyIdx+1)+'/'+p.genes[g].length+')</span>':'')+'</span>'+
+        '<span class="layer-pill">'+escapeHTML(src)+'</span>'+
+        '<span class="layer-pill" style="border-color:'+classColor(qcls)+'; color:'+classColor(qcls)+'" title="ORF-based quality (step 05 orf_status)">'+escapeHTML(qcls === "Not judged" ? ({"invalid_assembly_gap": "N in the CDS (gap)", "invalid_near_contig_end": "at a contig end"}[rec[state.fields.orf_status]] || qLabel(qcls)) : qLabel(qcls))+'</span>'+
+        (existingFlag ? '<span class="pill flag-pill">[F] '+escapeHTML(TAG_LABEL[existingFlag.tag]||existingFlag.tag)+'</span>' : '')+
+        '<button class="copy-btn" type="button" data-copy="'+escapeHTML(rec[state.fields.ID])+'">copy ID</button>';
+      card.appendChild(head);
+
+      var dl = document.createElement("dl");
+      dl.className = "fields";
+      ["ID","original_ID","basket","model_from","model_origin","orf_status","description","ebi_biotype",
+       "has_domain","tandem_array_copy","not_in_reference_annotation","pseudogene","coverage",
+       "sequence_ID"].forEach(function(f){
+        var v = rec[state.fields[f]];
+        if(v === undefined || v === "" || v === null) return;
+        var dt = document.createElement("dt"); dt.textContent = FIELD_LABELS[f]||f;
+        var dd = document.createElement("dd");
+        if(f === "coverage" || f === "sequence_ID"){
+          dd.innerHTML = '<i style="display:inline-block;width:8px;height:8px;border-radius:50%;background:'+qualityColor(v)+';margin-right:6px;vertical-align:middle"></i>'+escapeHTML(v);
+        } else {
+          dd.textContent = v;
+        }
+        dl.appendChild(dt); dl.appendChild(dd);
+      });
+      var dt2 = document.createElement("dt"); dt2.textContent = "location";
+      var dd2 = document.createElement("dd");
+      dd2.textContent = rec[state.fields.contig]+":"+rec[state.fields.start]+"-"+rec[state.fields.end]+" ("+rec[state.fields.strand]+")";
+      dl.appendChild(dt2); dl.appendChild(dd2);
+      card.appendChild(dl);
+
+      var ipr = rec[state.fields.interpro] || [], pfam = rec[state.fields.pfam] || [];
+      if(ipr.length || pfam.length){
+        var dom = document.createElement("div");
+        dom.style.padding = "0 12px 10px";
+        dom.innerHTML = ipr.map(function(x){ return '<span class="domain-chip">'+escapeHTML(x)+'</span>'; }).join("") +
+                         pfam.map(function(x){ return '<span class="domain-chip">PF'+escapeHTML(x)+'</span>'; }).join("");
+        card.appendChild(dom);
+      }
+
+      var geneId = rec[state.fields.ID];
+      var existing = state.flags[geneId];
+      var flagBox = document.createElement("div");
+      flagBox.className = "flag-box";
+      flagBox.dataset.gene = geneId;
+      flagBox.dataset.pangene = p.id;
+      flagBox.dataset.genome = g;
+      flagBox.dataset.original = rec[state.fields.original_ID] || "";
+      flagBox.innerHTML =
+        '<div class="flag-label">Curation flag'+(existing?' - saved':'')+'</div>'+
+        '<div class="flag-row">'+
+          '<select class="flag-tag">'+
+            '<option value="">No flag</option>'+
+            '<option value="delete"'+(existing&&existing.tag==="delete"?" selected":"")+'>Delete this gene</option>'+
+            '<option value="wrong_model"'+(existing&&existing.tag==="wrong_model"?" selected":"")+'>Wrong gene model</option>'+
+            '<option value="note"'+(existing&&existing.tag==="note"?" selected":"")+'>Note</option>'+
+          '</select>'+
+          '<input class="flag-related" type="text" placeholder="Related pangene ID (optional)" value="'+escapeHTML(existing&&existing.related_pangene||"")+'">'+
+        '</div>'+
+        '<textarea class="flag-note" placeholder="Why? (optional)">'+escapeHTML(existing&&existing.note||"")+'</textarea>'+
+        '<div class="flag-actions">'+
+          '<button class="flag-save" type="button">Save flag</button>'+
+          '<button class="flag-clear" type="button"'+(existing?'':' disabled')+'>Clear</button>'+
+          '<span class="flag-status"></span>'+
+        '</div>';
+      card.appendChild(flagBox);
+
+      body.appendChild(card);
+    });
+  });
+
+  body.querySelectorAll(".copy-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      var text = btn.dataset.copy;
+      (navigator.clipboard && navigator.clipboard.writeText ? navigator.clipboard.writeText(text) : Promise.reject())
+        .then(function(){ btn.textContent = "copied"; setTimeout(function(){ btn.textContent = "copy ID"; }, 1200); })
+        .catch(function(){ btn.textContent = text; });
+    });
+  });
+
+  body.querySelectorAll(".flag-box").forEach(function(box){
+    var statusEl = box.querySelector(".flag-status");
+    box.querySelector(".flag-save").addEventListener("click", function(){
+      var tag = box.querySelector(".flag-tag").value;
+      var geneId = box.dataset.gene;
+      if(!tag){ statusEl.textContent = "Pick a flag type first."; return; }
+      var docBody = {
+        pangene_id: box.dataset.pangene, genome: box.dataset.genome, gene_id: geneId,
+        original_id: box.dataset.original, tag: tag,
+        note: box.querySelector(".flag-note").value.trim(),
+        related_pangene: box.querySelector(".flag-related").value.trim(),
+        updated_at: new Date().toISOString()
+      };
+      if(dbNS){
+        statusEl.textContent = "Saving...";
+        dbNS.collection("flags").doc(geneId).set(docBody)
+          .then(function(){ statusEl.textContent = "Saved."; })
+          .catch(function(err){ statusEl.textContent = "Could not save: " + err.message; });
+      } else {
+        var all = lsRead(LS_GENE_KEY); all[geneId] = docBody;
+        lsWrite(LS_GENE_KEY, all);
+        state.flags = all;
+        recomputeFlagged();
+        statusEl.textContent = "Saved locally (this browser only).";
+      }
+    });
+    box.querySelector(".flag-clear").addEventListener("click", function(){
+      var geneId = box.dataset.gene;
+      if(dbNS){
+        statusEl.textContent = "Clearing...";
+        dbNS.collection("flags").doc(geneId).delete()
+          .then(function(){ statusEl.textContent = "Cleared."; })
+          .catch(function(err){ statusEl.textContent = "Could not clear: " + err.message; });
+      } else {
+        var all = lsRead(LS_GENE_KEY); delete all[geneId];
+        lsWrite(LS_GENE_KEY, all);
+        state.flags = all;
+        recomputeFlagged();
+        statusEl.textContent = "Cleared locally.";
+      }
+    });
+  });
+
+  document.getElementById("panel").classList.add("open");
+  document.getElementById("panel").setAttribute("aria-hidden","false");
+  document.getElementById("scrim").classList.add("open");
+}
+/* ---------- locus view: this pangene's genes + one neighbour gene on each side, per strain ---------- */
+var LV_CUR = "#d98c3f", LV_OVL = "#c0392b";
+var LV_PAL = ["#0072b2","#009e73","#cc79a7","#56b4e9","#7570b3","#8c6d31","#66a61e","#e7298a","#1b9e77","#a6761d","#5c7f9e","#b07aa1"];
+var lociCache = {};
+function loadLoci(g){
+  if(!lociCache[g]){
+    lociCache[g] = loadJSON("data/loci_"+g+".json").then(function(d){
+      var idx = {};
+      for(var c in d.contigs){ d.contigs[c].forEach(function(r, i){ idx[r[0]] = [c, i]; }); }
+      d.idx = idx; return d;
+    });
+  }
+  return lociCache[g];
+}
+function lvSegs(flat){ var out = []; for(var i = 0; i + 1 < flat.length; i += 2) out.push([flat[i], flat[i+1]]); return out; }
+function renderLocus(p, el){
+  var gs = state.genomes.filter(function(g){ return p.genes[g]; });
+  Promise.all(gs.map(loadLoci)).then(function(all){
+    if(state.openPangeneId !== p.id) return;
+    if(!state.pmap){ state.pmap = {}; state.pangenes.forEach(function(q){ state.pmap[q.id] = q; }); }
+    var rows = [], colorOf = {}, nCol = 0, CTX = 10000;   // every gene within CTX bp of the pangene, in every strain
+    function colorFor(pid){
+      if(!pid) return null;
+      if(pid === p.id) return LV_CUR;
+      if(!(pid in colorOf)) colorOf[pid] = LV_PAL[nCol++ % LV_PAL.length];
+      return colorOf[pid];
+    }
+    gs.forEach(function(g, gi){
+      var d = all[gi], byCtg = {};
+      p.genes[g].forEach(function(rec){
+        var at = d.idx[rec[state.fields.ID]];
+        if(at) (byCtg[at[0]] = byCtg[at[0]] || []).push(at[1]);
+      });
+      Object.keys(byCtg).forEach(function(c){
+        var L = d.contigs[c], is = byCtg[c].sort(function(a,b){ return a-b; });
+        var lo = Math.max(0, is[0] - 1), hi = Math.min(L.length - 1, is[is.length-1] + 1);
+        var S = Infinity, E = -Infinity;
+        is.forEach(function(i){ S = Math.min(S, L[i][3]); E = Math.max(E, L[i][4]); });
+        var pick = {};
+        for(var j = 0; j < L.length; j++){
+          if(L[j][4] >= S - CTX && L[j][3] <= E + CTX) pick[j] = 1;
+        }
+        var cur = is.map(function(i){ return L[i]; });
+        var flip = cur[0][5] === "-";
+        var anchor = flip ? Math.max.apply(null, cur.map(function(r){ return r[4]; })) : Math.min.apply(null, cur.map(function(r){ return r[3]; }));
+        var X = function(v){ return flip ? anchor - v : v - anchor; };
+        var genes = Object.keys(pick).map(Number).sort(function(a,b){ return a-b; }).map(function(i){
+          var r = L[i], a = X(r[3]), b = X(r[4]);
+          return {r: r, cur: is.indexOf(i) >= 0, x0: Math.min(a,b), x1: Math.max(a,b),
+                  dir: (r[5] === "+") !== flip ? 1 : -1,
+                  cds: lvSegs(r[7]).map(function(s){ var u = X(s[0]), w = X(s[1]); return [Math.min(u,w), Math.max(u,w)]; })};
+        });
+        var ovl = [];
+        cur.forEach(function(cr){
+          L.slice(lo, hi + 1).concat(genes.map(function(x){ return x.r; })).forEach(function(o){
+            if(o === cr || o[6] === p.id) return;
+            lvSegs(cr[7]).forEach(function(s1){ lvSegs(o[7]).forEach(function(s2){
+              var a = Math.max(s1[0], s2[0]), b = Math.min(s1[1], s2[1]);
+              if(b >= a){ var u = X(a), w = X(b); ovl.push([Math.min(u,w), Math.max(u,w), b - a + 1]); }
+            }); });
+          });
+        });
+        rows.push({g: g, ctg: c, genes: genes, ovl: ovl});
+      });
+    });
+    if(!rows.length){ el.innerHTML = '<h3>Locus view</h3><div class="lv-hint">No coordinates found for this pangene.</div>'; return; }
+    var curMax = 0;
+    rows.forEach(function(rw){ rw.genes.forEach(function(x){ if(x.cur) curMax = Math.max(curMax, x.x1); }); });
+    var xmin = 0, xmax = curMax;
+    rows.forEach(function(rw){ rw.genes.forEach(function(x){ xmin = Math.min(xmin, x.x0); xmax = Math.max(xmax, x.x1); }); });
+    xmin = Math.max(xmin, -CTX); xmax = Math.min(xmax, curMax + CTX);
+    var full = [xmin, xmax], view = [xmin, xmax];
+    var W = 740, LW = 92, RW = 8, RH = 30, TOP = 8, H = TOP + rows.length * RH + 26;
+    function draw(){
+      W = Math.max(600, Math.round(box.clientWidth || 740));
+      var vmin = view[0], vmax = view[1];
+      var sx = function(v){ return LW + (v - vmin) / (vmax - vmin || 1) * (W - LW - RW); };
+      var svg = ['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="Genes of '+p.id+' and their neighbours in each strain">',
+                 '<defs><clipPath id="lvclip"><rect x="'+LW+'" y="0" width="'+(W-LW-RW)+'" height="'+H+'"/></clipPath></defs>'];
+      rows.forEach(function(rw, k){
+        var y = TOP + k * RH + 16;
+        if(k % 2) svg.push('<rect x="0" y="'+(y-15)+'" width="'+W+'" height="'+RH+'" fill="var(--panel-2)"/>');
+        svg.push('<text x="4" y="'+(y+3)+'" font-size="10">'+escapeHTML(rw.g)+'</text>');
+        svg.push('<g clip-path="url(#lvclip)">');
+        rw.genes.forEach(function(x){
+          if(x.x1 < vmin || x.x0 > vmax) return;
+          var col = x.r[6] ? colorFor(x.r[6]) : "var(--fg-muted)";
+          var orfTxt = x.r[8] === 1 ? "valid ORF" : x.r[8] === 0 ? "no valid ORF" : "ORF not checked (own annotation)";
+          var tip = x.r[0]+" | "+x.r[1]+" | "+x.r[2]+" | pangene "+(x.r[6]||"(not in this pangenome)")+" | "+rw.ctg+":"+x.r[3]+"-"+x.r[4]+" ("+x.r[5]+") | "+orfTxt;
+          svg.push('<g class="lv-gene" data-pid="'+escapeHTML(x.r[6])+'"'+(x.r[8] === 0 ? ' opacity="0.35"' : '')+'><title>'+escapeHTML(tip)+'</title>');
+          svg.push('<line x1="'+sx(x.x0)+'" x2="'+sx(x.x1)+'" y1="'+y+'" y2="'+y+'" stroke="'+col+'" stroke-width="1.3"'+(x.r[6]?'':' stroke-dasharray="3 2"')+'/>');
+          x.cds.forEach(function(c){
+            var a = sx(c[0]), b = Math.max(sx(c[1]), a + 1);
+            svg.push(x.r[6] ? '<rect x="'+a+'" y="'+(y-5)+'" width="'+(b-a)+'" height="10" fill="'+col+'"/>'
+                            : '<rect x="'+a+'" y="'+(y-5)+'" width="'+(b-a)+'" height="10" fill="none" stroke="'+col+'" stroke-width="1"/>');
+          });
+          var tipX = x.dir > 0 ? sx(x.x1) : sx(x.x0), d = x.dir * 6;
+          svg.push('<polygon points="'+tipX+','+(y-5)+' '+tipX+','+(y+5)+' '+(tipX+d)+','+y+'" fill="'+col+'"/>');
+          var mid = (Math.max(sx(x.x0), LW) + Math.min(sx(x.x1), W - RW)) / 2;
+          if(sx(x.x1) - sx(x.x0) > 46 && x.r[6]) svg.push('<text x="'+mid+'" y="'+(y-8)+'" font-size="8" text-anchor="middle">'+escapeHTML(x.r[6])+'</text>');
+          svg.push('</g>');
+        });
+        rw.ovl.forEach(function(o){
+          var a = sx(o[0]), b = Math.max(sx(o[1]), a + 2);
+          svg.push('<rect x="'+(a-1)+'" y="'+(y-8)+'" width="'+(b-a+2)+'" height="16" fill="none" stroke="'+LV_OVL+'" stroke-width="1.6"><title>'+o[2]+' bp CDS overlap</title></rect>');
+        });
+        svg.push('</g>');
+      });
+      var span = vmax - vmin, yAx = TOP + rows.length * RH + 6, raw = span / 6, mag = Math.pow(10, Math.floor(Math.log10(raw || 1)));
+      var step = [1, 2, 5, 10].map(function(m){ return m * mag; }).filter(function(v){ return v >= raw; })[0];
+      svg.push('<line x1="'+LW+'" x2="'+(W-RW)+'" y1="'+yAx+'" y2="'+yAx+'" stroke="var(--border-strong)"/>');
+      for(var t = Math.ceil(vmin / step) * step; t <= vmax; t += step){
+        svg.push('<line x1="'+sx(t)+'" x2="'+sx(t)+'" y1="'+yAx+'" y2="'+(yAx+4)+'" stroke="var(--border-strong)"/>');
+        svg.push('<text x="'+sx(t)+'" y="'+(yAx+14)+'" font-size="8" text-anchor="middle">'+(Math.round(t)/1000).toLocaleString(undefined, {maximumFractionDigits: 3})+' kb</text>');
+      }
+      svg.push('</svg>');
+      box.innerHTML = svg.join("");
+      state.lvRedraw = function(){ if(state.openPangeneId === p.id) draw(); };
+      box.querySelectorAll("[data-pid]").forEach(function(n){
+        var pid = n.getAttribute("data-pid");
+        if(!pid || pid === p.id || !state.pmap[pid]) return;
+        n.addEventListener("click", function(){ if(!dragged) openPanel(state.pmap[pid]); });
+      });
+      zlabel.textContent = Math.round(span).toLocaleString() + " bp shown";
+    }
+    function zoom(f, at){
+      var span = view[1] - view[0], c = at === undefined ? (view[0] + view[1]) / 2 : at;
+      var ns = Math.max(200, Math.min(full[1] - full[0], span * f));
+      var lo = c - (c - view[0]) / span * ns;
+      lo = Math.max(full[0], Math.min(lo, full[1] - ns));
+      view = [lo, lo + ns]; draw();
+    }
+    rows.forEach(function(rw){ rw.genes.forEach(function(x){ colorFor(x.r[6]); }); });
+    var leg = ['<span><i style="background:'+LV_CUR+'"></i>'+escapeHTML(p.id)+' (this pangene)</span>'];
+    Object.keys(colorOf).forEach(function(pid){
+      leg.push('<span><i style="background:'+colorOf[pid]+'"></i><button type="button" data-pid="'+escapeHTML(pid)+'">'+escapeHTML(pid)+'</button></span>');
+    });
+    leg.push('<span><i style="background:var(--fg-muted); opacity:0.35"></i>faded = no valid ORF (Liftoff transfers only)</span>');
+    leg.push('<span><i style="border:1px dashed var(--fg-muted)"></i>not in this pangenome</span>');
+    leg.push('<span><i style="border:1.6px solid '+LV_OVL+'"></i>CDS overlap with this pangene</span>');
+    el.innerHTML = '<h3>Locus view</h3><div class="lv-hint">Every gene within 10 kb of this pangene, in each strain that has it (the same window for all, so the gene context can be compared); to see the strains without it, use the pangenome browser. Each row is oriented so this pangene points right; 0 = its start. Hover for details, click a neighbour to open its pangene. Zoom with the buttons or the mouse wheel; drag to move.</div>' +
+                   '<div class="lv-zoom"><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">&minus;</button><button type="button" data-z="reset">Reset</button><span class="lv-zlabel"></span></div>' +
+                   '<div class="lv-svg"></div><div class="lv-legend">' + leg.join("") + '</div>';
+    var box = el.querySelector(".lv-svg"), zlabel = el.querySelector(".lv-zlabel"), dragged = false;
+    el.querySelector('[data-z="in"]').addEventListener("click", function(){ zoom(0.5); });
+    el.querySelector('[data-z="out"]').addEventListener("click", function(){ zoom(2); });
+    el.querySelector('[data-z="reset"]').addEventListener("click", function(){ view = full.slice(); draw(); });
+    function bpAt(clientX){
+      var r = box.getBoundingClientRect(), px = (clientX - r.left) / r.width * W;
+      return view[0] + (px - LW) / (W - LW - RW) * (view[1] - view[0]);
+    }
+    box.addEventListener("wheel", function(e){ e.preventDefault(); zoom(e.deltaY < 0 ? 0.8 : 1.25, bpAt(e.clientX)); }, {passive: false});
+    var drag = null;
+    box.addEventListener("pointerdown", function(e){ drag = {x: e.clientX, v: view.slice()}; dragged = false; });
+    window.addEventListener("pointermove", function(e){
+      if(!drag) return;
+      var r = box.getBoundingClientRect(), dx = e.clientX - drag.x;
+      if(Math.abs(dx) > 3) dragged = true;
+      if(!dragged) return;
+      var span = drag.v[1] - drag.v[0], shift = -dx / r.width * W / (W - LW - RW) * span;
+      var lo = Math.max(full[0], Math.min(drag.v[0] + shift, full[1] - span));
+      view = [lo, lo + span]; draw();
+    });
+    window.addEventListener("pointerup", function(){ drag = null; setTimeout(function(){ dragged = false; }, 0); });
+    el.querySelectorAll(".lv-legend [data-pid]").forEach(function(n){
+      var pid = n.getAttribute("data-pid");
+      if(!pid || pid === p.id || !state.pmap[pid]) return;
+      n.addEventListener("click", function(){ openPanel(state.pmap[pid]); });
+    });
+    draw();
+  }).catch(function(err){
+    el.innerHTML = '<h3>Locus view</h3><div class="lv-hint">Could not load the locus data: '+escapeHTML(err.message)+'. Run scripts/build_explorer_locus_index.py.</div>';
+  });
+}
+function closePanel(){
+  document.getElementById("panel").classList.remove("open");
+  document.getElementById("panel").setAttribute("aria-hidden","true");
+  document.getElementById("scrim").classList.remove("open");
+}
+})();
+</script>

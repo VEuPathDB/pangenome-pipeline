@@ -61,13 +61,8 @@ Produces, in --out-dir:
                                    combined, split by how much of the smaller gene's own CDS
                                    the overlap covers: minor (<20%), substantial (20-80%),
                                    contained (>=80%, one gene essentially sitting inside the
-                                   other) - same rule as step 05's own
-                                   plot_final_annotation_qc.py, used later on the post-Liftoff
-                                   build, so the two are directly comparable: this plot is the
-                                   baseline severity already present before Liftoff runs at
-                                   all, so the difference between this and the post-Liftoff
-                                   version shows how much of that problem Liftoff introduced
-                                   versus how much was already there
+                                   other): the baseline severity already present in the
+                                   genomes' own annotations, before Liftoff runs at all
 
 Usage:
     python3 analyze_input_gffs.py \\
@@ -342,8 +337,7 @@ def cds_bp(gene):
 
 
 def overlap_severity(overlap_bp, gene_a, gene_b):
-    """Same rule as this pipeline's later plot_final_annotation_qc.py (step 05's own QC on
-    the post-Liftoff build) - severity is the overlap as a fraction of the SMALLER gene's own
+    """Severity is the overlap as a fraction of the SMALLER gene's own
     CDS length, not the bigger one and not the two combined. Sized against the smaller gene on
     purpose: a 438bp overlap is only 22% of a 1986bp gene, but 100% of a 438bp one - sizing
     against the bigger gene would call that pair "minor" even though the smaller gene is
@@ -628,7 +622,7 @@ def main():
     fig.savefig(os.path.join(args.out_dir, "05_cds_overlap_counts.png"), dpi=150, bbox_inches="tight")
     plt.close(fig)
 
-    # --- Plot 6: CDS-overlap severity (same rule as step 05's plot_final_annotation_qc.py) ---
+    # --- Plot 6: CDS-overlap severity ---
     fig, ax = plt.subplots(figsize=figsize)
     sev_colors = {"minor": "#B0B0B0", "substantial": "#F2B035", "contained": "#C0392B"}
     bottoms = [0] * len(analyzed_genomes)

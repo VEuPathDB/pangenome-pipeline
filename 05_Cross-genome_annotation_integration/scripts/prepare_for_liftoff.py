@@ -13,8 +13,8 @@ never edited):
      - protein-coding genes and pseudogenes -> --gene-type (default protein_coding_gene) - what
        Liftoff will be told to transfer (see liftoff_feature_types.txt, written to --out-dir);
      - non-coding RNA genes (tRNA, rRNA, other ncRNA) are REMOVED from the prepared GFF, with
-       every transcript and exon under them. The build step (AGAT) retypes a tRNA_gene as a plain
-       "gene", which get_pangenes would then cluster, so they are left out instead.
+       every transcript and exon under them: the pangenome is built from protein-coding genes, and
+       get_pangenes would cluster a non-coding gene written as a plain "gene" as if it were one.
    For the protein-coding genes only the type column changes; every attribute (including
    gene_biotype/ebi_biotype) is kept.
    Genes that can't be classified are left as they are and reported - if their type is
