@@ -10,8 +10,7 @@
 #
 # Extracts one protein FASTA per genome (translated CDS, spliced across exons)
 # from GFF_INDIR + GENOMES using AGAT - the input InterProScan actually needs.
-# Not part of the colleague's original InterProScan scripts (those assume the
-# .faa files already exist); this is the missing first step.
+# InterProScan needs these .faa files, so this runs first.
 #
 # Submit from your project folder:
 #     sbatch 04_Protein_evidence/scripts/extract_proteins.slurm.sh
