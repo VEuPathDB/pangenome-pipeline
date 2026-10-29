@@ -26,23 +26,43 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 | [01 – Genome Selection & QC](01_Genome_Selection_QC/README.md) | Selects and quality-checks the genome set itself, and normalizes every assembly/GFF into one consistent naming convention every later step relies on. Profiles every contig's size and whether the small ones carry genes, to see how contiguous each assembly actually is and catch species-specific peculiarities (e.g. Tgondii's fragmented mitochondrial genome). Screens for and removes organelle (mitochondrial/apicoplast) and redundant/duplicate contigs avoiding inflated gene counts from genome redundancy, and false PAV from inconsistent organelle-genome inclusion across the panel.|
 | [02 – TE Annotation & Clean Up](02_TE_annotation_Clean_Up/README.md) | Builds a species-specific curated TE library and annotates every genome with it, giving a TE-composition picture per genome (total content, superfamily/family breakdown). Scores how much of each annotated gene's CDS overlaps a TE and filters out genes that are probably TEs. Keeping TEs annotated as genes inflates the cloud (rare/strain-specific) gene category, since TEs are expected to insert at different locations in different strains. **Starships** (giant mobile elements in fungi that carry real host genes as cargo) are deliberately kept, not removed — their cargo genes are genuine; identifying the Starships is a step we need to do later when we have the pangenome results. |
 | [03 – *de novo* Genome Annotation](03_denovo_Genome_Annotation/README.md) | **Optional** — only for genomes with no gene annotation at all. For fungal genomes, runs **Funannotate**, a standard *de novo* annotator. Without this step, the assembly could still get by on genes transferred from other strains (step 05's Liftoff) — but any gene truly unique to this strain, with no counterpart in any other genome's annotation, would never be captured that way. |
-| [04 – InterProScan](04_InterProScan/README.md) | Some genomes may already carry InterPro domain annotation in their description, but for every genome to be on the same InterProScan version, this step re-runs it across the panel — the presence of an InterPro domain is used as evidence in step 05. |
-| [05 – Cross-genome annotation integration](05_Cross-genome_annotation_integration/README.md) | Different genomes usually arrive annotated by different groups/tools, with subtly different gene-calling tools/conventions. To get consistent annotation across all genomes, this step re-annotates every genome. Our "all-vs-all" strategy has several steps starting with the LiftOff of all strains against all strains. To build the final annotation, we have 2 approaches. **Approach 1: filling each locus by a fixed priority order of sources**  1) pick a trusted reference genome, transfer its genes onto every other genome with Liftoff (keeping only high-confidence transfers — valid gene model, high enough coverage and sequence identity); 2) fill gaps from that genome's own original annotation; 3) then fill whatever's still missing from every other genome's annotation too (also via Liftoff, high-confidence transfers); 4) then fill whatever's still missing from every other genome's annotation (low-confidence). After obtaining the final annotations, one important step is to evaluate the necessity of  some filtering. Overlapping genes arise from the pipeline and need to be filtered, keeping only the more confident gene model. Also, some very low-quality transfers get added to the GFFs in the last steps — some may remain, but others should be filtered out entirely (e.g. a gene transfer with <50% coverage). **Two alternative approaches to this filtering are documented too** — resolving and filtering before `get_pangenes` runs, or adding specific tags to gene description so we can address the low quality genes after running GET_PANGENES. **Approach 2: filling each locus by whichever transferred gene model is individually best-supported regardless of source**. SADIK TO WRITE THE SUMMARY HERE.<br><br>**Caveats:**<br>- a transferred gene model having a valid ORF doesn't mean it's expressed or functional, since the pipeline only checks the coding sequence itself — a mutation in a regulatory region (e.g. promoter) that silences the gene would go undetected;<br>- gene models with invalid ORFs, called "pseudogene" in the original GFFs ot the ones kept in our final GFFs (those transferred with invalid ORFs) could be genuine pseudogenes or may actually be functional genes whose CDS merely carries a sequencing error. Keeping them in get_pangene analysis minimizes the chance of false PAV call. |
-| [06 – GET_PANGENES](06_GET_PANGENES/README.md) | Links each genome's already-ready GFF and FASTA into one directory, paired up by filename the way GET_PANGENES expects, then builds the actual pangenome — the similarity + synteny gene calling described above — from the cleaned-up, cross-genome-consistent annotations steps 01–05 produced. |
-| [07 – Post-GET_PANGENES adjusting](07_Post_GET_PANGENES_adjusting/README.md) | GET_PANGENES sometimes merges two adjacent genes into one pangene call. This step is to understand them and separate to distinct pangenes when necessary.   |
+| [04 – Protein evidence (InterProScan and PSAURON)](04_Protein_evidence/README.md) | Some genomes may already carry InterPro domain annotation in their description, but for every genome to be on the same InterProScan version, this step re-runs it across the panel — the presence of an InterPro domain is used as evidence in step 05. It also scores every protein with PSAURON (how much it looks like a real protein-coding gene), used in step 05 to decide which new genes enter the panel. |
+| [05 – Cross-genome annotation integration](05_Basket_annotation_integration/README.md) | Different genomes usually arrive annotated by different groups and tools, so the same gene can be called in one genome and missed in another, split in one and fused in another. To get a consistent annotation, every genome's genes are transferred onto every other genome (all-vs-all Liftoff), the versions of each gene are grouped across genomes (**baskets**), one model is chosen per gene (the reference's model when the reference has the gene; otherwise by protein domain, PSAURON score and how many genomes support it), and each genome takes the valid model most similar to it (the chosen model's own transfer whenever it works; a gene is only called absent after a last rescue, and every absence is listed with its reason). A gene not annotated in the reference enters the panel only if it has a protein domain, or a valid ORF of at least 100 aa with a high PSAURON score; the reference's pseudogenes are kept, tagged; when two genes overlap on opposite strands, the one that loses the comparison (reference gene, protein domain, PSAURON score, genomes with a valid ORF) is considered false and removed; broken models are repaired with miniprot when the genome sequence allows it.<br><br>**Caveats:**<br>- a gene model with a valid ORF doesn't mean it's expressed or functional, since only the coding sequence is checked — a mutation in a regulatory region (e.g. promoter) that silences the gene would go undetected;<br>- gene models with invalid ORFs could be genuine pseudogenes or functional genes whose CDS carries a sequencing or assembly error; they are kept and flagged (`orf_status`), which minimizes false PAV calls. |
+| [06 – GET_PANGENES](06_GET_PANGENES/README.md) | Links each genome's already-ready GFF and FASTA into one directory, paired up by filename the way GET_PANGENES expects, then builds the actual pangenome — the similarity + synteny gene calling described above — from the cleaned-up, cross-genome-consistent annotations steps 01–05 produced. Runs on step 05's annotation; whether it runs again after step 07 is not decided yet. |
+| [07 – Post-GET_PANGENES adjusting](07_Post_GET_PANGENES_adjusting/README.md) | Uses the pangenome to correct the annotation, judging each gene across all genomes. **Being revised:** the overlapping false genes and the genes deleted by the reference's curation are removed in step 05. Under discussion: genes annotated in pieces, absences where the sequence is there, the genes with an invalid ORF (including which are pseudogenes), and the low-quality pangenes. |
 
 
+
+**The order of the steps.** Step 05 builds the final annotation (it chooses each gene's model, repairs broken models,
+removes the false genes and the genes deleted by the reference's curation), and step 06 runs on it. Step 07, which
+uses the pangenome to correct the annotation, is being revised: what it does, and whether step 06 then runs a second
+time, is not decided yet.
+
+```mermaid
+flowchart LR
+    A[01-04] --> B[05: basket annotation]
+    B --> C[06: pangenome]
+    C --> D[07: look, fix, remove curated genes, look again]
+    D -.->|more curation| D
+```
+
+1. Steps 01-04: genomes, TEs, *de novo* annotation if needed, InterProScan and PSAURON.
+2. Step 05: all-against-all Liftoff, baskets and their winners, each genome's model, miniprot repair, the overlap rule
+   and the reference's curation: the final GFFs.
+3. Step 06: the pangenome.
+4. Step 07: figures and an interactive page of the pangenome, tables of the absences and of the likely false genes, a
+   safe fix of the genes `get_pangenes` split into two pangenes, the removal of the genes found false during curation,
+   and the figures and page again. The removal can be repeated after each round of curation.
 
 ## Steps
 
 - **[01 - Genome Selection & QC](01_Genome_Selection_QC/README.md)** 
 - **[02 - TE Annotation & Clean Up](02_TE_annotation_Clean_Up/README.md)**
 - **[03 - *de novo* Genome Annotation ](03_denovo_Genome_Annotation/README.md)** 
-- **[04 - InterProScan](04_InterProScan/README.md)** 
-- **[05 - Cross-genome annotation integration](05_Cross-genome_annotation_integration/README.md)** 
+- **[04 – Protein evidence (InterProScan and PSAURON)](04_Protein_evidence/README.md)** 
+- **[05 – Cross-genome annotation integration](05_Basket_annotation_integration/README.md)** 
 - **[06 - GET_PANGENES](06_GET_PANGENES/README.md)** 
-- **[07 - Post-GET_PANGENES_adjusting](07_Post_GET_PANGENES_adjusting/README.md)** 
-- **[08 - Pangenome Visualisation](08_Pangenome_Visualisation/README.md)** 
+- **[07 - Post-GET_PANGENES Adjusting and Visualisation](07_Post_GET_PANGENES_adjusting/README.md)**
 
 
 ---
@@ -87,15 +107,13 @@ git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
 │   └── scripts/
 ├── 03_denovo_Genome_Annotation/
 │   └── scripts/
-├── 04_InterProScan/
+├── 04_Protein_evidence/
 │   └── scripts/
-├── 05_Cross-genome_annotation_integration/
+├── 05_Basket_annotation_integration/
 │   └── scripts/
 ├── 06_GET_PANGENES/
 │   └── scripts/
 ├── 07_Post_GET_PANGENES_adjusting/
-│   └── scripts/
-├── 08_Pangenome_Visualisation/
 │   └── scripts/
 ├── genome_order.txt            the genome list (generated in step 01)
 ├── genomes/                    <basename>.fna    – assemblies
