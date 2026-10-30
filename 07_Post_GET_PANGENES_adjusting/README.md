@@ -113,8 +113,16 @@ moves such genes back, but only when it is safe:
 - the gene is claimed by one pangene only (a gene of a family that two pangenes claim is left alone);
 - two pangenes that claim each other's genes merge into the one with more genomes.
 
-The `basket=` tag of step 05 is not used to move genes: in gene families a gene can carry the tag of a related panel
-gene, and moving by tag would undo a correct grouping.
+Then it joins the pangenes of one gene that the moves above could not put back together, e.g. a gene that
+`get_pangenes` split into three or more pangenes (each piece claims the genes of the others). Step 05's `basket=` tag says which genes are the same gene; the
+pangenes holding the genes of one basket are joined into the one with the most strains, but only when:
+
+- every one of these pangenes holds only genes of that basket;
+- no strain has two genes of the basket.
+
+In gene families a gene can carry the tag of a related panel gene, so a split where a pangene also holds genes of other
+baskets, or a strain has two genes of the basket, is not joined: it is listed in `basket_splits_not_joined.tsv`, for
+the curation. Every join is in `joins.tsv`.
 
 Only the matrix changes; no gene is added to or removed from the GFFs, and no Liftoff transfer is brought back. A
 pangene left empty disappears. Every absence left is explained in `absences_explained.tsv`, with a verdict:
@@ -297,7 +305,8 @@ pangenome_explorer/{preliminary,final}/   explorer_standalone.html (+ explorer.h
 pangenome_inspection/
 ├── absence_audit/      absences.tsv, summary.tsv
 └── multigene/          multigene_pangenes.tsv, summary.tsv
-pangenome_fixed/        pangene_matrix_genes.tr.tab/.tab, moves.tsv, skipped_moves.tsv, absences_explained.tsv, summary.tsv,
+pangenome_fixed/        pangene_matrix_genes.tr.tab/.tab, moves.tsv, skipped_moves.tsv, joins.tsv,
+                        basket_splits_not_joined.tsv, absences_explained.tsv, summary.tsv,
                         pangene_lists/ (pangene_quality.tsv, genes_not_in_pangenome.tsv, summary.tsv)
 pangenome_final/        gff/ (the final GFFs), pangene_matrix_genes.tr.tab/.tab, removed_genes.tsv,
                         absences_explained.tsv, gene_status.tsv, singletons.tsv, summary.tsv, summary_tables.tsv
