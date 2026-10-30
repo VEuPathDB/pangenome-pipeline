@@ -188,26 +188,27 @@ Before moving into downstream filtering, header renaming, or pangenome construct
 lightweight quality assessment across your genome assemblies. This check computes core assembly
 metrics (total size, contig count, N50, GC content), annotation statistics (gene, mRNA, exon, CDS,
 derived intron counts, and mean exons per transcript), and protein length distributions, cross-referencing
-them against NCBI submitter metadata.
+them against NCBI submitter metadata when it is available.
 
-While initially piloted on *Fusarium*, the assessment scripts are fully generalizable and can be applied
-to **any GenBank / RefSeq assembly** (fungi, protists, plants, or animals).
+It works on genomes from NCBI and from VEuPathDB alike, or on any FASTA + GFF3 pair.
 
-Scripts: [`assess_assemblies.py`](scripts/assess_assemblies.py) ·
-[`plot_assemblies.py`](scripts/plot_assemblies.py).
+Scripts: [`scripts/assess_assemblies.slurm.sh`](scripts/assess_assemblies.slurm.sh) ·
+[`assess_assemblies.py`](scripts/assess_assemblies.py) · [`plot_assemblies.py`](scripts/plot_assemblies.py).
 
 #### Inputs
 
-Each assembly contributes four files, keyed by GenBank accession:
+The genomes as obtained above, keyed by their basename (accession or short label):
 
 | File | Purpose |
 |---|---|
-| `<acc>_*_genomic.fna` | assembled contigs/chromosomes |
-| `<acc>_genomic.gff` | gene / mRNA / exon / CDS annotations |
-| `<acc>_protein.faa` | predicted protein sequences |
-| `<acc>_data_summary.tsv` | NCBI metadata (strain, submitter, gene count) |
+| `genomes/<name>.fna` | assembled contigs/chromosomes |
+| `gff_originals/<name>.gff3` | gene / mRNA / exon / CDS annotations |
+| `genomes/<name>_protein.faa` | predicted protein sequences (optional) |
+| `genomes/<name>_data_summary.tsv` | NCBI metadata: strain, submitter, gene count (optional) |
 
-> 💡 **Tip — Fetching all four files with NCBI Datasets:**
+Without a protein FASTA (e.g. VEuPathDB genomes), the proteins are translated from the GFF's CDS.
+
+> 💡 **Tip — Fetching the optional NCBI files with NCBI Datasets:**
 > When fetching genomes (section 3.1), include `protein` alongside `genome,gff3`:
 > ```bash
 > datasets download genome accession <acc1> <acc2> ... --include genome,gff3,protein
@@ -222,40 +223,35 @@ Each assembly contributes four files, keyed by GenBank accession:
 
 #### Running the check
 
-Run locally or on a head node (runtime is negligible — a panel of assemblies parses in seconds):
-
 ```bash
-# 1. Compute assembly metrics and protein length distribution tables
-python3 01_Genome_Selection_QC/scripts/assess_assemblies.py \
-    --input-dir ./ncbi_download \
-    --output-dir ./assembly_qc
-
-# 2. Produce a 6-panel comparative QC plot
-python3 01_Genome_Selection_QC/scripts/plot_assemblies.py \
-    --metrics ./assembly_qc/assembly_metrics.tsv \
-    --proteins ./assembly_qc/protein_lengths.tsv \
-    --output ./assembly_qc/assembly_assessment.png
+sbatch 01_Genome_Selection_QC/scripts/assess_assemblies.slurm.sh
 ```
+
+`GENOMES` (default `genomes`), `GFF_INDIR` (default `gff_originals`) and `OUTDIR` (default
+`assembly_assessment`) are variables at the top of the script. The job runs `assess_assemblies.py` and then
+`plot_assemblies.py`; it takes about 30 seconds for 15 *T. gondii* genomes.
 
 #### Outputs
 
-- **`assembly_metrics.tsv`** — One row per assembly with 18 comparative fields:
+All in `assembly_assessment/`:
+
+- **`assembly_metrics.tsv`** — One row per assembly with 19 comparative fields:
   - *NCBI metadata:* `accession`, `organism`, `strain`, `assembly_level`, `submitter_gene_count`.
   - *Assembly metrics:* `genome_size_bp`, `num_contigs`, `n50`, `gc_pct`.
-  - *Annotation features:* `num_genes`, `num_mRNAs`, `num_exons`, `num_CDS`, `num_introns_derived` (derived per transcript as `sum(exons_per_mRNA - 1)`), `mean_exons_per_mRNA`.
-  - *Protein statistics:* `num_proteins`, `protein_mean_len`, `protein_median_len`.
+  - *Annotation features:* `num_genes` (every top-level gene feature, whatever its type: `gene`, `protein_coding_gene`, `ncRNA_gene`, `pseudogene`), `num_mRNAs`, `num_exons`, `num_CDS` (mRNAs with a CDS), `num_introns_derived` (derived per transcript as `sum(exons_per_mRNA - 1)`), `mean_exons_per_mRNA`.
+  - *Protein statistics:* `num_proteins`, `protein_mean_len`, `protein_median_len`, `protein_source` (`protein_fasta` or `translated_from_gff`).
 - **`protein_lengths.tsv`** — Long-format table (`accession`, `protein_length`) of all translated CDS lengths, used to generate length distribution boxplots.
-- **`assembly_assessment.png`** — A publication-ready 6-panel comparison figure:
-  - **(a) Genome size & contig count (dual axis):** Identifies outlier genomes that are substantially expanded, shrunken, or excessively fragmented.
-  - **(b) Contig N50:** Compares contiguity across candidates.
-  - **(c) GC content (%):** Flags potential foreign DNA contamination or taxonomically misassigned assemblies.
-  - **(d) Gene / mRNA / CDS counts:** Compares annotation completeness and flags structural differences in GFF reporting.
-  - **(e) Exons & introns:** Diagnostic check for typical gene models and intron-exon structure across the clade.
-  - **(f) Protein length distribution:** Boxplots across assemblies to highlight widespread truncation or fragmentation artefacts.
+- **`assembly_assessment.png`** — A 7-panel comparison figure:
+  - **(a) Genome size** and **(b) contig count:** Identifies outlier genomes that are substantially expanded, shrunken, or excessively fragmented.
+  - **(c) Contig N50:** Compares contiguity across candidates.
+  - **(d) GC content (%):** Flags potential foreign DNA contamination or taxonomically misassigned assemblies.
+  - **(e) Genes / mRNAs / mRNAs with CDS:** Compares annotation completeness and flags structural differences in GFF reporting.
+  - **(f) Exons & introns:** Diagnostic check for typical gene models and intron-exon structure across the clade.
+  - **(g) Protein length distribution:** Boxplots across assemblies to highlight widespread truncation or fragmentation artefacts.
 
 #### What to look for before proceeding
 
-- **Metadata vs GFF consistency:** Compare `num_genes` against `submitter_gene_count`. Discrepancies often flag GFF structural differences (e.g. non-protein-coding genes, pseudogenes, or missing `mRNA` parent features in older submitter GFFs).
+- **Metadata vs GFF consistency (NCBI genomes):** Compare `num_genes` against `submitter_gene_count`. Discrepancies often flag GFF structural differences (e.g. non-protein-coding genes, pseudogenes, or missing `mRNA` parent features in older submitter GFFs).
 - **Outlier GC% / Assembly Size:** Genomes with aberrant GC content or size may represent contamination or misclassified sister species — cross-reference with the [species check](#7-species-check).
 - **Severe fragmentation:** Genomes with very low N50 and thousands of contigs break synteny detection in GET_PANGENES (step 06); inspect them in the [contig size profile](#8-contig-size-profile) before deciding whether to retain them.
 

@@ -12,6 +12,9 @@ Expected per-accession files (any GenBank/RefSeq accession):
   <acc>_*genomic.gff[3]    (gene / mRNA / exon / CDS annotations)
   <acc>_*protein.faa       (predicted protein sequences, optional)
   <acc>_*data_summary.tsv  (NCBI metadata summary, optional)
+
+The pipeline layout works too: --input-dir genomes (<name>.fna) and --gff-dir gff_originals
+(<name>.gff3). With no protein FASTA, the proteins are translated from the GFF's CDS.
 """
 
 import argparse
@@ -62,13 +65,68 @@ def compute_n50(lengths):
     return 0
 
 
+def read_fasta(path):
+    """Return {header: sequence} for a FASTA file."""
+    seqs, name, parts = {}, None, []
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            if line.startswith(">"):
+                if name is not None:
+                    seqs[name] = "".join(parts)
+                name, parts = line[1:].strip().split()[0], []
+            else:
+                parts.append(line.strip().upper())
+    if name is not None:
+        seqs[name] = "".join(parts)
+    return seqs
+
+
+CODON = {a + b + c: aa for (a, b, c), aa in zip(
+    ((x, y, z) for x in "TCAG" for y in "TCAG" for z in "TCAG"),
+    "FFLLSSSSYY**CC*WLLLLPPPPHHQQRRRRIIIMTTTTNNKKSSRRVVVVAAAADDEEGGGG")}
+COMPLEMENT = str.maketrans("ACGTN", "TGCAN")
+
+
+def proteins_from_gff(gff, fna):
+    """Protein lengths translated from the GFF's CDS (one per transcript), for genomes with no protein FASTA."""
+    cds = defaultdict(list)
+    with open(gff, "r", encoding="utf-8", errors="replace") as f:
+        for line in f:
+            fields = line.rstrip("\n").split("\t")
+            if len(fields) < 9 or fields[2] != "CDS":
+                continue
+            m = re.search(r"(?:^|;)Parent=([^;]+)", fields[8])
+            if m:
+                phase = int(fields[7]) if fields[7] in ("0", "1", "2") else 0
+                for parent in m.group(1).split(","):
+                    cds[parent].append((fields[0], int(fields[3]), int(fields[4]), fields[6], phase))
+    genome = read_fasta(fna)
+    lengths = []
+    for pieces in cds.values():
+        contig, strand = pieces[0][0], pieces[0][3]
+        if contig not in genome:
+            continue
+        pieces.sort(key=lambda p: p[1], reverse=(strand == "-"))   # 5' to 3'
+        seq = "".join(genome[contig][s - 1:e] for _, s, e, _, _ in sorted(pieces, key=lambda p: p[1]))
+        if strand == "-":
+            seq = seq.translate(COMPLEMENT)[::-1]
+        seq = seq[pieces[0][4]:]
+        prot = "".join(CODON.get(seq[i:i + 3], "X") for i in range(0, len(seq) - 2, 3))
+        lengths.append(len(prot[:-1] if prot.endswith("*") else prot))
+    return lengths
+
+
 def parse_gff(path):
     """Parse GFF3/GTF to extract feature counts and derived intron statistics.
 
     Introns are derived as sum(max(exons_per_mRNA - 1, 0)) across transcripts.
+    Genes are the top-level features (no Parent) whose type ends in "gene" (gene, protein_coding_gene,
+    ncRNA_gene, pseudogene, ...), counted as "gene" whatever the type the GFF uses.
+    "CDS" counts the transcripts with a CDS (one per protein), not the CDS lines (one per coding exon).
     """
     feature_counts = defaultdict(int)
     exons_per_transcript = defaultdict(int)
+    cds_transcripts = set()
 
     with open(path, "r", encoding="utf-8", errors="replace") as f:
         for line in f:
@@ -80,6 +138,12 @@ def parse_gff(path):
 
             ftype = fields[2]
             feature_counts[ftype] += 1
+            if ftype != "gene" and ftype.endswith("gene") and "Parent=" not in fields[8]:
+                feature_counts["gene"] += 1
+            if ftype == "CDS":
+                m = re.search(r"(?:^|;)\s*Parent=([^;]+)", fields[8]) or re.search(r'transcript_id "([^"]+)"', fields[8])
+                if m:
+                    cds_transcripts.update(m.group(1).split(","))
 
             if ftype == "exon":
                 parent = None
@@ -96,6 +160,8 @@ def parse_gff(path):
                 if parent:
                     exons_per_transcript[parent] += 1
 
+    if cds_transcripts:
+        feature_counts["CDS"] = len(cds_transcripts)
     intron_count = sum(max(c - 1, 0) for c in exons_per_transcript.values())
     mean_exons = (
         statistics.mean(exons_per_transcript.values())
@@ -190,6 +256,9 @@ def discover_accessions(input_dir):
 
 def find_matching_file(input_dir, acc, suffixes):
     """Find the best matching file for an accession given candidate suffixes."""
+    for s in suffixes:   # the exact name first, so that e.g. ME49.gff3 is not matched by ME4*
+        if os.path.exists(os.path.join(input_dir, f"{acc}{s}")):
+            return os.path.join(input_dir, f"{acc}{s}")
     for s in suffixes:
         matches = glob.glob(os.path.join(input_dir, f"{acc}*{s}"))
         if matches:
@@ -201,7 +270,7 @@ def find_matching_file(input_dir, acc, suffixes):
     return None
 
 
-def assess_one_assembly(input_dir, acc):
+def assess_one_assembly(input_dir, acc, gff_dir=None):
     """Compute complete QC metrics for a single assembly."""
     print(f"[{acc}] assessing...", file=sys.stderr)
 
@@ -209,7 +278,7 @@ def assess_one_assembly(input_dir, acc):
     if not fna:
         raise FileNotFoundError(f"No genomic FASTA found for accession {acc} in {input_dir}")
 
-    gff = find_matching_file(input_dir, acc, ["_genomic.gff", "_genomic.gff3", ".gff3", ".gff"])
+    gff = find_matching_file(gff_dir or input_dir, acc, ["_genomic.gff", "_genomic.gff3", ".gff3", ".gff"])
     faa = find_matching_file(input_dir, acc, ["_protein.faa", ".faa", ".faa.fasta"])
 
     # Summary TSV: per-accession or shared in folder
@@ -240,9 +309,11 @@ def assess_one_assembly(input_dir, acc):
         feature_counts, intron_count, mean_exons = defaultdict(int), 0, 0.0
 
     # 3. Protein lengths
-    protein_lengths = []
+    protein_lengths, protein_source = [], "none"
     if faa and os.path.exists(faa):
-        protein_lengths = [L for _, L, _, _ in parse_fasta_lengths(faa)]
+        protein_lengths, protein_source = [L for _, L, _, _ in parse_fasta_lengths(faa)], "protein_fasta"
+    elif gff and os.path.exists(gff):
+        protein_lengths, protein_source = proteins_from_gff(gff, fna), "translated_from_gff"
 
     protein_n = len(protein_lengths)
     protein_mean = statistics.mean(protein_lengths) if protein_lengths else 0.0
@@ -270,6 +341,7 @@ def assess_one_assembly(input_dir, acc):
         "num_proteins": protein_n,
         "protein_mean_len": round(protein_mean, 1),
         "protein_median_len": int(protein_median),
+        "protein_source": protein_source,
     }
 
     return row, protein_lengths
@@ -283,6 +355,10 @@ def main():
         "--input-dir",
         default=".",
         help="Input directory containing assembly FASTA, GFF, and auxiliary files (default: .)",
+    )
+    parser.add_argument(
+        "--gff-dir",
+        help="Directory with the GFFs, when they are not in --input-dir (e.g. gff_originals)",
     )
     parser.add_argument(
         "--output-dir",
@@ -311,7 +387,7 @@ def main():
     protein_rows = []
     for acc in accessions:
         try:
-            row, lengths = assess_one_assembly(args.input_dir, acc)
+            row, lengths = assess_one_assembly(args.input_dir, acc, args.gff_dir)
             rows.append(row)
             protein_rows.extend((acc, L) for L in lengths)
         except Exception as e:
