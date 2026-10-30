@@ -332,7 +332,7 @@ select#sortSel{
     <input type="range" id="brPos" min="0" value="0">
     <button type="button" data-step="0.25">&#9654;</button><button type="button" data-step="1">&#9654;&#9654;</button>
     <label>Columns <select id="brN"><option>30</option><option selected>60</option><option>100</option><option>150</option></select></label>
-    <input type="text" id="brFind" placeholder="Go to pangene or gene ID" size="22">
+    <input type="text" id="brFind" placeholder="Go to pangene, gene or original ID" size="22">
     <input type="text" id="brDom" placeholder="Highlight domain (InterPro/Pfam ID or name)" size="30">
     <button type="button" id="brDomPrev" title="Previous gene with this domain">&#9664; match</button><button type="button" id="brDomNext" title="Next gene with this domain">match &#9654;</button>
     <label title="Show only the pangenes with this domain, side by side, whether the guide strain has them or not"><input type="checkbox" id="brDomOnly"> show only these</label>
@@ -346,6 +346,7 @@ select#sortSel{
     <span><i style="background:var(--qnj); font-style:normal; font-size:8px; font-weight:700; text-align:center; line-height:12px">N</i>gene with N (gap) in the CDS: sequence missing</span>
     <span><i style="background:#e9c46a"></i>gene at a contig end: cut by the assembly</span>
     <span><i style="border:1px solid var(--border-strong)"></i>absent (hover for the reason)</span>
+    <span><i style="background:#9aa5b1"></i>&#8644; the same gene is there, but in another pangene (or in none): hover to see which, click to go there</span>
     <span><i style="border:1px dotted var(--fg-muted)"></i>? absent, maybe an assembly problem</span>
     <span><i style="border:2px solid #e76f51"></i>pangene with the highlighted domain</span>
     <span><i style="background:#f4a261; opacity:0.35"></i><em style="color:#c2410c">italic orange ID</em>: inserted column, a pangene the guide strain does not have, placed where other strains carry it</span>
@@ -566,8 +567,20 @@ function brGoto(id){
   } else {
     for(var k2 = 0; k2 < state.genomes.length && !gid; k2++){ if(BR.pos[state.genomes[k2]][id]){ g0 = state.genomes[k2]; gid = id; } }
   }
+  if(!gid){   // an original ID (e.g. TGME49_310430): the gene of the final GFF that carries it as original_ID
+    if(!state.oidMap){
+      state.oidMap = {};
+      state.pangenes.forEach(function(q){ for(var g in q.genes) q.genes[g].forEach(function(rec){
+        var o = rec[state.fields.original_ID];
+        if(o) state.oidMap[o.toLowerCase()] = [g, rec[state.fields.ID]];
+      }); });
+    }
+    var hit = state.oidMap[id.toLowerCase()];
+    if(hit && BR.pos[hit[0]][hit[1]]){ g0 = hit[0]; gid = hit[1]; }
+  }
   if(!gid){ document.getElementById("brWhere").textContent = "not found: " + id; return; }
   var at = BR.pos[g0][gid];
+  BR.found = id === gid ? gid + " (" + g0 + ")" : id + " = " + gid + " (" + g0 + ")";
   BR.guide = g0; BR.contig = at[0]; brFillContigs();
   var C = brCols(BR.contig), ci = 0;
   C.forEach(function(r, i){ if(r[0] === gid) ci = i; });
@@ -625,6 +638,17 @@ function brFiltered(){
   rest.sort(function(a, b){ return a.k[1] - b.k[1]; });
   return out.concat(rest);
 }
+// where strain g has the gene of column j that is in another pangene: its genes between the two nearest columns it
+// shares with the guide -> [[gene ID, pangene or ""]]
+function brElsewhere(cols, j, g, pid){
+  var pm = brPmap(), A = null, B = null;
+  for(var a = j - 1; a >= 0 && !A; a--){ var pa = pm[cols[a][6]]; if(pa && pa.genes[g]) A = BR.pos[g][pa.genes[g][0][state.fields.ID]]; }
+  for(var b = j + 1; b < cols.length && !B; b++){ var pb = pm[cols[b][6]]; if(pb && pb.genes[g]) B = BR.pos[g][pb.genes[g][0][state.fields.ID]]; }
+  if(!A || !B || A[0] !== B[0] || Math.abs(B[1] - A[1]) > 12) return [];
+  var LG = BR.loci[g].contigs[A[0]], out = [], st = B[1] > A[1] ? 1 : -1;
+  for(var k = A[1] + st; k !== B[1]; k += st) if(LG[k][6] !== pid) out.push([LG[k][0], LG[k][6] || ""]);
+  return out;
+}
 function brRender(mark){
   var pm = brPmap(), nG = state.genomes.length;
   var only = document.getElementById("brDomOnly").checked && (document.getElementById("brDom").value || "").trim();
@@ -642,6 +666,13 @@ function brRender(mark){
       " | order: by the guide strain (its pangenes first, then the ones it does not have)" :
     (gc.length ? BR.contig + ":" + gc[0][3].toLocaleString() + "-" + gc[gc.length-1][4].toLocaleString() : BR.contig) +
     "  (columns " + (BR.start + 1) + "-" + (BR.start + cols.length) + " of " + L.length + "; " + nIns + " inserted: pangenes " + BR.guide + " does not have)";
+  var markJ = -1;
+  cols.forEach(function(r, j){ if(mark && ((r[0] && r[0] === mark) || (!r[0] && r[6] === mark))) markJ = j; });
+  if(mark && BR.found){
+    var mr = markJ >= 0 ? cols[markJ] : null;
+    document.getElementById("brWhere").textContent += "  |  found: " + BR.found + (mr ? ", pangene " + mr[6] + ", column " + (BR.start + markJ + 1) + " (outlined)" : "");
+  }
+  BR.found = null;
   var CW = 16, RH = 16, LW = 120, TOP = 74, W = LW + cols.length * CW + 10, H = TOP + nG * RH + 6;
   var svg = ['<svg width="'+W+'" height="'+H+'" role="img" aria-label="Pangenome browser">'];
   var rows = [BR.guide].concat(state.genomes.filter(function(g){ return g !== BR.guide; }));
@@ -650,11 +681,10 @@ function brRender(mark){
     var lab = r[6] || "(no pangene)";
     svg.push('<g class="br-col" data-pid="'+escapeHTML(r[6])+'" style="cursor:'+(p?'pointer':'default')+'">');
     svg.push('<rect x="'+x+'" y="0" width="'+CW+'" height="'+H+'" fill="transparent"/>');
-    if((r[0] && r[0] === mark) || (!r[0] && mark && r[6] === mark)) svg.push('<rect x="'+x+'" y="0" width="'+CW+'" height="'+H+'" fill="var(--accent)" opacity="0.15"/>');
     if(!only && brMatch(r[6])) svg.push('<rect x="'+(x+0.5)+'" y="'+(TOP-12)+'" width="'+(CW-1)+'" height="'+(H-TOP+12)+'" fill="none" stroke="#e76f51" stroke-width="2" rx="3"/>');
     svg.push('<rect x="'+(x+1)+'" y="'+(TOP-10)+'" width="'+(CW-2)+'" height="6" fill="'+(p ? CAT_COLOR[p.category] : 'var(--border)')+'"/>');
     if(r[2] === "ins") svg.push('<rect x="'+x+'" y="'+TOP+'" width="'+CW+'" height="'+(H-TOP)+'" fill="#f4a261" opacity="0.13"/>');
-    svg.push('<text transform="translate('+(x+CW/2+3)+','+(TOP-13)+') rotate(-90)" font-size="8.5" font-family="IBM Plex Mono,monospace" fill="'+(r[2] === "ins" ? '#c2410c' : 'var(--fg-muted)')+'"'+(r[2] === "ins" ? ' font-style="italic"' : '')+'>'+escapeHTML(lab)+'</text>');
+    svg.push('<text transform="translate('+(x+CW/2+3)+','+(TOP-13)+') rotate(-90)" font-size="8.5" font-family="IBM Plex Mono,monospace" fill="'+(j === markJ ? 'var(--accent)' : r[2] === "ins" ? '#c2410c' : 'var(--fg-muted)')+'"'+(j === markJ ? ' font-weight="700"' : r[2] === "ins" ? ' font-style="italic"' : '')+'>'+escapeHTML(lab)+'</text>');
     var tip = lab + (p ? " | " + p.category + ", " + p.occupancy + "/" + nG + " strains" : " | not in the pangenome") +
               (r[0] ? " | " + BR.guide + " " + r[0] + " " + (only ? F[BR.start + j].ctg : BR.contig) + ":" + r[3] + "-" + r[4] + " (" + r[5] + ")" :
                r[2] === "ins" ? " | not in " + BR.guide + ": inserted here because other strains have it between these genes" : " | not in " + BR.guide);
@@ -693,17 +723,30 @@ function brRender(mark){
       } else {
         var code = p.absent && p.absent[g], unk = (p.unknown && p.unknown[g]) || code === "6" || code === "7";
         var why = code ? (ABSENCE_CAT[code] || "not explained") : "no gene";
+        if(code === "1a" || code === "1b" || code === "1c" || code === "moved"){   // not absent: the gene is in another pangene
+          var els = only ? [] : brElsewhere(cols, j, g, r[6]), go = els.filter(function(e){ return e[1] && pm[e[1]]; });
+          var wh = els.length ? " - here: " + els.map(function(e){ return e[0] + " (" + (e[1] ? "pangene " + e[1] : "in no pangene") + ")"; }).join(", ") +
+                   (go.length ? "; click to go to " + go[0][1] : "") : "";
+          svg.push('<rect x="'+(x+1.5)+'" y="'+(y+2.5)+'" width="'+(CW-3)+'" height="'+(RH-5)+'" rx="2" fill="#9aa5b1"'+(go.length ? ' data-goto="'+escapeHTML(go[0][1])+'" style="cursor:pointer"' : '')+'><title>'+escapeHTML(g+": "+why+wh)+'</title></rect>');
+          svg.push('<text x="'+(x+CW/2)+'" y="'+(y+11)+'" font-size="9" text-anchor="middle" fill="#fff" pointer-events="none">&#8644;</text>');
+          return;
+        }
         svg.push('<rect x="'+(x+2.5)+'" y="'+(y+3.5)+'" width="'+(CW-5)+'" height="'+(RH-7)+'" rx="2" fill="none" stroke="var(--border-strong)"'+(unk ? ' stroke-dasharray="2 2"' : '')+'><title>'+escapeHTML(g+": absent - "+why)+'</title></rect>');
         if(unk) svg.push('<text x="'+(x+CW/2)+'" y="'+(y+11)+'" font-size="8" text-anchor="middle" fill="var(--fg-muted)">?</text>');
       }
     });
   });
+  // the gene searched for: outlined over the whole column, drawn last so the row backgrounds do not hide it
+  if(markJ >= 0) svg.push('<rect x="'+(LW + markJ * CW + 0.5)+'" y="0.5" width="'+(CW - 1)+'" height="'+(H - 1)+'" fill="none" stroke="var(--accent)" stroke-width="2.5" rx="3"/>');
   svg.push('</svg>');
   var box = document.getElementById("brGrid");
   box.innerHTML = svg.join("");
   box.querySelectorAll(".br-col").forEach(function(n){
     var pid = n.getAttribute("data-pid");
     if(pid && pm[pid]) n.addEventListener("click", function(){ openPanel(pm[pid]); });
+  });
+  box.querySelectorAll("[data-goto]").forEach(function(n){   // a gene in another pangene: go to that pangene
+    n.addEventListener("click", function(e){ e.stopPropagation(); brGoto(n.getAttribute("data-goto")); });
   });
 }
 function brStep(f){ BR.start += Math.round(f * BR.n); brRender(); }

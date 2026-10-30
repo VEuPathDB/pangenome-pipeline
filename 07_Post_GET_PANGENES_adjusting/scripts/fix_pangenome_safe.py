@@ -11,6 +11,11 @@ GFFs. A move is skipped (left for inspection) when:
   - the pangene is both a source and a target of moves (chains).
 A pangene left with no gene is removed.
 
+Safe join (after the moves): step 05's basket= tags say which genes are the same gene. When get_pangenes split the genes
+of one basket over several pangenes, and every one of these pangenes holds only genes of that basket and no genome has
+two of them, the pangenes are joined into the one with the most genomes. Splits where a pangene also holds genes of
+other baskets, or a genome has two genes of the basket, are not joined (basket_splits_not_joined.tsv).
+
 Every absence left (pangene P with no gene in genome g, after the moves) gets a verdict and a reason in plain words:
   verdict  absent          the gene is not in that strain (2a other gene in place, 4 place shorter, 5 empty place,
                            8 region absent)
@@ -26,6 +31,8 @@ Outputs (in --out-dir):
   pangene_matrix_genes.tr.tab  the fixed matrix (pangenes in rows), and pangene_matrix_genes.tab (genomes in rows)
   moves.tsv                    one row per gene moved: genome, gene, from, to, identity, coverage
   skipped_moves.tsv            1a cases not moved, and why
+  joins.tsv                    one row per pangene joined into another: basket, kept pangene, joined pangene, genomes
+  basket_splits_not_joined.tsv baskets still split over several pangenes, and why they were not joined
   absences_explained.tsv       one row per absence left: verdict, reason, step 05's reason, and the audit's details
   summary.tsv                  counts
 
@@ -155,7 +162,6 @@ def main():
     removed = [p for p in order if not cells[p]]
     order = [p for p in order if cells[p]]
 
-    # 2. what step 05 did with each pangene's panel genes
     basket, where = {}, defaultdict(list)
     for path in glob.glob(os.path.join(a.gff_dir, "*" + a.gff_suffix)):
         g = os.path.basename(path)[:-len(a.gff_suffix)]
@@ -167,6 +173,37 @@ def main():
                 if b:
                     basket[gid] = b.group(1)
                     where[(b.group(1), g)].append(gid)
+
+    # 1b. the safe joins: one basket split over pangenes that hold only that basket, one gene per genome
+    of_basket = defaultdict(set)                        # basket -> the pangenes with a gene of it
+    for p in order:
+        for xs in cells[p].values():
+            for x in xs:
+                of_basket[basket.get(x)].add(p)
+    holds = {p: {basket.get(x) for xs in cells[p].values() for x in xs} for p in order}
+    joins, not_joined, joined_away = [], [], set()
+    for b, ps in sorted((b, ps) for b, ps in of_basket.items() if b and len(ps) > 1):
+        ps = sorted(ps)
+        n_genomes = Counter(g for p in ps for g, xs in cells[p].items() for x in xs if basket.get(x) == b)
+        if any(holds[p] != {b} for p in ps):
+            not_joined.append((b, ps, "a pangene also holds genes of other baskets: " + ",".join(
+                sorted({o or "no basket" for p in ps for o in holds[p]} - {b}))))
+        elif max(n_genomes.values()) > 1:
+            not_joined.append((b, ps, "a genome has two genes of the basket: " + ",".join(
+                sorted(g.replace("_for_get_pangenes", "") for g, n in n_genomes.items() if n > 1))))
+        else:
+            keep = max(ps, key=lambda p: (len(cells[p]), p))
+            for p in ps:
+                if p == keep:
+                    continue
+                joins.append((b, keep, p, sorted(cells[p])))
+                cells[keep].update(cells[p])
+                cells[p] = {}
+                joined_away.add(p)
+    order = [p for p in order if cells[p]]
+    filled = {(keep, g.replace("_for_get_pangenes", "")) for _, keep, _, gs in joins for g in gs}
+
+    # 2. what step 05 did with each pangene's panel genes
     pang_of = {x: p for p in order for xs in cells[p].values() for x in xs}
     absent = {(r["panel_gene"], r["genome"]): r["reason"] for r in csv.DictReader(open(a.absent), delimiter="\t")}
     stacked = {(r["panel_gene_dropped"], r["genome"]): r["kept_panel_gene"]
@@ -191,12 +228,13 @@ def main():
     cols = [c for c in absences[0].keys() if c not in ("pangene", "genome", "code", "category")]
     out = []
     for r in absences:
-        if (r["pangene"], r["genome"]) in fixed or r["pangene"] in removed:
+        if (r["pangene"], r["genome"]) in fixed or (r["pangene"], r["genome"]) in filled \
+                or r["pangene"] in removed or r["pangene"] in joined_away:
             continue
         out.append([r["pangene"], r["genome"], VERDICT[r["code"]], r["code"], REASON[r["code"]],
                     step05(r["pangene"], r["genome"])] + [r[c] for c in cols])
     for Q, gs in moved_out.items():
-        if Q in removed:
+        if Q in removed or Q in joined_away:
             continue
         for g, P in gs.items():
             gn = g.replace("_for_get_pangenes", "")
@@ -214,14 +252,24 @@ def main():
         fh.write("genome\tgene\tin_pangene\tclaimed_by_pangene\twhy_not_moved\n")
         for r, why in skipped:
             fh.write(f"{r['genome']}\t{r['match']}\t{r['match_pangene']}\t{r['pangene']}\t{why}\n")
+    with open(os.path.join(a.out_dir, "joins.tsv"), "w") as fh:
+        fh.write("basket\tkept_pangene\tjoined_pangene\tgenomes\n")
+        for b, keep, p, gs in joins:
+            fh.write(f"{b}\t{keep}\t{p}\t{','.join(g.replace('_for_get_pangenes', '') for g in gs)}\n")
+    with open(os.path.join(a.out_dir, "basket_splits_not_joined.tsv"), "w") as fh:
+        fh.write("basket\tpangenes\twhy_not_joined\n")
+        for b, ps, why in not_joined:
+            fh.write(f"{b}\t{','.join(ps)}\t{why}\n")
     with open(os.path.join(a.out_dir, "absences_explained.tsv"), "w") as fh:
         fh.write("\t".join(["pangene", "genome", "verdict", "audit_code", "reason", "step05"] + cols) + "\n")
         for r in sorted(out):
             fh.write("\t".join(map(str, r)) + "\n")
     vc = Counter(r[2] for r in out)
     with open(os.path.join(a.out_dir, "summary.tsv"), "w") as fh:
-        fh.write(f"pangenes_before\t{len(order) + len(removed)}\npangenes_after\t{len(order)}\n"
+        fh.write(f"pangenes_before\t{len(order) + len(removed) + len(joined_away)}\npangenes_after\t{len(order)}\n"
                  f"genes_moved\t{len(done)}\nmoves_skipped\t{len(skipped)}\npangenes_removed\t{len(removed)}\n"
+                 f"baskets_joined\t{len({j[0] for j in joins})}\npangenes_joined_away\t{len(joined_away)}\n"
+                 f"basket_splits_not_joined\t{len(not_joined)}\n"
                  f"absences_before\t{len(absences)}\nabsences_after\t{len(out)}\n")
         for v in ("absent", "assembly", "copy_dropped", "elsewhere"):
             fh.write(f"verdict_{v}\t{vc[v]}\n")
