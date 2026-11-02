@@ -28,31 +28,8 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 | [03 – *de novo* Genome Annotation](03_denovo_Genome_Annotation/README.md) | **Optional** — only for genomes with no gene annotation at all. For fungal genomes, runs **Funannotate**, a standard *de novo* annotator. Without this step, the assembly could still get by on genes transferred from other strains (step 05's Liftoff) — but any gene truly unique to this strain, with no counterpart in any other genome's annotation, would never be captured that way. |
 | [04 – Protein evidence (InterProScan and PSAURON)](04_Protein_evidence/README.md) | Some genomes may already carry InterPro domain annotation in their description, but for every genome to be on the same InterProScan version, this step re-runs it across the panel — the presence of an InterPro domain is used as evidence in step 05. It also scores every protein with PSAURON (how much it looks like a real protein-coding gene), used in step 05 to decide which new genes enter the panel. |
 | [05 – Cross-genome annotation integration](05_Basket_annotation_integration/README.md) | Different genomes usually arrive annotated by different groups and tools, so the same gene can be called in one genome and missed in another, split in one and fused in another. To get a consistent annotation, every genome's genes are transferred onto every other genome (all-vs-all Liftoff), the versions of each gene are grouped across genomes (**baskets**), one model is chosen per gene (the reference's model when the reference has the gene; otherwise by protein domain, PSAURON score and how many genomes support it), and each genome takes the valid model most similar to it (the chosen model's own transfer whenever it works; a gene is only called absent after a last rescue, and every absence is listed with its reason). A gene not annotated in the reference enters the panel only if it has a protein domain, or a valid ORF of at least 100 aa with a high PSAURON score; the reference's pseudogenes are kept, tagged; when two genes overlap on opposite strands, the one that loses the comparison (reference gene, protein domain, PSAURON score, genomes with a valid ORF) is considered false and removed; broken models are repaired with miniprot when the genome sequence allows it.<br><br>**Caveats:**<br>- a gene model with a valid ORF doesn't mean it's expressed or functional, since only the coding sequence is checked — a mutation in a regulatory region (e.g. promoter) that silences the gene would go undetected;<br>- gene models with invalid ORFs could be genuine pseudogenes or functional genes whose CDS carries a sequencing or assembly error; they are kept and flagged (`orf_status`), which minimizes false PAV calls. |
-| [06 – GET_PANGENES](06_GET_PANGENES/README.md) | Links each genome's already-ready GFF and FASTA into one directory, paired up by filename the way GET_PANGENES expects, then builds the actual pangenome — the similarity + synteny gene calling described above — from the cleaned-up, cross-genome-consistent annotations steps 01–05 produced. Runs on step 05's annotation; whether it runs again after step 07 is not decided yet. |
-| [07 – Post-GET_PANGENES adjusting](07_Post_GET_PANGENES_adjusting/README.md) | Uses the pangenome to correct the annotation, judging each gene across all genomes. **Being revised:** the overlapping false genes and the genes deleted by the reference's curation are removed in step 05. Under discussion: genes annotated in pieces, absences where the sequence is there, the genes with an invalid ORF (including which are pseudogenes), and the low-quality pangenes. |
-
-
-
-**The order of the steps.** Step 05 builds the final annotation (it chooses each gene's model, repairs broken models,
-removes the false genes and the genes deleted by the reference's curation), and step 06 runs on it. Step 07, which
-uses the pangenome to correct the annotation, is being revised: what it does, and whether step 06 then runs a second
-time, is not decided yet.
-
-```mermaid
-flowchart LR
-    A[01-04] --> B[05: basket annotation]
-    B --> C[06: pangenome]
-    C --> D[07: look, fix, remove curated genes, look again]
-    D -.->|more curation| D
-```
-
-1. Steps 01-04: genomes, TEs, *de novo* annotation if needed, InterProScan and PSAURON.
-2. Step 05: all-against-all Liftoff, baskets and their winners, each genome's model, miniprot repair, the overlap rule
-   and the reference's curation: the final GFFs.
-3. Step 06: the pangenome.
-4. Step 07: figures and an interactive page of the pangenome, tables of the absences and of the likely false genes, a
-   safe fix of the genes `get_pangenes` split into two pangenes, the removal of the genes found false during curation,
-   and the figures and page again. The removal can be repeated after each round of curation.
+| [06 – GET_PANGENES](06_GET_PANGENES/README.md) | Links each genome's already-ready GFF and FASTA into one directory, paired up by filename the way GET_PANGENES expects, then builds the actual pangenome — the similarity + synteny gene calling described above — from the cleaned-up, cross-genome-consistent annotations steps 01–05 produced. Runs on step 05's annotation. |
+| [07 – Post-GET_PANGENES adjusting](07_Post_GET_PANGENES_adjusting/README.md) | Fixes the pangenome where it is safe, looks at it, removes the genes found false during curation, and looks at it again, in five parts: (1) **inspection** - why each gene is absent from a strain, and why some pangenes hold two genes of one strain; (2) **safe fix** - genes that `get_pangenes` split into separate pangenes are put back together (a gene moved back to its pangene, or the pangenes of one step 05 basket joined), with lists of the low-confidence pangenes; (3) **preliminary look** - figures and an interactive page (explorer) of the fixed pangenome, to decide what to remove; (4) **removal after curation** - the genes listed in `genes_to_remove.tsv` are removed from the GFFs and the matrix, and the removal can be repeated after each round of curation; (5) **final look** - the same figures and page on the final pangenome. |
 
 ## Steps
 
@@ -69,10 +46,8 @@ flowchart LR
 
 ## Pangenome analysis reports
 
-Results of this pipeline for each species analysed so far. These are curated reports (the full
-technical write-up plus the figures/tables it references) - the full working data behind them
-(raw assemblies, intermediate GFFs, InterProScan/Liftoff output, etc.) is not published here, as
-it runs from hundreds of MB to several GB per species.
+Results of this pipeline for each species analysed so far: the full technical write-up plus the figures and tables it
+references.
 
 - **_Aspergillus fumigatus_**
   - [Summary](results/Afum/SUMMARY.md)
