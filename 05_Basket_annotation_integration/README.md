@@ -29,7 +29,6 @@ transfers that land on it from the other genomes. One basket = one gene of the p
     - [What step 5 does](#what-step-5-does)
     - [Genes in tandem arrays](#genes-in-tandem-arrays)
     - [Copies of a gene in one genome](#copies-of-a-gene-in-one-genome)
-    - [No gene is lost without a reason](#no-gene-is-lost-without-a-reason)
     - [Settings](#settings)
     - [Running it](#running-it)
     - [Outputs](#outputs)
@@ -586,27 +585,6 @@ Copies are missed, and the extra copy is left out as a piece (`left_out.tsv`, wi
 - their proteins are below 70% identity, or align over less than 70% of the shorter one (divergent or partial copies);
 - they are neighbours but fail the tandem test (similar lengths, blastp identity >= 70% covering >= 70% of each), e.g.
   *T. gondii* RH88 ROP5 `TGRH88_057720`.
-
-### No gene is lost without a reason
-
-Comparing each genome's own annotation with its final GFF showed that the previous version of this step left genes out
-without writing why: in *T. gondii*, 378 genes had no model at their place and no record in any table. The decision for a
-genome only used the genome's genes that lay under the winner's transfer, so a gene of the basket elsewhere was
-forgotten:
-- **a copy** of the gene at another place (e.g. RH88 `TGRH88_027580`);
-- **the right gene, when the transfer landed elsewhere** (e.g. ARI SAG2D and SAG2C, swapped by Liftoff), or was set
-  aside by "one place, one gene" (e.g. `TGARI_257925`);
-- **a piece** of a broken gene (e.g. `TGARI_250500A`, and pieces cut by a contig end such as `TGARI_368320`).
-
-The copy rule (point 1) and the genes left without a model (point 4) bring back the first two kinds; pieces stay out,
-with their reason. Gene fate (point 9) makes sure it does not happen again.
-
-*T. gondii* run with this version (cluster, 2026-10-28, job 1723523), compared with the previous version (the same
-input, `gene_fate.py` on both): genes without a record 378 -> 0; 39 genes got their model back; 13 lost it
-(no valid ORF in any strain, < 100 aa, invalid ORF, or PSAURON 0.064; each with its reason); 143 copies split off
-(81 won as panel genes); panel genes 8,289 -> 8,355. Second run (2026-10-29, job 1723532), with the PSAURON 0.7 for
-split copies and the best PSAURON first for genes coming back: the same genes kept and lost, 91 split copies won,
-panel genes 8,365. *A. fumigatus* has not been run with this version.
 
 ### Settings
 
