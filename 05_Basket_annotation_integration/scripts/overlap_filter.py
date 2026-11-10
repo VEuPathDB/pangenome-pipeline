@@ -6,6 +6,7 @@ final GFFs.
 Only OPPOSITE-strand overlaps count (same-strand ones are settled before: the clash in baskets_v2.py and "one place,
 one gene" in build_basket_annotation.py). Two panel genes overlap in a genome when their CDS spans (first to last CDS
 base, introns included) overlap by >= --min-bp on opposite strands. The pair rules decide who loses in that genome:
+  protected (protected=True, the shield)   -> the other one; neither when the other is protected or a reference gene
   both reference genes                     -> neither
   reference gene vs gene without a domain  -> the other one
   reference gene vs gene with a domain     -> neither
@@ -98,10 +99,11 @@ def main():
     by_genome = {g: read_blocks(os.path.join(a.gff_dir, f"{g}_basket_annotation.gff")) for g in genomes}
 
     # per panel gene: reference, domain, genomes present, genomes with a valid ORF, median CDS length
-    P = defaultdict(lambda: {"ref": True, "dom": False, "present": 0, "valid": 0, "lens": []})
+    P = defaultdict(lambda: {"ref": True, "dom": False, "prot": False, "present": 0, "valid": 0, "lens": []})
     for g, genes in by_genome.items():
         for x in genes:
             p = P[x["panel"]]
+            p["prot"] = p["prot"] or "protected=True" in x["attrs"]
             p["ref"] = p["ref"] and "not_in_reference_annotation=True" not in x["attrs"]
             p["dom"] = p["dom"] or "has_domain=True" in x["attrs"]
             p["present"] += 1
@@ -118,6 +120,9 @@ def main():
 
     def loser(p, q):
         A, B = P[p], P[q]
+        if A["prot"] or B["prot"]:   # the shield: a protected gene never loses; it wins against an unprotected
+            o = q if A["prot"] else p   # gene that is not a reference gene (the reference is never edited)
+            return None if P[o]["prot"] or P[o]["ref"] else o
         if A["ref"] and B["ref"]:
             return None
         if A["ref"] or B["ref"]:

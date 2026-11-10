@@ -8,7 +8,10 @@ Two tables of the final pangenome (after remove_panel_genes.py):
                       moved                moved to another pangene by fix_pangenome_safe.py (same gene, split by
                                            get_pangenes)
                       not_in_pangenome     in the final GFF but in no pangene (get_pangenes leaves out CDS < 100 bp)
-                      removed_curation     removed by remove_panel_genes.py (genes_to_remove.tsv; reason given)
+                      removed_curation     removed with its whole panel gene by remove_panel_genes.py
+                                           (genes_to_remove.tsv; reason given)
+                      removed_curation_gene  removed alone by remove_panel_genes.py (strain_genes_to_remove.tsv;
+                                           reason given)
                     plus one row per panel gene removed or left out by step 05 itself (genome "-": removed_step05,
                     not_eligible_step05), so every gene of the panel is accounted for.
   singletons.tsv    every pangene with a gene in a single strain, and why it is alone (first match):
@@ -60,14 +63,15 @@ def main():
     first, _ = gene_to_pangene(a.pangenes_matrix)
     final, cells = gene_to_pangene(os.path.join(a.final_dir, "pangene_matrix_genes.tr.tab"))
     moved = {r["gene"]: r["from_pangene"] for r in csv.DictReader(open(a.moves), delimiter="\t")}
-    removed = {r["gene"]: r["reason"] for r in
+    removed = {r["gene"]: (r.get("list", "panel_gene"), r["reason"]) for r in
                csv.DictReader(open(os.path.join(a.final_dir, "removed_genes.tsv")), delimiter="\t")}
 
     # 1. every gene
     rows = []
     for g, x in sorted(genes.items(), key=lambda kv: (kv[1]["genome"], kv[0])):
         if g in removed:
-            status, note = "removed_curation", removed[g]
+            status = "removed_curation" if removed[g][0] == "panel_gene" else "removed_curation_gene"
+            note = removed[g][1]
         elif g in final:
             status, note = ("moved", f"from {moved[g]}") if g in moved else ("in_pangenome", "")
         else:

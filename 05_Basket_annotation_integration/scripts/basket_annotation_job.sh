@@ -58,6 +58,8 @@ RUN_PSAURON="${RUN_PSAURON-no}"                                 # used only when
 PSAURON_CMD="${PSAURON_CMD-singularity exec /mnt/hc-storage/groups/veupathdb_annotation/containers2/GAQA_psauron.sif psauron}"
 PSAURON_MIN="${PSAURON_MIN-0.7}"                                # minimum PSAURON score when the reference does not have the sequence
 PSAURON_MIN_IN_REF="${PSAURON_MIN_IN_REF-0.9}"                  # minimum when the gene's transfer onto the reference works
+PROTECTED_GENES="${PROTECTED_GENES-}"                            # the shield: genome<TAB>gene<TAB>reason; a basket holding one never
+                                                                #   loses for the quality rules and wins overlaps; "" = no shield
 OVERLAP_MIN_STRAINS="${OVERLAP_MIN_STRAINS-2}"                  # overlap rule: removed when it loses in >= min(this, genomes where present)
 RUN_MINIPROT="${RUN_MINIPROT-yes}"                              # yes / no
 MINIPROT_MODULE="${MINIPROT_MODULE-miniprot/0.18}"              # module that puts miniprot on the PATH ("" if it is already there)
@@ -115,6 +117,15 @@ fi
 if [[ ${#PSAURON_ARGS[@]} -gt 0 ]]; then echo "PSAURON: ${PSAURON_ARGS[*]}"; else echo "PSAURON: off"; fi
 
 mkdir -p "$OUT_DIR"
+PROTECTED_ARGS=()
+rm -f "$OUT_DIR/protected_baskets.tsv" "$OUT_DIR/protected_genes_saved.tsv"   # never reuse an older run's shield
+if [[ -n "$PROTECTED_GENES" ]]; then
+    [[ -f "$PROTECTED_GENES" ]] || { echo "ERROR: no PROTECTED_GENES=$PROTECTED_GENES" >&2; exit 1; }
+    PROTECTED_ARGS=(--protected-genes "$PROTECTED_GENES")
+    echo "shield: $PROTECTED_GENES"
+else
+    echo "shield: off"
+fi
 echo "== 0. the reference's pseudogenes made usable (CDS = their span; written back as gene + transcript + exon)"
 python3 "$SD/prepare_pseudogenes.py" --in-dir "$NATIVE_DIR" --out-dir "$OUT_DIR/input/native" --reference "$REF"
 python3 "$SD/prepare_pseudogenes.py" --in-dir "$TRANSFER_DIR" --out-dir "$OUT_DIR/input/transfers" --transfers --reference "$REF"
@@ -125,7 +136,8 @@ echo "== 1. baskets and winners"
 python3 "$SD/baskets_v2.py" --native-dir "$NATIVE_DIR" --transfer-dir "$TRANSFER_DIR" --genomes "$GENOMES" \
   --genome-dir "$GENOME_DIR" --genome-suffix "$GENOME_SUFFIX" --domain-dir "$DOMAIN_DIR" \
   --min-aa "$MIN_AA" --psauron-min "$PSAURON_MIN" --psauron-min-in-ref "$PSAURON_MIN_IN_REF" \
-  ${PSAURON_ARGS[@]+"${PSAURON_ARGS[@]}"} --threads "$THREADS" --out-dir "$OUT_DIR"
+  ${PSAURON_ARGS[@]+"${PSAURON_ARGS[@]}"} ${PROTECTED_ARGS[@]+"${PROTECTED_ARGS[@]}"} --threads "$THREADS" \
+  --out-dir "$OUT_DIR"
 echo "== 2. decisions"
 python3 "$SD/decide_models.py" --baskets "$OUT_DIR/baskets_v2.tsv" --native-dir "$NATIVE_DIR" \
   --transfer-dir "$TRANSFER_DIR" --genome-dir "$GENOME_DIR" --genome-suffix "$GENOME_SUFFIX" --genomes "$GENOMES" \
@@ -137,6 +149,7 @@ for MODE in $MODES; do
       --decisions "$OUT_DIR/decide/decisions.tsv" --mode "$MODE" \
       --winners "$OUT_DIR/winners.tsv" --own-invalid "$OUT_DIR/decide/own_invalid_orf.tsv" \
       --array-models "$OUT_DIR/decide/array_models.tsv" --members "$OUT_DIR/members.tsv" \
+      ${PROTECTED_GENES:+--protected-baskets "$OUT_DIR/protected_baskets.tsv"} \
       --native-dir "$NATIVE_DIR" --transfer-dir "$TRANSFER_DIR" --domain-dir "$DOMAIN_DIR" --genomes "$GENOMES" \
       ${OLD_REFERENCE_GFF:+--old-reference-gff "$OLD_REFERENCE_GFF"} \
       ${CURATION_REMOVED_LIST:+--curation-removed-list "$CURATION_REMOVED_LIST"} --id-prefix "$ID_PREFIX" \
