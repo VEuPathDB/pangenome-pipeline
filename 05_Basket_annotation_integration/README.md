@@ -29,6 +29,7 @@ transfers that land on it from the other genomes. One basket = one gene of the p
     - [What step 5 does](#what-step-5-does)
     - [Genes in tandem arrays](#genes-in-tandem-arrays)
     - [Copies of a gene in one genome](#copies-of-a-gene-in-one-genome)
+    - [Protected genes (the shield)](#protected-genes-the-shield)
     - [Settings](#settings)
     - [Running it](#running-it)
     - [Outputs](#outputs)
@@ -424,7 +425,7 @@ score.
    0.40). RH88, FOU and VEG are at the same place: versions of GT1's gene.*
 
    When no member passes the filter, the basket has no winner and its genes are not written (`not_eligible.tsv` lists
-   why).
+   why). A basket that holds a [protected gene](#protected-genes-the-shield) skips the filter.
 
    ![Example: a gene deleted from ME49 by the ToxoDB curation; all versions have PSAURON close to 0; no winner](figures/winners_example_no_winner.png)
 
@@ -497,6 +498,8 @@ score.
 6. **Overlapping genes.** When two winners lie over each other on **opposite strands** (CDS spans, introns included,
    by 20 bp or more), one of them is probably false. The two are compared in each genome where both are present, and
    one loses when:
+   - one is a [protected gene](#protected-genes-the-shield) and the other is neither protected nor a reference gene:
+     the other loses;
    - one is a reference gene and the other has no protein domain: the other loses;
    - only one has a protein domain: the one without loses;
    - neither has a domain: the one with the lower PSAURON score loses, then the one with a valid ORF in fewer
@@ -567,6 +570,10 @@ A copy is added only at a free place: it must not overlap, on the same strand, a
 or another added copy. A transferred copy is also not added where it would lie over (by 50% or more) a gene of another
 basket. The added copies are tagged `tandem_array_copy=True`.
 
+One exception: a genome's own copy with a valid ORF replaces the array's models at its place when every one of them
+has a broken ORF (selenoproteins excepted). Otherwise a broken transfer would keep the place of the genome's own good
+copy. The replaced models are named in `replaced_broken_model=` (e.g. *T. gondii* RH88, `TGME49_277270`).
+
 ### Copies of a gene in one genome
 
 A genome can have two (or more) copies of a gene, not pieces: whole genes with the same sequence. How they are treated
@@ -585,6 +592,21 @@ Copies are missed, and the extra copy is left out as a piece (`left_out.tsv`, wi
 - their proteins are below 70% identity, or align over less than 70% of the shorter one (divergent or partial copies);
 - they are neighbours but fail the tandem test (similar lengths, blastp identity >= 70% covering >= 70% of each), e.g.
   *T. gondii* RH88 ROP5 `TGRH88_057720`.
+
+### Protected genes (the shield)
+
+Some genes are known to be real, from experiments or from the literature, but fail the quality rules: no valid ORF, a
+short protein, a low PSAURON score, or the loss of an overlap. A list of protected genes (`PROTECTED_GENES`: genome,
+gene, reason) keeps them in the panel. The basket of a protected gene:
+- skips the filter of the baskets without a reference gene: every member can win, and the normal ranking picks the
+  winner;
+- its members pass the check of their own model (`members.tsv`), so a genome's own copy can come back;
+- wins "one place, one gene" against the models of other baskets, except reference baskets (the reference is never
+  edited);
+- never loses an overlap, and wins against a gene that is neither protected nor a reference gene.
+
+Its genes are tagged `protected=True`. The shield keeps genes; it does not repair their models, so a protected gene can
+still have a broken ORF.
 
 ### Settings
 
@@ -612,6 +634,7 @@ All settings are at the top of [`scripts/basket_annotation_job.sh`](scripts/bask
 | `RUN_PSAURON` | `no` | used only when `PSAURON_DIR` is `""`: `yes` makes this job score the genes it needs itself; `no` means no scores, so the filter does not use PSAURON |
 | `PSAURON_CMD` | `singularity exec <container>.sif psauron` | the command that runs PSAURON (a container with PSAURON; set the path to yours), used with `RUN_PSAURON="yes"` |
 | `PSAURON_MIN_IN_REF`, `PSAURON_MIN` | `0.9`, `0.7` | minimum PSAURON score: when the gene's transfer onto the reference works, and when it is transferred only to other strains |
+| `PROTECTED_GENES` | `""` (none) | the [protected genes](#protected-genes-the-shield): genome, gene, reason (tab-separated, header optional) |
 | `OVERLAP_MIN_STRAINS` | `2` | genomes in which a gene must lose an opposite-strand overlap to be removed |
 | `RUN_MINIPROT` | `yes` | `yes` repairs the genes with an invalid ORF with miniprot (point 5); `no` skips that point |
 | `MINIPROT_MODULE` | `miniprot/0.18` | the module that loads miniprot; `""` if it is already on the PATH |
@@ -663,6 +686,7 @@ sbatch --export=ALL,MODES=prefer_panel_model 05_Basket_annotation_integration/sc
 | `tandem_arrays.tsv` | the baskets that hold a tandem array: their winners, the number of copies in each genome, and the copies |
 | `not_eligible.tsv` | members that could not win, and why (no valid ORF in any genome, too short, low PSAURON) |
 | `members.tsv` | every member: its basket's winners, protein length, own ORF (`valid`, `gap`, `end`, `invalid`), domain, PSAURON, and `keep_check` (empty = its own model may come back where its basket has no model; otherwise why not) |
+| `protected_baskets.tsv`, `protected_genes_saved.tsv` | with `PROTECTED_GENES`: the protected baskets, and what the shield saved each gene from (a protected gene not found in the GFFs is listed too) |
 | `copies_split.tsv` | the copies split off into baskets of their own: the copy, its genome, and the copy that kept the basket |
 | `psauron_candidates.faa`, `psauron_candidates.csv` | with `RUN_PSAURON="yes"`: the proteins scored in the job and their scores (re-used by the next run) |
 | `decide/decisions.tsv`, `decide/summary.tsv` | what each genome takes for each panel gene, in both modes, and the ORF status of the model taken (`valid`, `gap`, `end`, `invalid`) |
@@ -704,6 +728,8 @@ old model. The gene line also gets, in column 9:
 | `pseudogene` | the model is an annotated pseudogene, written as gene + transcript + exon (no CDS) |
 | `frameshift`, `stop_codon`, `start_codon_lost`, `stop_codon_lost`, `partial_alignment`, `no_miniprot_hit`, `miniprot_repair_overlaps_another_gene`, `miniprot_repair_noncanonical_intron`, `miniprot_repair_structure_differs` | why miniprot could not repair it |
 | `tandem_array_copy` | an extra copy of a tandem array, added on top of the genome's model for the panel gene (`basket`) |
+| `replaced_broken_model` | a genome's own tandem copy with a valid ORF replaced these array models with a broken ORF |
+| `protected` | a gene of a [protected](#protected-genes-the-shield) basket |
 | `restored_after_removal_of` | the model had lost its place to that panel gene, which the overlap rule removed later |
 | `orf_status` | one value per gene, to filter or colour by: `valid`, `repaired_miniprot`, `selenoprotein`, `pseudogene`, `invalid_assembly_gap` (an N in the CDS) or `invalid_near_contig_end` (within 1 kb of a contig end) - the assembly explains the broken ORF, so the gene is not sent to miniprot - and `invalid` (broken, not explained by the assembly) |
 

@@ -11,7 +11,7 @@ The step has five parts:
 | 1. Inspection | tables: why genes are missing, why some pangenes hold two genes of one strain | `inspect_pangenome_job.sh` | `pangenome_inspection/` |
 | 2. Safe fix | moves back together the genes that `get_pangenes` split into two pangenes; lists the pangenes that look false | `fix_pangenome_safe_job.sh` | `pangenome_fixed/` |
 | 3. Preliminary look | figures and an interactive page of the fixed pangenome, to decide what to remove | `plot_all_job.sh`, `build_explorer_job.sh` with `SET=preliminary` | `pangenome_plots/preliminary/`, `pangenome_explorer/preliminary/` |
-| 4. Removal after curation | removes the panel genes listed in `genes_to_remove.tsv` from the GFFs and the matrix | `remove_panel_genes_job.sh` | `pangenome_final/` |
+| 4. Removal after curation | removes the panel genes listed in `genes_to_remove.tsv`, and the single genes listed in `strain_genes_to_remove.tsv`, from the GFFs and the matrix | `remove_panel_genes_job.sh` | `pangenome_final/` |
 | 5. Final look | the same figures and page, on the final pangenome | `plot_all_job.sh`, `build_explorer_job.sh` | `pangenome_plots/final/`, `pangenome_explorer/final/` |
 
 Parts 1 and 2 run once for each `get_pangenes` run. Parts 4 and 5 can be repeated: after each round of curation, add
@@ -63,10 +63,10 @@ The jobs read it from `ENTRY_LIST`; without it, the entries are labelled by thei
 | the final GFFs (`basket_annotation/gff_prefer_panel_model_final/`) | [step 05](../05_Basket_annotation_integration/README.md): their `basket=`, `orf_status`, `model_origin` and `tandem_array_copy` tags are used |
 | `winners.tsv`, `decide/absent.tsv`, `not_eligible.tsv`, `stacked_dropped.tsv` | step 05: PSAURON of every panel gene, and why step 05 left genes out |
 | the genomes and the Liftoff transfers step 05 read | step 05 (inspection only) |
-| `genes_to_remove.tsv` | written by you during curation (part 4) |
+| `genes_to_remove.tsv`, `strain_genes_to_remove.tsv` | written by you during curation (part 4) |
 
 A **panel gene** is a gene of step 05: one basket, tagged `basket=` on every gene that represents it in every strain.
-Removals and the PSAURON score are per panel gene.
+The PSAURON score is per panel gene. Removals are per panel gene, or per single gene (part 4).
 
 ## Part 1 – Inspection
 
@@ -243,22 +243,39 @@ computer and open it with a double click (it is large, about 60 MB for *T. gondi
 
 Some genes are found to be false only by looking at the pangenome (the lists of part 2, the figures and the explorer of part 3): a transposable element
 that earlier clean-ups missed, a gene with an invalid ORF in almost every strain and a low PSAURON score. They are
-listed in `07_Post_GET_PANGENES_adjusting/genes_to_remove.tsv`, one panel gene per row:
+Sometimes the gene is false in every strain; sometimes only one strain's gene is wrong (e.g. a merged model where the
+strain has two good genes). So there are two lists, both in `07_Post_GET_PANGENES_adjusting/`:
 
-```
-panel_gene	reason
-Afu1g00140	Pogo/Tc1-mariner transposable element (HTH CenpB + HTH Psq domains)
-```
+- `genes_to_remove.tsv`: whole panel genes, removed from every strain (every gene with that `basket=`):
 
-[`remove_panel_genes.py`](scripts/remove_panel_genes.py) removes every gene with that `basket=`, in every strain, with
-all its features (mRNA, exons, CDS), from a copy of the GFFs and from the matrix; a pangene left empty disappears. An
-empty list (header only) copies everything unchanged, so `pangenome_final/` always holds the result of step 07.
+  ```
+  panel_gene	reason
+  Afu1g00140	Pogo/Tc1-mariner transposable element (HTH CenpB + HTH Psq domains)
+  ```
+
+- `strain_genes_to_remove.tsv`: single genes, removed only in their strain; the other strains keep theirs:
+
+  ```
+  gene	reason
+  TGGT1_221865	example: false gene in GT1 only
+  ```
+
+  A gene of the final GFFs has two IDs, e.g. `ID=Tg7g00097;original_ID=TGGT1_221865`: the new ID given by step 05,
+  and the strain's own gene ID. Either can be used. The strain's own ID is safer: the new IDs are numbered along each
+  genome, so if step 05 is ever run again (e.g. with new rules or a new annotation) they can change, and a list of new
+  IDs would point to other genes. Genes that step 05 added to a strain (taken from another strain) have no
+  `original_ID`; for them, use the new ID, and check the list again after any new run of step 05.
+
+[`remove_panel_genes.py`](scripts/remove_panel_genes.py) removes the genes with all their features (mRNA, exons, CDS)
+from a copy of the GFFs and from the matrix; a pangene left empty disappears. An ID of the single-gene list found in no
+GFF is listed in `genes_not_found.tsv`. Empty lists (header only) copy everything unchanged, so `pangenome_final/`
+always holds the result of step 07. `removed_genes.tsv` says which list removed each gene.
 
 Then [`final_tables.py`](scripts/final_tables.py) describes the final pangenome:
 
 - `gene_status.tsv`: every gene of every strain in step 05's GFFs, with its pangene in `get_pangenes` and in the final
-  pangenome, and its status: `in_pangenome`, `moved` (by part 2), `not_in_pangenome` (CDS < 100 bp) or
-  `removed_curation` (with the reason). The panel genes that step 05 itself removed or left out are listed too, so every
+  pangenome, and its status: `in_pangenome`, `moved` (by part 2), `not_in_pangenome` (CDS < 100 bp),
+  `removed_curation` (whole panel gene) or `removed_curation_gene` (single gene), with the reason. The panel genes that step 05 itself removed or left out are listed too, so every
   gene of the panel is accounted for.
 - `singletons.tsv`: every pangene present in one strain, and why it is alone: `tandem_copy`, `split_by_get_pangenes`
   (its panel gene also has genes in other pangenes; the safe fix could not join them), `inside_another_gene`,
@@ -284,8 +301,9 @@ sbatch 07_Post_GET_PANGENES_adjusting/scripts/fix_pangenome_safe_job.sh
 mkdir -p pangenome_plots/logs pangenome_explorer/logs
 sbatch --export=ALL,SET=preliminary 07_Post_GET_PANGENES_adjusting/scripts/plot_all_job.sh
 sbatch --export=ALL,SET=preliminary 07_Post_GET_PANGENES_adjusting/scripts/build_explorer_job.sh
-# -> curation: add the genes to remove to 07_Post_GET_PANGENES_adjusting/genes_to_remove.tsv
-# 4. removal after curation (after 2; again after each change to genes_to_remove.tsv)
+# -> curation: add the genes to remove to 07_Post_GET_PANGENES_adjusting/genes_to_remove.tsv (whole panel genes)
+#    or strain_genes_to_remove.tsv (single genes)
+# 4. removal after curation (after 2; again after each change to the lists)
 mkdir -p pangenome_final/logs
 sbatch 07_Post_GET_PANGENES_adjusting/scripts/remove_panel_genes_job.sh
 # 5. final look (after 4)
@@ -308,7 +326,7 @@ pangenome_inspection/
 pangenome_fixed/        pangene_matrix_genes.tr.tab/.tab, moves.tsv, skipped_moves.tsv, joins.tsv,
                         basket_splits_not_joined.tsv, absences_explained.tsv, summary.tsv,
                         pangene_lists/ (pangene_quality.tsv, genes_not_in_pangenome.tsv, summary.tsv)
-pangenome_final/        gff/ (the final GFFs), pangene_matrix_genes.tr.tab/.tab, removed_genes.tsv,
+pangenome_final/        gff/ (the final GFFs), pangene_matrix_genes.tr.tab/.tab, removed_genes.tsv, genes_not_found.tsv,
                         absences_explained.tsv, gene_status.tsv, singletons.tsv, summary.tsv, summary_tables.tsv
 ```
 

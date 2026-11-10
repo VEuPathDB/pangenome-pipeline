@@ -43,6 +43,9 @@ of the panel.
    Each eligible member is accepted unless it clashes with an accepted winner (same strand, overlap >= --clash-bp, in
    at least half of the genomes where both have a model). A basket without a reference gene and without an eligible
    member has no winner: its genes are not written (not_eligible.tsv lists why).
+   The shield (--protected-genes): in a basket that holds a protected gene, the quality rules above do not apply (every
+   member can win; the normal ranking still picks the winner), and its members pass members.tsv's check. Written to
+   protected_baskets.tsv (the protected baskets) and protected_genes_saved.tsv (what the shield saved, and from what).
 5. A winner is present in genome t when model(winner, t) exists with coverage >= --min-cov (or is its own gene).
 
 6. members.tsv: every member, with the quality check of its own model at its own place (used by the build for the
@@ -178,6 +181,9 @@ def main():
                     help="tandem arrays: minimum share of each protein covered by the alignment of two copies")
     ap.add_argument("--contig-end", type=int, default=1000,
                     help="members.tsv: an own model this close to a contig end counts as a valid ORF")
+    ap.add_argument("--protected-genes", default="",
+                    help="protected genes (genome<TAB>gene<TAB>reason, header optional): a basket holding one never "
+                         "loses for the quality rules (domain/ORF/length/PSAURON), and its members keep their place")
     ap.add_argument("--threads", type=int, default=4)
     ap.add_argument("--check", default="")
     ap.add_argument("--out-dir", required=True)
@@ -592,6 +598,22 @@ def main():
                 return f"PSAURON {score[s][1]:.3f} < {thr}"
         return ""
 
+    # protected genes (the shield): genome, gene, reason
+    protected, prot_missing = {}, []
+    if a.protected_genes:
+        for line in open(a.protected_genes):
+            f = line.rstrip("\n").split("\t")
+            if not line.strip() or line.startswith("#") or f[0] == "genome" or len(f) < 2:
+                continue
+            g_, gene_, why_ = f[0], f[1], (f[2] if len(f) > 2 else "")
+            if owner.get(gene_) == g_:
+                protected[gene_] = why_
+            else:
+                prot_missing.append((g_, gene_, why_))
+        print(f"protected genes: {len(protected)} found, {len(prot_missing)} not found in the native GFFs",
+              file=sys.stderr)
+    saved_rows, prot_basket_rows = [], []
+
     # 4c. competition
     stats = Counter()
     winners_all, rows, wrows, nerows, array_input, mrows = [], [], [], [], [], []
@@ -601,9 +623,14 @@ def main():
         mset = set(ms)
         others = sorted((m for m in ms if owner[m] != ref), key=lambda m: (info[m], m), reverse=True)
         win = list(refs)
+        prot_here = sorted(m for m in ms if m in protected)
+        saved_here = []
         for s in others:
             if s in cands:
                 why = not_eligible(s, info)
+                if why and prot_here:
+                    saved_here.append([s, owner[s], why])   # the shield: the quality rules do not apply
+                    why = ""
                 if why:
                     nerows.append([s, owner[s], ";".join(refs) or "-", why, info[s][1], info[s][4],
                                    len(prot.get(s, "")), f"{info[s][2]:.3f}" if s in score else "",
@@ -642,10 +669,24 @@ def main():
             stats[f"panel genes in {'15' if n == len(genomes) else '2-' + str(len(genomes) - 1) if n > 1 else '1'} genomes"] += 1
         winners_all.extend(win)
         rows.append([";".join(sorted(win)), len(ms), ",".join(sorted(ms))])
+        if prot_here:
+            key_w = ";".join(sorted(win))
+            stats["protected baskets"] += 1
+            prot_basket_rows.append([key_w, ",".join(f"{owner[m]}:{m}" for m in prot_here),
+                                     " | ".join(protected[m] for m in prot_here)])
+            for s, g_, why_ in saved_here:
+                if s in win:
+                    saved_rows.append([s, g_, key_w, "would not have won: " + why_])
+                    stats["winners saved by the shield"] += 1
         for s in ms:
+            mcheck = own_model_check(s, info, bool(refs))
+            if mcheck and prot_here:
+                saved_rows.append([s, owner[s], ";".join(sorted(win)) or "-",
+                                   "own model would have failed members.tsv's check: " + mcheck])
+                mcheck = ""
             mrows.append([s, owner[s], ";".join(sorted(win)) or "-", int(owner[s] == ref), len(prot.get(s, "")),
                           "valid" if own_valid.get(s) else "gap" if s in own_gap else "end" if s in own_end else "invalid",
-                          info[s][1], f"{score[s][1]:.3f}" if s in score else "", own_model_check(s, info, bool(refs))])
+                          info[s][1], f"{score[s][1]:.3f}" if s in score else "", mcheck])
         if win:
             array_input.append((";".join(sorted(win)), ms))
         hit_checks = checks & mset
@@ -719,6 +760,17 @@ def main():
         w.writerow(["gene", "genome", "reference_genes_in_basket", "reason", "has_domain_not_fusion",
                     "valid_orf_genomes", "protein_aa", "psauron", "transfer_onto_reference"])
         w.writerows(nerows)
+    if a.protected_genes:
+        with open(os.path.join(a.out_dir, "protected_baskets.tsv"), "w", newline="") as fh:
+            w = csv.writer(fh, delimiter="\t", lineterminator="\n")
+            w.writerow(["winners", "protected_genes", "reasons"])
+            w.writerows(prot_basket_rows)
+        with open(os.path.join(a.out_dir, "protected_genes_saved.tsv"), "w", newline="") as fh:
+            w = csv.writer(fh, delimiter="\t", lineterminator="\n")
+            w.writerow(["gene", "genome", "basket_winners", "saved_from"])
+            w.writerows(saved_rows)
+            w.writerows([[gene_, g_, "-", "protected gene not found in the native GFFs (" + why_ + ")"]
+                         for g_, gene_, why_ in prot_missing])
     print(f"\nbaskets split by place on the reference: {n_split}; members without a place on the reference decided on "
           f"another genome: {n_fallback['stayed']} stayed, {n_fallback['left']} left; members split off by neighbours "
           f"(no place on any genome): {n_neigh}; copies split off into baskets of their own: {len(copy_rows)}")

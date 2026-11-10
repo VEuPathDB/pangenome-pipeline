@@ -34,6 +34,10 @@ Output GFF (one per genome): one gene, one transcript, its exons and CDS. Every 
   basket        the panel gene (winner) ID
   has_domain    InterPro/Pfam domain of model_from
   not_in_reference_annotation=True   panel genes without a reference gene
+  tandem_array_copy=True             a copy of a tandem array (decide_models.py's array_models.tsv)
+  replaced_broken_model              the array's model(s) with a broken ORF that a genome's own valid copy replaced
+  protected=True                     a gene of a protected basket (the shield, --protected-baskets): it wins
+                                     "one place, one gene" against unprotected models of non-reference baskets
   description   kept from the source gene
 Genes left without a model (--members, baskets_v2.py's members.tsv): after the steps above, a member of a basket
 with a winner that no model of its basket covers is
@@ -134,6 +138,9 @@ def main():
                          "every gene of --old-reference-gff whose ID is not in the reference GFF counts as deleted")
     ap.add_argument("--array-models", default="", help="decide_models.py's array_models.tsv (tandem arrays)")
     ap.add_argument("--members", default="", help="baskets_v2.py's members.tsv: genes left without a model keep their own")
+    ap.add_argument("--protected-baskets", default="",
+                    help="baskets_v2.py's protected_baskets.tsv: their models win 'one place, one gene' and are tagged "
+                         "protected=True")
     ap.add_argument("--id-prefix", required=True, help="prefix of the new gene IDs, e.g. Tg")
     ap.add_argument("--out-dir", required=True)
     a = ap.parse_args()
@@ -148,6 +155,10 @@ def main():
         for m in r["members"].split(","):
             basket_of[m] = tuple(ws)
     wset = set(winners)
+    prot_w = set()   # panel genes of the protected baskets (the shield)
+    if a.protected_baskets and os.path.exists(a.protected_baskets):
+        for r in csv.DictReader(open(a.protected_baskets), delimiter="\t"):
+            prot_w.update(w for w in r["winners"].split(";") if w)
     lost_overlap = {r["gene"] for r in csv.DictReader(open(a.overlap_votes), delimiter="\t")
                     if int(r["would_drop_in"]) > 0} if a.overlap_votes else set()
     dom = {}
@@ -327,14 +338,16 @@ def main():
             stats[g][origin] += 1
 
     # tandem arrays: the genome's own confirmed copies and the valid transfers of other genomes' copies are added where
-    # they do not overlap (same strand) a model already written for the basket, nor each other
+    # they do not overlap (same strand) a model already written for the basket, nor each other. Exception: a genome's
+    # own copy with a valid ORF replaces the array's models over it when every one of them has a broken ORF (not a
+    # selenoprotein); the replaced models are named in replaced_broken_model=.
     for key, per_g in arr.items():
         ws = set(key.split(";"))
         w0 = key.split(";")[0]
         if ws & gone:
             continue
         for g, extra in per_g.items():
-            placed = [(span(row[2]), row[2]) for row in out[g] if row[5] in ws]
+            placed = [(span(row[2]), row) for row in out[g] if row[5] in ws]
             used = {re.search(r"model_from=([^;]+)", row[3]).group(1) for row in out[g] if row[5] in ws}
             for m, kind, status in extra:
                 if m in used:
@@ -343,8 +356,15 @@ def main():
                 if block is None:
                     continue
                 sp = span(block)
-                if any(sp[0] == q[0] and sp[1] == q[1] and min(sp[3], q[3]) - max(sp[2], q[2]) + 1 > 0 for q, _ in placed):
-                    continue
+                hits = [row for q, row in placed
+                        if sp[0] == q[0] and sp[1] == q[1] and min(sp[3], q[3]) - max(sp[2], q[2]) + 1 > 0]
+                replaced = []
+                if hits:
+                    if (kind == "own" and status == "valid"
+                            and all("orf_invalid=True" in row[3] and "selenoprotein=True" not in row[3] for row in hits)):
+                        replaced = hits
+                    else:
+                        continue
                 if kind != "own":
                     c, st, s0, e0 = sp
                     if any(basket_of.get(k) != basket_of.get(w0) and min(e0, e1) - max(s0, s1) + 1 >= 0.5 * (e0 - s0 + 1)
@@ -359,12 +379,19 @@ def main():
                     attrs.append("not_in_reference_annotation=True")
                 if invalid:
                     attrs.append("orf_invalid=True")
+                if replaced:
+                    attrs.append("replaced_broken_model=" + ",".join(
+                        re.search(r"model_from=([^;]+)", row[3]).group(1) for row in replaced))
+                    out[g] = [row for row in out[g] if not any(row is r for r in replaced)]
+                    placed = [(q, row) for q, row in placed if not any(row is r for r in replaced)]
+                    stats[g]["tandem array copy replaced a broken model"] += len(replaced)
                 dm = DESC_RE.search(block[0][8])
                 if dm:
                     attrs.append(f"description={dm.group(1)}")
                 pri = (owner.get(w0) == ref, not invalid, info.get(w0, (0, 0))[0], info.get(w0, (0, 0))[1])
-                out[g].append((block[0][0], int(block[0][3]), block, ";".join(x for x in attrs if x), pri, w0, origin))
-                placed.append((sp, block))
+                row = (block[0][0], int(block[0][3]), block, ";".join(x for x in attrs if x), pri, w0, origin)
+                out[g].append(row)
+                placed.append((sp, row))
                 used.add(m)
                 stats[g]["tandem array copy (" + ("own" if kind == "own" else "transfer") + ")"] += 1
 
@@ -373,7 +400,8 @@ def main():
     stacked_rows, dropped = [], defaultdict(list)
     for g in genomes:
         keep, by = [], defaultdict(list)
-        for row in sorted(out[g], key=lambda x: x[4], reverse=True):
+        # reference baskets first (the reference is never edited), then protected baskets, then the usual priority
+        for row in sorted(out[g], key=lambda x: (x[4][0], x[5] in prot_w, x[4]), reverse=True):
             c, st, s0, e0 = span(row[2])
             clash = None
             for s1, e1, w1 in by[(c, st)]:
@@ -454,6 +482,8 @@ def main():
         with open(path, "w") as fh:
             fh.write("##gff-version 3\n")
             for n, (c, s, (gf, tf, parts), attrs, *_rest) in enumerate(sorted(rows, key=lambda x: (x[0], x[1])), 1):
+                if len(_rest) > 1 and _rest[1] in prot_w:
+                    attrs += ";protected=True"
                 nid = f"{a.id_prefix}{gi}{tag}{n:05d}"
                 tid = f"{nid}.t1"
                 # the new tags first, then every attribute of the source line (only ID/Parent, and keys set here, replaced)
