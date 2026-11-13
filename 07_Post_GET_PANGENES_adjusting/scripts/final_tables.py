@@ -12,6 +12,12 @@ Two tables of the final pangenome (after remove_panel_genes.py):
                                            (genes_to_remove.tsv; reason given)
                       removed_curation_gene  removed alone by remove_panel_genes.py (strain_genes_to_remove.tsv;
                                            reason given)
+                      excluded_from_pangenome  left out of the pangenome with its whole panel gene
+                                           (genes_to_exclude_from_pangenome.tsv or curation_actions.tsv,
+                                           exclude_from_pangenome); still in the final GFFs; note: its model origin and
+                                           the reason
+                      not_in_reference     in the pangenome and in these GFFs, but not kept in its reference annotation
+                                           (curation_actions.tsv, delete_in_genome; reason given)
                     plus one row per panel gene removed or left out by step 05 itself (genome "-": removed_step05,
                     not_eligible_step05), so every gene of the panel is accounted for.
   singletons.tsv    every pangene with a gene in a single strain, and why it is alone (first match):
@@ -65,13 +71,22 @@ def main():
     moved = {r["gene"]: r["from_pangene"] for r in csv.DictReader(open(a.moves), delimiter="\t")}
     removed = {r["gene"]: (r.get("list", "panel_gene"), r["reason"]) for r in
                csv.DictReader(open(os.path.join(a.final_dir, "removed_genes.tsv")), delimiter="\t")}
+    ex_path = os.path.join(a.final_dir, "excluded_from_pangenome.tsv")
+    excluded = {r["gene"]: (r.get("model_origin") or "-") + "; " + r["reason"]
+                for r in csv.DictReader(open(ex_path), delimiter="\t")} if os.path.exists(ex_path) else {}
+    rx_path = os.path.join(a.final_dir, "reference_excluded.tsv")
+    ref_out = {r["gene"]: r["reason"] for r in csv.DictReader(open(rx_path), delimiter="\t")} if os.path.exists(rx_path) else {}
 
     # 1. every gene
     rows = []
     for g, x in sorted(genes.items(), key=lambda kv: (kv[1]["genome"], kv[0])):
-        if g in removed:
+        if g in excluded:
+            status, note = "excluded_from_pangenome", excluded[g]
+        elif g in removed:
             status = "removed_curation" if removed[g][0] == "panel_gene" else "removed_curation_gene"
             note = removed[g][1]
+        elif g in ref_out:
+            status, note = "not_in_reference", ref_out[g]
         elif g in final:
             status, note = ("moved", f"from {moved[g]}") if g in moved else ("in_pangenome", "")
         else:

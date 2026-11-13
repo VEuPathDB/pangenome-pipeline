@@ -471,6 +471,10 @@ loadJSON("data/manifest.json").then(function(manifest){
         var oid = rec[state.fields.original_ID];
         if(desc) texts.push(desc);
         if(oid) texts.push(oid);
+        ["ID", "model_from", "basket"].forEach(function(k){   // final gene ID, model source, panel gene
+          var v = state.fields[k] !== undefined ? rec[state.fields[k]] : "";
+          if(v) texts.push(v);
+        });
         (rec[state.fields.interpro] || []).forEach(function(x){ texts.push(x); });   // "IPR... name"
         (rec[state.fields.pfam] || []).forEach(function(x){ texts.push("PF" + x); });
       });

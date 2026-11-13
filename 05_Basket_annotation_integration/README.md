@@ -445,9 +445,10 @@ score.
    model with an N in its CDS or within 1 kb of a contig end counts as valid, because the assembly, not the model,
    breaks its ORF.
 
-   There are two modes, chosen with `MODES` (both by default; set `MODES="prefer_panel_model"` to write, check and
-   plot only that one), each written to `gff_<mode>_final`. **`prefer_panel_model`** follows the rules below.
-   **`keep_similar`** was also developed, for when changing the existing models as little as possible is a priority: a
+   There are two modes, chosen with `MODES`, each written to `gff_<mode>_final`. **`prefer_panel_model`** is the
+   default and the recommended one; it follows the rules below. **`keep_similar`** is also available, but it has not
+   been tested widely; it can be run alone or next to the default with `MODES="keep_similar prefer_panel_model"`. It
+   is meant for when changing the existing models as little as possible is a priority: a
    genome keeps its own model whenever it is similar to the winner's (it covers >= 80% of the winner's CDS, is at most
    120% of its length, has >= 95% identity and a valid ORF), and the rules below apply only when it is not. The
    identity also counts the real sequence differences between the strains, so in a more diverse species fewer own
@@ -624,7 +625,7 @@ All settings are at the top of [`scripts/basket_annotation_job.sh`](scripts/bask
 | `OLD_REFERENCE_GFF` | `""` (none) | the reference GFF from before a manual curation of the reference |
 | `CURATION_REMOVED_LIST` | `""` (none) | the curators' list of the genes they deleted (one ID of `OLD_REFERENCE_GFF` per line); only these genes count as deleted, the old GFF gives their places. Without it, every old gene whose ID is no longer in the reference GFF counts as deleted, which also catches renamed genes and genes removed for other reasons (in *T. gondii*: 1,319 genes instead of the 268 of the list) |
 | `ID_PREFIX` | `""` (**required**) | prefix of the new gene IDs (e.g. `Tg` gives `Tg1g00001`) |
-| `MODES` | `"keep_similar prefer_panel_model"` | both modes, or only one of them: only its GFFs, checks and plots are made |
+| `MODES` | `"prefer_panel_model"` | the mode(s) to build: GFFs, checks and plots are made only for these. `keep_similar` is available but not widely tested |
 | `MIN_COV` | `0.7` | each genome's model: share of the winner's CDS a valid model must cover |
 | `MIN_TCOV` | `0.7` | the winner's transfer without a valid ORF is kept for miniprot from this Liftoff coverage |
 | `MIN_COV_RESCUE` | `0.5` | rescue before absent: share of the winner's CDS a valid model must cover |
@@ -639,8 +640,8 @@ All settings are at the top of [`scripts/basket_annotation_job.sh`](scripts/bask
 | `RUN_MINIPROT` | `yes` | `yes` repairs the genes with an invalid ORF with miniprot (point 5); `no` skips that point |
 | `MINIPROT_MODULE` | `miniprot/0.18` | the module that loads miniprot; `""` if it is already on the PATH |
 | `PLOT_LABEL` | `panel` | prefix of the plot files |
-| `REMOVED_GENES` | `""` | for the gene balance: tables of the genes removed before step 05 (columns genome or genome_label, gene or gene_id), or one GFF per genome with `{genome}` in the path; several separated by `\|`, each `FILE` or `FILE:REASON` |
-| `REMOVED_CONTIGS` | `""` | for the gene balance: tables of the contigs removed in step 01 (columns genome, contig, or lines `genome contig`); several separated by `\|`, each `FILE:REASON` |
+| `REMOVED_GENES` | `""` | for the gene balance only: the genes removed before step 05. **Not found on its own: empty means these genes are counted as 0.** See [Genes removed before step 05](#genes-removed-before-step-05-gene-balance) |
+| `REMOVED_CONTIGS` | `""` | for the gene balance only: the contigs removed in step 01. Empty means their genes are counted as 0. See [Genes removed before step 05](#genes-removed-before-step-05-gene-balance) |
 | `ORIGINAL_GFF_DIR` | `""` | the GFFs before the contigs were removed, to find the genes on `REMOVED_CONTIGS` |
 | the `ADAPT` block | | how python3, blastn, minimap2 and miniprot are put on the PATH on your cluster |
 
@@ -653,29 +654,80 @@ sbatch 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
 
 Any setting can be changed on the command line instead of in the script, for example:
 ```bash
-sbatch --export=ALL,MIN_COV=0.8,MODES=prefer_panel_model 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
-```
-
-For the gene balance, the files of steps 01 and 02 that removed genes are given as settings. In *T. gondii* (paths
-relative to the project folder, as on the cluster):
-```bash
-sbatch --export=ALL,REMOVED_GENES="01_Genome_Selection_QC/contig_size_profile/small_contig_genes.tsv:contig < 10 kb",REMOVED_CONTIGS="01_Genome_Selection_QC/apicoplast_screen/apicoplast_contigs.tsv:apicoplast contig|01_Genome_Selection_QC/redundant_contigs_removed.tsv:redundant contig",ORIGINAL_GFF_DIR=gff_originals 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
+sbatch --export=ALL,MIN_COV=0.8 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
 ```
 
 The final GFFs are in `basket_annotation/gff_<mode>_final/`; they go to get_pangenes (step 06) as
 they are.
 
-To redo only the gene fate and its figures (points 9-10) on results already written, e.g. with other files of
-steps 01 and 02 (the same settings):
+#### Genes removed before step 05 (gene balance)
+
+The gene balance compares each genome's own annotation with its final GFF. Some genes were removed before step 05:
+TE genes in step 02, genes on small or redundant contigs in step 01, or genes removed for any other reason. Step 05
+does not see them, so it does not know they existed. **You have to give the files that list them.** Without them the
+job still runs, but these genes are counted as 0 and the balance shows fewer own genes.
+
+These files are used only to count genes for the figure. Nothing is removed, and the GFFs and gene IDs do not
+change.
+
+Each entry is a file and a reason, written `FILE:REASON`. The reason is the name of the bar in the figure. Several
+entries are separated by `|`.
+
+| Setting | What the file holds |
+|---|---|
+| `REMOVED_GENES` | a table of gene IDs (tab-separated, with a header): columns `genome` and `gene` (or `genome_label`, `gene_id`), and optionally `reason`. Or one GFF per genome, with `{genome}` in the path: the job reads `A1160.eliminated_genes.gff`, `A1163.eliminated_genes.gff`, … |
+| `REMOVED_CONTIGS` | a table of contigs (columns `genome`, `contig`, or lines `genome contig`). Their genes are read from `ORIGINAL_GFF_DIR`, the GFFs before the contigs were removed |
+
+The table of gene IDs is the simplest: one row per removed gene. For it, the reason can come from its `reason` column
+instead of `:REASON`.
+
+Two rules:
+- **The reason decides the bar.** A reason that starts with `TE` goes to the bar "TE genes removed (step 02)". Every
+  other reason goes to the bar "removed with its contig before step 05", with the reasons listed in brackets. The
+  table (`<label>_<mode>_gene_balance.tsv`) has one column per reason. A gene with no reason is called `removed`.
+- **A missing file is skipped without a warning.** Check after the run that the bars (or the columns of the
+  table) are not 0.
+
+*A. fumigatus*, TE genes of step 02 (one GFF per genome):
 ```bash
-sbatch 05_Basket_annotation_integration/scripts/gene_fate_job.sh
+mkdir -p basket_annotation/logs
+export REMOVED_GENES="te_annotation_integration/{genome}.eliminated_genes.gff:TE genes (step 02)"
+sbatch --export=ALL 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
+```
+
+The same with a table of gene IDs (columns `genome`, `gene`, `reason`; its reasons start with `TE`):
+```bash
+export REMOVED_GENES="genes_removed_before_step05.tsv"
+```
+
+*T. gondii*, genes on small contigs and genes on apicoplast and redundant contigs (step 01):
+```bash
+export REMOVED_GENES="contig_size_profile/small_contig_genes.tsv:contig < 10 kb"
+export REMOVED_CONTIGS="09_Redundant_Contig_Removal/apicoplast_screen/apicoplast_contigs.tsv:apicoplast contig|09_Redundant_Contig_Removal/redundant_contigs_removed.tsv:redundant contig"
+export ORIGINAL_GFF_DIR=gff_originals
+sbatch --export=ALL 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
+```
+
+**Forgot these files, or want to add one? You do not need to run step 05 again.** The gene balance is made at the
+end of the job, from the results already written. [`gene_fate_job.sh`](scripts/gene_fate_job.sh) redoes only that
+part (points 9-10: the gene fate table and its figures). It reads the final GFFs and does not change
+them, so the gene IDs stay the same. It overwrites `gene_fate_<mode>.tsv` and, in `basket_annotation/plots/`,
+`<label>_<mode>_gene_balance.png/.tsv`, `<label>_<mode>_eliminated.tsv` and the `<label>_<mode>_eliminated_*.png`
+figures.
+
+Give it the settings of this section again: it does not read them from the earlier run. Its `PLOT_LABEL` default is
+`panel`, so set it too:
+```bash
+export PLOT_LABEL=Afum
+export REMOVED_GENES="te_annotation_integration/{genome}.eliminated_genes.gff:TE genes (step 02)"
+sbatch --export=ALL 05_Basket_annotation_integration/scripts/gene_fate_job.sh
 ```
 
 To redo only the plots, for example for one mode, from the final GFFs already written (nothing else is run). They go
 to `basket_annotation/plots/` with the modes in their names (e.g. `<label>_prefer_panel_model_orf_quality.png`), so the
 job's own plots are not overwritten:
 ```bash
-sbatch --export=ALL,MODES=prefer_panel_model 05_Basket_annotation_integration/scripts/plot_basket_annotation_job.sh
+sbatch 05_Basket_annotation_integration/scripts/plot_basket_annotation_job.sh
 ```
 
 ### Outputs

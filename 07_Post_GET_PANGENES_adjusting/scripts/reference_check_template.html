@@ -1,0 +1,368 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reference gene check</title>
+<style>
+:root{
+  --bg:#F5F5F2; --panel:#FFFFFF; --panel-2:#EEEEE9; --fg:#1F2933; --fg-muted:#5F6B76; --border:#DDDDD6; --border-strong:#C5C5BC;
+  --accent:#0F6E5C; --new:#EE7600; --place:#FFF1D6; --transfer:#0F8B8D; --gene:#8A94A3; --junc:#6A4C93; --rna:#2E7D32;
+  --ok:#2E7D32; --weak:#B7791F; --bad:#C62828; --odd:#6A4C93; --mito:#607D8B;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15191D; --panel:#1E2328; --panel-2:#262C32; --fg:#E6E8EA; --fg-muted:#9AA5AF; --border:#333B42; --border-strong:#46505A;
+    --accent:#4FBFA5; --place:#3A3220; --gene:#8A94A3;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15191D; --panel:#1E2328; --panel-2:#262C32; --fg:#E6E8EA; --fg-muted:#9AA5AF; --border:#333B42; --border-strong:#46505A;
+  --accent:#4FBFA5; --place:#3A3220; --gene:#8A94A3;
+}
+*{box-sizing:border-box}
+body{margin:0; background:var(--bg); color:var(--fg); font:14px/1.45 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif}
+header{background:var(--panel); border-bottom:1px solid var(--border); padding:16px 20px; position:sticky; top:0; z-index:5}
+h1{font-size:1.25rem; margin:0}
+.sub{color:var(--fg-muted); font-size:0.82rem; margin-top:2px}
+.bar{display:flex; flex-wrap:wrap; gap:10px 18px; align-items:center; margin-top:12px}
+.tabs{display:flex; gap:6px}
+.tabs button, .btn{font:inherit; font-size:0.84rem; padding:6px 12px; border:1px solid var(--border-strong); background:var(--panel); color:var(--fg); border-radius:8px; cursor:pointer}
+.tabs button.on{background:var(--accent); border-color:var(--accent); color:#fff}
+.btn.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
+label.f{font-size:0.82rem; color:var(--fg-muted); display:flex; gap:6px; align-items:center}
+select, input[type=number], input[type=search]{font:inherit; font-size:0.84rem; padding:5px 8px; border:1px solid var(--border-strong); border-radius:6px; background:var(--panel); color:var(--fg)}
+input[type=number]{width:64px}
+.count{font-size:0.82rem; color:var(--fg-muted); margin-left:auto}
+.notes{font-size:0.78rem; color:var(--fg-muted); margin-top:8px}
+.fates{display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; font-size:0.78rem; margin-top:8px; padding:8px 10px; background:var(--panel-2); border-radius:8px}
+.fates b{font-weight:600}
+.nodefault{font-size:0.75rem; color:var(--bad); margin-left:4px}
+main{max-width:1150px; margin:0 auto; padding:16px 16px 60px}
+.card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:14px}
+.card.decided{border-left:5px solid var(--accent)}
+.top{display:flex; flex-wrap:wrap; gap:6px 12px; align-items:baseline}
+.id{font-family:"SFMono-Regular", Menlo, Consolas, monospace; font-weight:700; font-size:1rem}
+.desc{color:var(--fg-muted)}
+.chip{display:inline-block; font-size:0.72rem; padding:2px 8px; border-radius:999px; background:var(--panel-2); color:var(--fg); border:1px solid var(--border)}
+.chip.ok{background:var(--ok); color:#fff; border-color:var(--ok)} .chip.weak{background:var(--weak); color:#fff; border-color:var(--weak)}
+.chip.bad{background:var(--bad); color:#fff; border-color:var(--bad)} .chip.odd{background:var(--odd); color:#fff; border-color:var(--odd)}
+.chip.mito{background:var(--mito); color:#fff; border-color:var(--mito)}
+dl{display:grid; grid-template-columns:170px 1fr; gap:4px 14px; margin:10px 0 6px; font-size:0.84rem}
+dt{color:var(--fg-muted)} dd{margin:0}
+.mono{font-family:"SFMono-Regular", Menlo, Consolas, monospace; font-size:0.8rem}
+.ev{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:8px 0}
+.ev > div{background:var(--panel-2); border-radius:8px; padding:8px 10px; font-size:0.82rem}
+.ev h4{margin:0 0 4px; font-size:0.78rem; text-transform:none; color:var(--fg-muted); font-weight:600}
+.pic svg{width:100%; height:auto; display:block; cursor:grab; touch-action:pan-y}
+.picnav{display:flex; gap:4px; align-items:center; margin:6px 0 2px; font-size:0.75rem; color:var(--fg-muted)}
+.picnav button{font:inherit; font-size:0.78rem; min-width:28px; padding:2px 8px; border:1px solid var(--border-strong); background:var(--panel); color:var(--fg); border-radius:6px; cursor:pointer}
+.decide{display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--border)}
+.decide button{font:inherit; font-size:0.8rem; padding:5px 10px; border:1px solid var(--border-strong); background:var(--panel); color:var(--fg); border-radius:7px; cursor:pointer}
+.decide button.on{background:var(--accent); color:#fff; border-color:var(--accent)}
+.decide select{font:inherit; font-size:0.82rem; padding:5px 8px; border:1px solid var(--border-strong); border-radius:6px; background:var(--panel); color:var(--fg)}
+.decide input{flex:1 1 220px; font:inherit; font-size:0.82rem; padding:5px 8px; border:1px solid var(--border-strong); border-radius:6px; background:var(--panel); color:var(--fg)}
+a{color:var(--accent)}
+.empty{color:var(--fg-muted); padding:30px; text-align:center}
+@media (max-width:700px){ dl{grid-template-columns:1fr} .ev{grid-template-columns:1fr} }
+[hidden]{display:none !important}
+</style>
+</head>
+<body>
+<header>
+  <h1>Reference gene check</h1>
+  <div class="sub" id="sub"></div>
+  <div class="bar">
+    <label class="f">at least <input type="number" id="minStrains" min="0" max="20" value="0"> strains in the pangene</label>
+    <label class="f">show <select id="status"><option value="all">all</option><option value="todo">not decided</option><option value="done">decided</option></select></label>
+    <label class="f" id="protF" hidden>protein outside the species <select id="prot"><option value="all">all</option><option value="hit">with a hit</option><option value="nohit">no hit</option></select></label>
+    <input type="search" id="q" placeholder="Search ID or description">
+    <span class="count" id="count"></span>
+    <button type="button" class="btn primary" id="export">Download curation_actions.tsv</button>
+  </div>
+  <div class="notes" id="notes"></div>
+  <div class="fates" id="fates"></div>
+</header>
+<main id="list"></main>
+<script id="data" type="application/json">__DATA__</script>
+<script>
+(function(){
+var D = JSON.parse(document.getElementById("data").textContent);
+var KEY = "refcheck_v2_" + D.genome;
+var dec = {};
+try { dec = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch(e){}
+function save(){ try { localStorage.setItem(KEY, JSON.stringify(dec)); } catch(e){} }
+function esc(s){ return String(s == null ? "" : s).replace(/[&<>"]/g, function(c){ return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]; }); }
+function num(v){ return (+v).toLocaleString(); }
+var TOXO = "https://toxodb.org/toxo/app/record/gene/";
+var tab = "new";
+
+var ACTIONS = {
+  new: [["keep_new_gene", "Keep as new gene"], ["delete", "A · Delete (false gene)"],
+        ["exclude_from_pangenome", "B · Leave out of the pangenome"], ["delete_in_genome", "C · Delete in " + D.genome + " only"]],
+  absent: [["real_absence", "Real absence"], ["add_to_reference", "Add the gene to the reference"], ["check_later", "Check later"]]
+};
+var key = function(it){ return it.kind + ":" + it.id; };
+// the reasons to choose from (the free text adds detail, or says what "other" is)
+var REASONS = ["supported (RNA-seq and/or junctions)", "no support (no RNA-seq, no junctions)", "mitochondrial gene",
+               "model to fix", "extra copy / gene family", "overlaps a reference gene", "other"];
+var ORF = {valid: "complete", invalid: "broken", invalid_assembly_gap: "broken by an assembly gap (N)",
+           invalid_near_contig_end: "broken near a contig end", repaired_miniprot: "complete (miniprot)"};
+var CALL = {"supported": "ok", "weak": "weak", "no support": "bad", "expressed, model does not fit": "odd", "mitochondrial-like": "mito"};
+
+document.getElementById("sub").textContent = D.genome + " · " + D.items.length + " genes added to the reference by the pipeline. Choices are saved in this browser; download the table when done.";
+// one RNA-seq scale for every gene (log), up to the highest value of all genes and of the typical reference gene
+var GMAX = Math.max.apply(null, [D.baseline || 0].concat(D.items.map(function(it){ return it.profile ? Math.max.apply(null, it.profile) : 0; }))) || 1;
+var notes = [];
+notes.push(D.have_junctions ? "Intron junctions: given." : "Intron junctions: not given (left out).");
+notes.push(D.have_rnaseq ? "RNA-seq: given." : "RNA-seq: not given (left out).");
+if(D.have_protein){ notes.push("Protein evidence: blastp against NCBI nr, the species left out."); document.getElementById("protF").hidden = false; }
+document.getElementById("notes").textContent = notes.join("  ·  ");
+// what happens to a gene with each choice (part 4 of step 07); no choice = A
+document.getElementById("fates").innerHTML = [
+  ["Keep as new gene", "stays in " + D.genome + " as a new gene, and in its pangene"],
+  ["A · Delete (false gene)", "removed from every strain, the strains' original genes included: the whole panel gene leaves the GFFs and the pangenome (shown in red)"],
+  ["B · Leave out of the pangenome", "every gene of the panel gene leaves the pangenome and its counts; the transfers leave the GFFs, the strains' original genes stay"],
+  ["C · Delete in " + D.genome + " only", "not kept in the " + D.genome + " reference annotation; still shown in the pangenome, and the other strains keep their copies"],
+  ["no choice", "<b>same as A</b>: the whole panel gene is deleted from every strain"]
+].map(function(r){ return '<b>'+esc(r[0])+'</b><span>'+r[1]+'</span>'; }).join("");
+
+// the view of each picture: it opens on the gene (+ 1.5 kb each side) and moves / zooms within the data window
+var VIEW = {};
+function viewOf(it){
+  var k = key(it);
+  if(!VIEW[k]) VIEW[k] = [Math.max(it.win[0], it.s - 1500), Math.min(it.win[1], it.e + 1500)];
+  return VIEW[k];
+}
+function picture(it){
+  if(!it.win) return "";
+  var v = viewOf(it), W = 1000, L = 10, R = 10, w0 = v[0], w1 = v[1], span = Math.max(1, w1 - w0);
+  var sx = function(v){ return L + (v - w0) / span * (W - L - R); };
+  var hasJ = D.have_junctions && it.junctions && it.junctions.length, hasP = !!it.profile;
+  var TOPJ = hasJ ? 46 : 8, yG = TOPJ + 18, yP = yG + 34, H = yP + (hasP ? 52 : 0) + 22, PH = 40;
+  var s = ['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(it.id)+' region">'];
+  // the place where the other strains have the pangene
+  if(it.kind !== "new"){
+    s.push('<rect x="'+sx(it.s)+'" y="'+(TOPJ-4)+'" width="'+Math.max(2, sx(it.e)-sx(it.s))+'" height="'+(H-TOPJ-14)+'" fill="var(--place)"><title>the place where the other strains have '+esc(it.pangene)+' ('+num(it.e - it.s + 1)+' bp)</title></rect>');
+    s.push('<text x="'+((sx(it.s)+sx(it.e))/2)+'" y="'+(H-4)+'" font-size="11" text-anchor="middle" fill="var(--fg-muted)">place of '+esc(it.pangene)+'</text>');
+  }
+  // junction arcs
+  if(hasJ){
+    // only junctions with both ends in view, the 40 strongest (a weak junction is drawn fainter)
+    var js = it.junctions.filter(function(j){ return j[0] >= w0 && j[1] <= w1; }).sort(function(u, v){ return v[3] - u[3]; }).slice(0, 40);
+    var mx = Math.max.apply(null, js.map(function(j){ return j[3]; }).concat([1]));
+    js.forEach(function(j){
+      var a = sx(j[0]), b = sx(j[1]), h = 8 + 34 * Math.log(1 + j[3]) / Math.log(1 + mx);
+      var strong = /Strong/i.test(j[5]);
+      s.push('<path d="M'+a+','+TOPJ+' Q'+((a+b)/2)+','+(TOPJ - 2*h)+' '+b+','+TOPJ+'" fill="none" stroke="var(--junc)" stroke-opacity="'+(strong ? 0.9 : 0.45)+'" stroke-width="'+(strong ? 1.8 : 1)+'"><title>junction '+j[0]+'-'+j[1]+' ('+j[2]+') | score '+j[3]+' | '+esc(j[5])+(j[6] === "Yes" ? ' | annotated intron' : '')+'</title></path>');
+    });
+  }
+  // the Liftoff copy not used
+  if(it.transfer && it.transfer.s){
+    var ta = sx(it.transfer.s), tb = sx(it.transfer.e);
+    s.push('<rect x="'+ta+'" y="'+(yG+14)+'" width="'+Math.max(2, tb-ta)+'" height="8" fill="none" stroke="var(--transfer)" stroke-width="1.4" stroke-dasharray="3 2"><title>Liftoff copy of '+esc(it.transfer.id)+' from '+esc(it.transfer.src)+', not used | coverage '+esc(it.transfer.cov)+', identity '+esc(it.transfer.idt)+', valid ORF '+esc(it.transfer.orf)+'</title></rect>');
+  }
+  // reference genes
+  (it.genes || []).forEach(function(g){
+    var me = it.kind === "new" && g[0] === it.id, col = me ? "var(--new)" : "var(--gene)";
+    var a = sx(Math.max(g[1], w0)), b = sx(Math.min(g[2], w1));
+    s.push('<g><title>'+esc(g[0]+" | "+(g[6] || "")+" | pangene "+(g[5] || "none")+" | "+g[1]+"-"+g[2]+" ("+g[3]+")")+'</title>');
+    s.push('<line x1="'+a+'" x2="'+b+'" y1="'+yG+'" y2="'+yG+'" stroke="'+col+'" stroke-width="1.4"/>');
+    g[4].forEach(function(c){ var u = sx(Math.max(c[0], w0)), v = sx(Math.min(c[1], w1)); if(v > u) s.push('<rect x="'+u+'" y="'+(yG-6)+'" width="'+Math.max(1.5, v-u)+'" height="12" fill="'+col+'"/>'); });
+    var tip = g[3] === "+" ? b : a, d = g[3] === "+" ? 7 : -7;
+    if(g[2] <= w1 && g[3] === "+" || g[1] >= w0 && g[3] === "-") s.push('<polygon points="'+tip+','+(yG-6)+' '+tip+','+(yG+6)+' '+(tip+d)+','+yG+'" fill="'+col+'"/>');
+    if(b - a > 50) s.push('<text x="'+((a+b)/2)+'" y="'+(yG-10)+'" font-size="10.5" text-anchor="middle" fill="var(--fg)"'+(me ? ' font-weight="700"' : '')+'>'+esc(g[0])+'</text>');
+    s.push('</g>');
+  });
+  // RNA-seq profile of a new gene: upstream, 10 CDS parts, downstream (mean over samples)
+  if(hasP){
+    var gs = it.s, ge = it.e, part = (ge - gs + 1) / 10;
+    var hy = function(v){ return PH * Math.log(1 + v) / Math.log(1 + GMAX); };
+    var pos = [[gs - part, gs]];
+    for(var i = 0; i < 10; i++) pos.push([gs + i*part, gs + (i+1)*part]);
+    pos.push([ge, ge + part]);
+    if(it.st === "-") pos.reverse();
+    it.profile.forEach(function(v, i){
+      var a = sx(pos[i][0]), b = sx(pos[i][1]), h = hy(v);
+      s.push('<rect x="'+a+'" y="'+(yP + PH - h)+'" width="'+Math.max(1, b - a - 1)+'" height="'+h+'" fill="var(--rna)" fill-opacity="'+(i === 0 || i === 11 ? 0.4 : 0.85)+'"><title>RNA-seq '+(i === 0 ? "upstream" : i === 11 ? "downstream" : "CDS part "+i)+': mean '+v+'</title></rect>');
+    });
+    // the scale: 0 and the maximum (same for every gene), and the level of a typical reference gene
+    s.push('<line x1="'+(W-R-120)+'" x2="'+(W-R-120)+'" y1="'+yP+'" y2="'+(yP+PH)+'" stroke="var(--border-strong)"/>');
+    s.push('<text x="'+(W-R-115)+'" y="'+(yP+8)+'" font-size="9.5" fill="var(--fg-muted)">'+GMAX.toFixed(1)+' reads/base</text>');
+    s.push('<text x="'+(W-R-115)+'" y="'+(yP+PH)+'" font-size="9.5" fill="var(--fg-muted)">0</text>');
+    if(D.baseline){
+      var yb = yP + PH - hy(D.baseline);
+      s.push('<line x1="'+L+'" x2="'+(W-R-122)+'" y1="'+yb+'" y2="'+yb+'" stroke="var(--fg)" stroke-width="1" stroke-dasharray="4 3"><title>typical reference gene: '+D.baseline.toFixed(1)+' reads/base (median of 500 own genes)</title></line>');
+      s.push('<text x="'+L+'" y="'+(yb-3)+'" font-size="9.5" fill="var(--fg)">typical reference gene: '+D.baseline.toFixed(1)+' reads/base</text>');
+    }
+    s.push('<text x="'+L+'" y="'+(yP-3)+'" font-size="10" fill="var(--fg-muted)">RNA-seq on the strand of the gene, mean of the stranded samples (log scale, the same for every gene)</text>');
+  }
+  s.push('<text x="'+L+'" y="'+(H-4)+'" font-size="10" fill="var(--fg-muted)">'+esc(it.c)+':'+num(w0)+'</text>');
+  s.push('<text x="'+(W-R)+'" y="'+(H-4)+'" font-size="10" text-anchor="end" fill="var(--fg-muted)">'+num(w1)+'</text>');
+  s.push('</svg>');
+  return s.join("");
+}
+
+function card(it){
+  var k = key(it), d = dec[k] || {}, rows = [];
+  if(it.kind === "new"){
+    rows.push(["Location", it.c ? it.c+":"+num(it.s)+".."+num(it.e)+" ("+it.st+")" : "-"]);
+    rows.push(["Pangene", (D.explorer && it.pangene.charAt(0) !== "(" ? '<a class="mono" href="'+esc(D.explorer)+'#pangene='+encodeURIComponent(it.pangene)+'" target="_blank" rel="noopener" title="open this pangene in the explorer">'+esc(it.pangene)+'</a>' : '<span class="mono">'+esc(it.pangene)+'</span>')+' · in '+it.strains+' strain'+(it.strains === 1 ? '' : 's') +
+      (it.orfs ? ' · valid ORF in <b>'+esc(it.orfs[0])+'</b> (broken in '+esc(it.orfs[1])+(+it.orfs[2] ? ', broken by the assembly in '+esc(it.orfs[2]) : '')+')' : '')]);
+    rows.push(["Model from", '<a href="'+TOXO+encodeURIComponent(it.model_from)+'" target="_blank" rel="noopener">'+esc(it.model_from)+'</a> ('+esc(it.origin)+')']);
+    rows.push(["ORF", esc(ORF[it.orf] || it.orf)]);
+    rows.push(["PSAURON / domain", esc(it.psauron || "-")+' · '+(it.domain === "True" ? "has a domain" : "no domain")]);
+    if(it.aa){
+      var bq = "https://blast.ncbi.nlm.nih.gov/Blast.cgi?PROGRAM=blastp&PAGE_TYPE=BlastSearch&LINK_LOC=blasthome&DATABASE=nr&QUERY=" +
+               encodeURIComponent(">" + it.id + "\n" + it.aa) + (D.blast_exclude ? "&EQ_MENU=" + encodeURIComponent(D.blast_exclude) + "&ORG_EXCLUDE=on" : "");
+      rows.push(["Protein", '<a href="'+esc(bq)+'" target="_blank" rel="noopener">BLAST in NCBI</a> (nr'+(D.blast_exclude ? ', '+esc(D.blast_exclude.replace(/ \(taxid.*$/, ""))+' left out' : '')+'; press BLAST on the NCBI page) · '+it.aa.length+' aa'+(it.aa.indexOf("X") >= 0 ? ' (internal stops as X)' : '')]);
+    }
+    if(D.have_protein){
+      var pr = it.prot;
+      rows.push(["Protein outside the species", !pr ? "not searched" : pr[0] === "hit" ?
+        '<a class="mono" href="https://www.ncbi.nlm.nih.gov/protein/'+encodeURIComponent(pr[1])+'" target="_blank" rel="noopener" title="'+esc(pr[6])+'">'+esc(pr[1])+'</a> <i>'+esc(pr[2])+'</i> · identity '+esc(pr[3])+'% · coverage '+esc(pr[4])+'% · e-value '+esc(pr[5]) :
+        pr[0] === "no hit" ? '<b>no hit</b> (e-value 1e-5)' : esc(pr[0])]);
+    }
+  } else {
+    rows.push(["What is here", esc(it.reason)]);
+    rows.push(["Pangene", '<span class="mono">'+esc(it.pangene)+'</span> · in '+it.strains+' strain'+(it.strains === 1 ? '' : 's')+' (not in '+esc(D.genome)+')']);
+    rows.push(["Place", it.c ? esc(it.c)+":"+num(it.s)+".."+num(it.e)+" · "+num(it.place_len || 0)+" bp (elsewhere "+num(it.len_elsewhere || 0)+" bp)" : "not found"]);
+    rows.push(["Neighbours", '<span class="mono">'+esc((it.neighbours || "").replace("|", " · "))+'</span>']);
+    rows.push(["Step 05", '<span class="mono">'+esc(it.step05 || "-")+'</span>']);
+  }
+  var ev = [];
+  if(D.have_junctions && it.kind === "new" && it.introns){
+    ev.push('<div><h4>Intron junctions</h4>'+(it.introns[0] ? it.introns[1]+' of '+it.introns[0]+' introns confirmed' : 'single exon (no intron to confirm)')+
+            '</div>');
+  } else if(D.have_junctions && it.kind !== "new"){
+    var inPlace = (it.junctions || []).filter(function(j){ return j[1] >= it.s && j[0] <= it.e; });
+    ev.push('<div><h4>Intron junctions in the place</h4>'+inPlace.length+(inPlace.length ? ' (strongest score '+Math.max.apply(null, inPlace.map(function(j){ return j[3]; }))+')' : '')+'</div>');
+  }
+  if(D.have_rnaseq && it.rnaseq){
+    var r = it.rnaseq, parts = [];
+    if(r.call) parts.push('<span class="chip '+(CALL[r.call] || "")+'">'+esc(r.call)+'</span>');
+    if(r.mean !== undefined) parts.push('coverage '+esc(r.mean)+(r.pct ? ' (percentile '+esc(r.pct)+' of the reference genes)' : '')+
+                                        ' · reads in '+esc(r.samples)+' samples · best: '+esc((r.best || "").split("/").slice(0, 2).join(" / "))+' (mean '+esc(r.best_mean)+', '+Math.round(100 * (+r.breadth || 0))+'% of bases)');
+    ev.push('<div><h4>RNA-seq'+(it.kind === "new" ? '' : ' in the place')+'</h4>'+parts.join(" ")+'</div>');
+  } else if(D.have_rnaseq){
+    ev.push('<div><h4>RNA-seq</h4>not computed for this item</div>');
+  }
+  var acts = ACTIONS[it.kind === "new" ? "new" : "absent"].map(function(a){
+    return '<button type="button" data-k="'+esc(k)+'" data-a="'+a[0]+'"'+(d.action === a[0] ? ' class="on"' : '')+'>'+esc(a[1])+'</button>';
+  }).join("");
+  var kindChip = it.kind === "new" ? '<span class="chip">new gene</span>' : it.kind === "absent" ? '<span class="chip">absent</span>' : '<span class="chip">Liftoff copy not used</span>';
+  return '<section class="card'+(d.action ? ' decided' : '')+'" data-card="'+esc(k)+'">' +
+    '<div class="top"><span class="id">'+esc(it.id)+'</span>'+kindChip+(it.desc ? '<span class="desc">'+esc(it.desc)+'</span>' : '')+
+    (d.action ? '' : '<span class="nodefault">no choice yet: will be deleted from every strain</span>')+'</div>' +
+    '<dl>'+rows.map(function(r){ return '<dt>'+r[0]+'</dt><dd>'+r[1]+'</dd>'; }).join("")+'</dl>' +
+    (ev.length ? '<div class="ev">'+ev.join("")+'</div>' : '') +
+    (it.win ? '<div class="picnav"><button type="button" data-nav="-1" title="move left">&#9664;</button><button type="button" data-nav="1" title="move right">&#9654;</button>' +
+      '<button type="button" data-zoom="0.5" title="zoom in">+</button><button type="button" data-zoom="2" title="zoom out">&minus;</button>' +
+      '<button type="button" data-zoom="0" title="back to the gene">&#8634;</button><span>drag to move; up to the whole gene on each side</span></div>' : '') +
+    '<div class="pic" data-pic="'+esc(k)+'">'+picture(it)+'</div>' +
+    '<div class="decide">'+acts+'<select data-reason="'+esc(k)+'" aria-label="Reason"><option value="">reason…</option>'+
+      REASONS.map(function(r){ return '<option'+(d.reason === r ? ' selected' : '')+'>'+esc(r)+'</option>'; }).join("")+'</select>'+
+      '<input type="text" data-note="'+esc(k)+'" placeholder="Detail (optional)" value="'+esc(d.note || "")+'"></div>' +
+    '</section>';
+}
+
+function render(){
+  var mn = +document.getElementById("minStrains").value || 0, st = document.getElementById("status").value, pf = document.getElementById("prot").value;
+  var q = document.getElementById("q").value.trim().toLowerCase();
+  var its = D.items.filter(function(it){
+    if(tab === "new" ? it.kind !== "new" : it.kind === "new") return false;
+    if(it.strains < mn) return false;
+    var done = !!(dec[key(it)] || {}).action;
+    if(st === "todo" && done || st === "done" && !done) return false;
+    if(pf !== "all" && (!it.prot || (pf === "hit") !== (it.prot[0] === "hit") || it.prot[0] === "not searched")) return false;
+    if(q && (it.id + " " + (it.desc || "") + " " + (it.pangene || "") + " " + (it.model_from || "")).toLowerCase().indexOf(q) < 0) return false;
+    return true;
+  }).sort(function(a, b){ return b.strains - a.strains || (a.id < b.id ? -1 : 1); });
+  var all = D.items.filter(function(it){ return tab === "new" ? it.kind === "new" : it.kind !== "new"; });
+  var nd = all.filter(function(it){ return (dec[key(it)] || {}).action; }).length;
+  document.getElementById("count").textContent = its.length + " shown · " + nd + " of " + all.length + " decided (" + (all.length - nd) + " without a choice: deleted from every strain)";
+  var el = document.getElementById("list");
+  el.innerHTML = its.length ? its.map(card).join("") : '<div class="empty">Nothing matches these filters.</div>';
+  // move / zoom a picture (within its data window)
+  var byKey = {};
+  its.forEach(function(it){ byKey[key(it)] = it; });
+  var setView = function(k, a, b){
+    var it = byKey[k], W0 = it.win[0], W1 = it.win[1], sp = Math.min(b - a, W1 - W0);
+    sp = Math.max(sp, 300);
+    if(a < W0){ a = W0; } if(a + sp > W1){ a = W1 - sp; }
+    VIEW[k] = [Math.max(W0, a), Math.min(W1, a + sp)];
+    el.querySelector('[data-pic="'+k.replace(/"/g, "")+'"]').innerHTML = picture(it);
+  };
+  el.querySelectorAll(".card").forEach(function(c){
+    var k = c.getAttribute("data-card"), it = byKey[k];
+    if(!it || !it.win) return;
+    c.querySelectorAll("[data-nav]").forEach(function(b){
+      b.addEventListener("click", function(){ var v = viewOf(it), d = (v[1] - v[0]) * 0.4 * (+b.getAttribute("data-nav")); setView(k, v[0] + d, v[1] + d); });
+    });
+    c.querySelectorAll("[data-zoom]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var f = +b.getAttribute("data-zoom"), v = viewOf(it);
+        if(!f){ delete VIEW[k]; var v0 = viewOf(it); setView(k, v0[0], v0[1]); return; }
+        var m = (v[0] + v[1]) / 2, h = (v[1] - v[0]) * f / 2;
+        setView(k, m - h, m + h);
+      });
+    });
+    var pic = c.querySelector("[data-pic]"), drag = null;
+    pic.addEventListener("pointerdown", function(e){ drag = {x: e.clientX, v: viewOf(it).slice(), w: pic.getBoundingClientRect().width}; });
+    window.addEventListener("pointermove", function(e){
+      if(!drag) return;
+      var d = -(e.clientX - drag.x) / drag.w * (drag.v[1] - drag.v[0]);
+      setView(k, drag.v[0] + d, drag.v[1] + d);
+    });
+    window.addEventListener("pointerup", function(){ drag = null; });
+  });
+  el.querySelectorAll("[data-a]").forEach(function(b){
+    b.addEventListener("click", function(){
+      var k = b.getAttribute("data-k"), a = b.getAttribute("data-a");
+      dec[k] = dec[k] || {};
+      dec[k].action = dec[k].action === a ? "" : a;
+      save();
+      var c = b.closest(".card");
+      c.querySelectorAll("[data-a]").forEach(function(x){ x.classList.toggle("on", x.getAttribute("data-a") === dec[k].action); });
+      c.classList.toggle("decided", !!dec[k].action);
+      var nd2 = all.filter(function(it){ return (dec[key(it)] || {}).action; }).length;
+      document.getElementById("count").textContent = its.length + " shown · " + nd2 + " of " + all.length + " decided (" + (all.length - nd2) + " without a choice: deleted from every strain)";
+      var nd0 = c.querySelector(".nodefault");
+      if(dec[k].action && nd0) nd0.remove();
+    });
+  });
+  el.querySelectorAll("[data-reason]").forEach(function(i){
+    i.addEventListener("change", function(){ var k = i.getAttribute("data-reason"); dec[k] = dec[k] || {}; dec[k].reason = i.value; save(); });
+  });
+  el.querySelectorAll("[data-note]").forEach(function(i){
+    i.addEventListener("input", function(){ var k = i.getAttribute("data-note"); dec[k] = dec[k] || {}; dec[k].note = i.value; save(); });
+  });
+}
+
+document.querySelectorAll("[data-tab]").forEach(function(b){
+  b.addEventListener("click", function(){
+    tab = b.getAttribute("data-tab");
+    document.querySelectorAll("[data-tab]").forEach(function(x){ x.classList.toggle("on", x === b); });
+    document.getElementById("minStrains").value = tab === "new" ? 0 : 3;   // absences: the ones in 3+ strains first
+    render();
+  });
+});
+["minStrains", "status", "prot", "q"].forEach(function(id){ document.getElementById(id).addEventListener("input", render); });
+
+document.getElementById("export").addEventListener("click", function(){
+  var lines = ["genome\titem\ttarget\tpanel_gene\taction\treason"];
+  D.items.forEach(function(it){
+    var d = dec[key(it)] || {};
+    if(!d.action) d = {action: "delete", reason: "no choice made (default)"};   // no choice = A, the whole panel gene
+    lines.push([D.genome, it.kind === "new" ? "new_gene" : "absence", it.id, it.kind === "new" ? it.panel_gene : it.pangene, d.action, ((d.reason || "") + (d.note ? (d.reason ? ": " : "") + d.note : "")).replace(/\t|\n/g, " ")].join("\t"));
+  });
+  var blob = new Blob([lines.join("\n") + "\n"], {type: "text/tab-separated-values"});
+  var a = document.createElement("a");
+  a.href = URL.createObjectURL(blob); a.download = "curation_actions.tsv";
+  document.body.appendChild(a); a.click(); a.remove();
+});
+render();
+})();
+</script>
+</body>
+</html>

@@ -11,14 +11,13 @@
 # The same job as run_get_pangenes_job.sh, on the basket annotation (step 05), one mode at a time.
 # Needs link_for_get_pangenes_basket.slurm.sh to have already run for that mode. If the output folder
 # (<INPUT_DIR>_pangenes) already exists, get_pangenes re-uses the files cached there: rename it before a new run.
-# Submit from your project folder, once per mode:
-#     sbatch --export=ALL,MODE=keep_similar 06_GET_PANGENES/scripts/run_get_pangenes_basket_job.sh
-#     sbatch --export=ALL,MODE=prefer_panel_model 06_GET_PANGENES/scripts/run_get_pangenes_basket_job.sh
+# Submit from your project folder (MODE=keep_similar for the other step 05 mode, if it was built):
+#     sbatch 06_GET_PANGENES/scripts/run_get_pangenes_basket_job.sh
 
 set -euo pipefail
 
 # Edit these for your run.
-MODE="${MODE:-keep_similar}"                                                    # the basket annotation mode (set with --export)
+MODE="${MODE:-prefer_panel_model}"                                                    # the basket annotation mode (set with --export)
 GET_PANGENES_ENV="/home/aludwig/hc-storage/micromamba/envs/get_pangenes/bin"   # bin/ of the get_pangenes micromamba environment
 INPUT_DIR="${INPUT_DIR:-./for_get_pangenes_basket_${MODE}}"   # link_for_get_pangenes_basket.slurm.sh's OUT_DIR
 N_CPUS=16                           # match --cpus-per-task above

@@ -22,7 +22,7 @@ GENOMES="genome_order.txt"
 OUT_DIR="basket_annotation"
 NATIVE_DIR="gff_for_liftoff"                        # used only if $OUT_DIR/input/native (written by the job) is missing
 PLOT_LABEL="panel"
-MODES="${MODES:-keep_similar prefer_panel_model}"   # or set with --export=ALL,MODES=...
+MODES="${MODES:-prefer_panel_model}"   # or set with --export=ALL,MODES=... (e.g. "keep_similar prefer_panel_model")
 # =======================================================================
 
 set +u

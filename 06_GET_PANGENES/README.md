@@ -18,7 +18,7 @@ alignments confirms presence-absence variation.** *Genome Biology* 24, 223.
 ## Table of contents
 
 - [Installing get_pangenes](#installing-get_pangenes)
-- [The two modes](#the-two-modes)
+- [The step 05 mode](#the-step-05-mode)
 - [Step 1: put each genome's GFF and FASTA side by side](#step-1-put-each-genomes-gff-and-fasta-side-by-side)
 - [Step 2: run get_pangenes](#step-2-run-get_pangenes)
 - [Both steps in one go](#both-steps-in-one-go)
@@ -30,18 +30,17 @@ alignments confirms presence-absence variation.** *Genome Biology* 24, 223.
 (an environment called `get_pangenes` here). Step 2 reads the environment's `bin/` folder from `GET_PANGENES_ENV`
 at the top of its script: edit that line to point to your own.
 
-## The two modes
+## The step 05 mode
 
-Step 05 writes two versions of every genome's annotation: `keep_similar` (a genome keeps its own model when it is
-similar to the panel model) and `prefer_panel_model` (the panel model whenever it works). This step runs **once per
-mode**. Both scripts choose the mode with the variable `MODE`, given when the job is submitted:
+Both scripts use the step 05 mode `prefer_panel_model` (the recommended one, and the default). If step 05 was also run
+with `keep_similar` (available, but not widely tested), this step can be run for it as well, by giving the mode when
+the job is submitted:
 
 ```bash
-sbatch --export=ALL,MODE=prefer_panel_model <script>
+sbatch --export=ALL,MODE=keep_similar <script>
 ```
 
-`--export=ALL` passes your terminal's environment to the job (as sbatch does by default) and `MODE=...` adds the
-mode. Without `MODE` the scripts use `keep_similar`. Each mode has its own folders, so the two never touch each other.
+Each mode has its own folders, so the two never touch each other.
 
 ## Step 1: put each genome's GFF and FASTA side by side
 
@@ -58,7 +57,7 @@ Settings, at the top of the script:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `MODE` | `keep_similar` | the step 05 mode (set it with `--export`, see above) |
+| `MODE` | `prefer_panel_model` | the step 05 mode (see above) |
 | `ANNOTATION_DIR` | `basket_annotation/gff_${MODE}_final` | the final GFFs of step 05 |
 | `ANNOTATION_SUFFIX` | `_basket_annotation.gff` | GFF name = `<genome><suffix>` |
 | `GENOME_DIR` | `genomes` | the genome FASTA files; must be the same genomes as in step 05 (*T. gondii*: `genomes_nonredundant`) |
@@ -67,7 +66,7 @@ Settings, at the top of the script:
 | `OUT_DIR` | `for_get_pangenes_basket_${MODE}` | where the pairs are written (step 2's input) |
 
 ```bash
-sbatch --export=ALL,MODE=prefer_panel_model 06_GET_PANGENES/scripts/link_for_get_pangenes_basket.slurm.sh
+sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_basket.slurm.sh
 ```
 
 ## Step 2: run get_pangenes
@@ -86,7 +85,7 @@ Settings, at the top of the script:
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `MODE` | `keep_similar` | the step 05 mode (set it with `--export`) |
+| `MODE` | `prefer_panel_model` | the step 05 mode (see above) |
 | `GET_PANGENES_ENV` | `/home/aludwig/hc-storage/micromamba/envs/get_pangenes/bin` | `bin/` of the get_pangenes environment |
 | `INPUT_DIR` | `./for_get_pangenes_basket_${MODE}` | step 1's `OUT_DIR` |
 | `N_CPUS` | `16` | must match `--cpus-per-task` in the `#SBATCH` lines |
@@ -97,7 +96,7 @@ The script puts the environment's `bin/` on the `PATH` (get_pangenes.pl, its bun
 `PERL5LIB`-style variables first, so Perl libraries from other environments are not mixed in.
 
 ```bash
-sbatch --export=ALL,MODE=prefer_panel_model 06_GET_PANGENES/scripts/run_get_pangenes_basket_job.sh
+sbatch 06_GET_PANGENES/scripts/run_get_pangenes_basket_job.sh
 ```
 
 ## Both steps in one go
@@ -106,9 +105,8 @@ Submitting both at once would start step 2 before step 1 has written its folder.
 dependency on step 1 (it starts only when step 1 has finished without error):
 
 ```bash
-MODE=prefer_panel_model
-jid=$(sbatch --parsable --export=ALL,MODE=$MODE 06_GET_PANGENES/scripts/link_for_get_pangenes_basket.slurm.sh)
-sbatch --dependency=afterok:$jid --export=ALL,MODE=$MODE 06_GET_PANGENES/scripts/run_get_pangenes_basket_job.sh
+jid=$(sbatch --parsable 06_GET_PANGENES/scripts/link_for_get_pangenes_basket.slurm.sh)
+sbatch --dependency=afterok:$jid 06_GET_PANGENES/scripts/run_get_pangenes_basket_job.sh
 ```
 
 ## Checking it worked

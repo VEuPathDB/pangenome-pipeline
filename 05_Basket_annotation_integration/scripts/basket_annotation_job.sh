@@ -45,7 +45,7 @@ OLD_REFERENCE_GFF="${OLD_REFERENCE_GFF-}"                       # reference GFF 
 CURATION_REMOVED_LIST="${CURATION_REMOVED_LIST-}"               # the curators' list of the genes they deleted (IDs of OLD_REFERENCE_GFF, one per line);
                                                                 #   "" = every old gene whose ID is not in the reference GFF counts
 ID_PREFIX="${ID_PREFIX-}"                                       # prefix of the new gene IDs, e.g. Tg -> Tg1g00001 (REQUIRED)
-MODES="${MODES-keep_similar prefer_panel_model}"                # keep_similar: keep a genome's own model when similar; prefer_panel_model: the valid model most similar to the panel gene
+MODES="${MODES-prefer_panel_model}"                             # prefer_panel_model (recommended): the valid model most similar to the panel gene; keep_similar (not widely tested): keep a genome's own model when similar; "keep_similar prefer_panel_model" runs both
 # each genome's model (decide_models.py):
 MIN_COV="${MIN_COV-0.7}"                                        # a valid model must cover >= this share of the panel gene's CDS
 MIN_TCOV="${MIN_TCOV-0.7}"                                      # the panel gene's transfer without a valid ORF is kept (for miniprot) from this coverage

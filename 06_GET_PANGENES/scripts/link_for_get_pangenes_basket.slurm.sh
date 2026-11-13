@@ -14,14 +14,13 @@
 # that is not in the genome FASTA used here (e.g. a removed redundant contig) is left out, and counted in the log.
 # The genome FASTA is symlinked; the GFF is copied without those genes.
 #
-# Submit from your project folder, once per mode:
-#     sbatch --export=ALL,MODE=keep_similar 06_GET_PANGENES/scripts/link_for_get_pangenes_basket.slurm.sh
-#     sbatch --export=ALL,MODE=prefer_panel_model 06_GET_PANGENES/scripts/link_for_get_pangenes_basket.slurm.sh
+# Submit from your project folder (MODE=keep_similar for the other step 05 mode, if it was built):
+#     sbatch 06_GET_PANGENES/scripts/link_for_get_pangenes_basket.slurm.sh
 
 set -euo pipefail
 
 # Edit these for your run.
-MODE="${MODE:-keep_similar}"                                  # the basket annotation mode (set with --export)
+MODE="${MODE:-prefer_panel_model}"                                  # the basket annotation mode (set with --export)
 ANNOTATION_DIR="${ANNOTATION_DIR:-basket_annotation/gff_${MODE}_final}"   # the final GFFs of step 05 (after miniprot and the overlap rule)
 ANNOTATION_SUFFIX="_basket_annotation.gff"
 GENOME_DIR="genomes"                                          # step-01 assemblies folder

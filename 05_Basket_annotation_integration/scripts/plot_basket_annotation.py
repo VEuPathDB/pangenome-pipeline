@@ -110,7 +110,7 @@ def main():
     ap.add_argument("--result-dir", required=True)
     ap.add_argument("--genomes", required=True)
     ap.add_argument("--native-dir", required=True)
-    ap.add_argument("--modes", default="keep_similar prefer_panel_model")
+    ap.add_argument("--modes", default="prefer_panel_model")
     ap.add_argument("--label", required=True)
     ap.add_argument("--out-dir", required=True)
     a = ap.parse_args()

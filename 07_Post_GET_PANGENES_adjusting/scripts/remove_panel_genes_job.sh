@@ -22,10 +22,13 @@ set -euo pipefail
 # ===== Edit these =====
 REMOVE_LIST="${REMOVE_LIST-07_Post_GET_PANGENES_adjusting/genes_to_remove.tsv}"                  # whole panel genes
 REMOVE_GENE_LIST="${REMOVE_GENE_LIST-07_Post_GET_PANGENES_adjusting/strain_genes_to_remove.tsv}"   # single genes
+EXCLUDE_LIST="${EXCLUDE_LIST-07_Post_GET_PANGENES_adjusting/genes_to_exclude_from_pangenome.tsv}"   # panel genes left out of the pangenome only (used if present)
+ACTIONS="${ACTIONS-07_Post_GET_PANGENES_adjusting/curation_actions.tsv}"   # the reference check page's table (used if present)
 GFF_DIR="${GFF_DIR-basket_annotation/gff_prefer_panel_model_final}"   # step 05 final GFFs
 FIXED_DIR="${FIXED_DIR-pangenome_fixed}"                               # fix_pangenome_safe_job.sh output
 PANGENES_DIR="${PANGENES_DIR-for_get_pangenes_basket_prefer_panel_model_pangenes}"   # get_pangenes output folder
 STEP05_DIR="${STEP05_DIR-basket_annotation}"                 # step 05 (winners.tsv, not_eligible.tsv)
+PANGENE_PREFIX="${PANGENE_PREFIX-}"                       # final pangene IDs <prefix>_pan_00001... (Tg, Af); "" = keep get_pangenes' names
 OUT_DIR="${OUT_DIR-pangenome_final}"
 # ======================
 
@@ -54,10 +57,15 @@ for f in "$REMOVE_LIST" "$REMOVE_GENE_LIST" "$FIXED_DIR/pangene_matrix_genes.tr.
     [[ -f "$f" ]] || { echo "ERROR: missing $f" >&2; exit 1; }
 done
 
-PYTHONPATH="$SD" python3 "$SD/remove_panel_genes.py" --remove "$REMOVE_LIST" --remove-genes "$REMOVE_GENE_LIST" \
+AO=()
+if [[ -n "$ACTIONS" && -f "$ACTIONS" ]]; then AO=(--actions "$ACTIONS"); echo "curation actions: $ACTIONS"
+else echo "curation actions: none ($ACTIONS not found)"; fi
+if [[ -n "$EXCLUDE_LIST" && -f "$EXCLUDE_LIST" ]]; then AO+=(--exclude "$EXCLUDE_LIST"); echo "left out of the pangenome: $EXCLUDE_LIST"
+else echo "left out of the pangenome: none ($EXCLUDE_LIST not found)"; fi
+PYTHONPATH="$SD" python3 "$SD/remove_panel_genes.py" --remove "$REMOVE_LIST" --remove-genes "$REMOVE_GENE_LIST" ${AO[@]+"${AO[@]}"} \
   --gff-dir "$GFF_DIR" \
   --genes-matrix "$FIXED_DIR/pangene_matrix_genes.tr.tab" --absences "$FIXED_DIR/absences_explained.tsv" \
-  --out-dir "$OUT_DIR"
+  --pangene-prefix "$PANGENE_PREFIX" --out-dir "$OUT_DIR"
 
 MATRIX=""
 for x in "$PANGENES_DIR/pangene_matrix_genes.tr.tab" "$PANGENES_DIR"/*2neigh_algMmap_/pangene_matrix_genes.tr.tab; do
@@ -67,4 +75,4 @@ done
 PYTHONPATH="$SD" python3 "$SD/final_tables.py" --step05-gff-dir "$GFF_DIR" --step05-dir "$STEP05_DIR" \
   --pangenes-matrix "$MATRIX" --moves "$FIXED_DIR/moves.tsv" --final-dir "$OUT_DIR"
 
-echo "Done. $OUT_DIR/gff, $OUT_DIR/pangene_matrix_genes.tr.tab, removed_genes.tsv, genes_not_found.tsv, gene_status.tsv, singletons.tsv"
+echo "Done. $OUT_DIR/gff, $OUT_DIR/pangene_matrix_genes.tr.tab, pangene_ids.tsv, removed_genes.tsv, excluded_from_pangenome.tsv, genes_not_found.tsv, gene_status.tsv, singletons.tsv"
