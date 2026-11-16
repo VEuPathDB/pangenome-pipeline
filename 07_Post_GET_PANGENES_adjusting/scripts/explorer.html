@@ -169,7 +169,8 @@ select#sortSel{
 #panel .p-head, #panel .p-body{width:100%; max-width:1500px; margin:0 auto; box-sizing:border-box}
 #panel .p-headwrap{flex:0 0 auto; border-bottom:1px solid var(--border)}
 #panel .p-head{border-bottom:none}
-#panel .p-bodywrap{flex:1 1 auto; overflow-y:auto}
+#panel{overflow-y:auto}
+#panel .p-bodywrap{flex:0 0 auto; overflow:visible}
 #panel .p-body{overflow:visible}
 .p-back{display:inline-flex; align-items:center; gap:6px; font:inherit; font-size:0.85rem; font-weight:600; padding:6px 12px 6px 8px;
   border:1px solid var(--border-strong); border-radius:8px; background:none; color:var(--fg); cursor:pointer; margin-bottom:4px; align-self:flex-start}
@@ -223,15 +224,21 @@ select#sortSel{
 /* ---------- locus view ---------- */
 .locus-view{border:1px solid var(--border); border-radius:10px; margin-bottom:14px; padding:10px 10px 6px; background:var(--panel)}
 .locus-view h3{margin:0 0 4px; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--fg-muted)}
+.lv-info{display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; margin-left:6px; padding:0; border-radius:50%; border:1px solid var(--accent); background:none; color:var(--accent); font:italic 700 0.72rem Georgia,serif; text-transform:none; cursor:pointer; vertical-align:1px}
+.lv-info[aria-expanded="true"]{background:var(--accent); color:#fff}
 .locus-view .lv-hint{font-size:0.7rem; color:var(--fg-muted); margin-bottom:6px}
 .locus-view svg{width:100%; height:auto; display:block}
 .locus-view svg text{font-family:"IBM Plex Mono",monospace; fill:var(--fg)}
 .locus-view .lv-gene{cursor:pointer}
 .locus-view .lv-gene:hover rect, .locus-view .lv-gene:hover polygon{opacity:0.75}
-.lv-legend{display:flex; flex-wrap:wrap; gap:6px 10px; font-size:0.7rem; margin-top:6px}
-.lv-legend-top{margin:8px 0 6px; padding:7px 9px; border:1px solid var(--border); border-radius:8px; background:var(--panel-2)}
-.lv-legend span{display:inline-flex; align-items:center; gap:4px; font-family:"IBM Plex Mono",monospace}
-.lv-legend i{display:inline-block; width:12px; height:8px; border-radius:2px}
+.lv-legend{display:flex; flex-direction:column; gap:7px; font-size:0.84rem}
+.lv-legend-top{margin:8px 0 8px; padding:10px 12px; border:1px solid var(--border-strong); border-radius:8px; background:var(--panel-2)}
+.lv-legrow{display:flex; align-items:baseline; gap:6px 16px}
+.lv-legitems{display:flex; flex-wrap:wrap; align-items:center; gap:6px 16px; flex:1 1 auto}
+.lv-legh{font-weight:700; flex:0 0 125px; font-size:0.78rem; text-transform:uppercase; letter-spacing:0.04em; color:var(--fg-muted)}
+.lv-legend span{display:inline-flex; align-items:center; gap:6px}
+.lv-legend span.lv-legh{display:inline-block}
+.lv-legend i{display:inline-block; width:16px; height:11px; border-radius:2px; flex:0 0 auto}
 .lv-zoom{display:flex; align-items:center; gap:6px; margin-bottom:6px}
 .lv-zoom button{min-width:28px; padding:2px 8px; border-radius:6px; border:1px solid var(--border-strong); background:var(--panel-2); color:var(--fg); cursor:pointer; font:inherit; font-size:0.78rem}
 .lv-zoom button:hover{border-color:var(--accent)}
@@ -529,6 +536,9 @@ loadJSON("data/manifest.json").then(function(manifest){
         (rec[state.fields.pfam] || []).forEach(function(x){ texts.push("PF" + x); });
       });
     }
+    (p.no_pangene || []).forEach(function(z){   // genes in no pangene, next to this pangene: found by search
+      ["ID", "original_ID", "model_from", "basket", "description"].forEach(function(k){ var v = z[1][state.fields[k]]; if(v) texts.push(k === "description" ? decDesc(v) : v); });
+    });
     p._mask = mask;
     p._multi = Object.keys(p.genes).some(function(g){ return p.genes[g].length > 1; });
     // strain valid if >= 1 gene High, invalid if all its genes Low; low confidence = invalid in > 50% of judged strains
@@ -554,7 +564,12 @@ loadJSON("data/manifest.json").then(function(manifest){
   state.geneIdx = {};
   all.concat(state.excludedQ || []).forEach(function(q){   // test12b: the genes left out keep their gene page
     for(var g3 in q.genes) q.genes[g3].forEach(function(rec){ state.geneIdx[rec[state.fields.ID]] = [q, g3, rec]; });
+    (q.no_pangene || []).forEach(function(z){
+      state.geneIdx[z[1][state.fields.ID]] = [q, z[0], z[1], z[2]];   // [nearest pangene, strain, record, reason]
+      if(/^left out of the pangenome: /.test(z[2])){ var w = whyText(z[2].replace(/^left out of the pangenome: /, "")).split(":")[0]; state.exclKinds = state.exclKinds || {}; state.exclKinds[w] = 1; }
+    });
   });
+  state.exclWhy = Object.keys(state.exclKinds || {}).map(function(w){ return w + "s"; }).join(", ");   // e.g. "mitochondrial genes"
   initUI();
   applyFilters();
   var pm = /^#pangene=(.+)$/.exec(location.hash || "");   // opened on a pangene (e.g. from the reference check page)
@@ -1244,8 +1259,17 @@ function orfPill(st){   // final page: the gene's ORF (step 05 orf_status)
   var c = ok ? "var(--fg)" : "var(--qlow)";
   return '<span class="layer-pill" style="border-color:'+c+'; color:'+c+'" title="step 05 orf_status: '+escapeHTML(st || "-")+'">'+t+'</span>';
 }
-function openPanel(p){
+function openPanel(p, focus){
   state.openPangeneId = p.id;
+  // the genes in no pangene this panel was opened for (search hit or gene page): they get the frame
+  state.lvFocus = null;
+  var npz = p.no_pangene || [], F0 = state.fields, hitB = {};
+  if(focus) npz.forEach(function(z){ if(focus.indexOf(z[1][F0.ID]) >= 0) hitB[z[1][F0.basket] || z[1][F0.ID]] = 1; });
+  else if(state.search) npz.forEach(function(z){
+    if(["ID", "original_ID", "basket"].some(function(k){ return (z[1][F0[k]] || "").toLowerCase().indexOf(state.search) >= 0; })) hitB[z[1][F0.basket] || z[1][F0.ID]] = 1;
+  });
+  var fz = npz.filter(function(z){ return hitB[z[1][F0.basket] || z[1][F0.ID]]; });
+  if(fz.length) state.lvFocus = {ids: fz.map(function(z){ return z[1][F0.ID]; }), name: fz[0][1][F0.basket] || fz[0][1][F0.ID], why: whyText(fz[0][2]), mito: /^left out of the pangenome/.test(fz[0][2])};
   document.getElementById("pId").textContent = p.id;
   var pill = '<span class="pill" style="background:'+CAT_COLOR[p.category]+'">'+p.category+'</span>';
   var qpill = '<span class="pill" style="background:'+classColor(p.quality_majority)+'" title="ORF-based quality (step 05 orf_status)">'+qLabel(p.quality_majority)+(p.quality_majority === "Not judged" ? '' : ' (ORF)')+'</span>';
@@ -1261,7 +1285,25 @@ function openPanel(p){
     var dl = Object.keys(doms).sort();
     document.getElementById("pDesc").innerHTML = (dsc ? '<b>'+escapeHTML(dsc.replace(/\+/g, " "))+'</b>' : '') +
       (dl.length ? '<div style="margin-top:3px">'+dl.map(function(x){ return '<span class="domain-chip">'+escapeHTML(x)+'</span>'; }).join("")+
-                   ' <span style="font-size:0.7rem; color:var(--fg-muted)">protein domains of the source models (InterPro)</span></div>' : '');
+                   ' <span style="font-size:0.7rem; color:var(--fg-muted)">protein domains of the source models (InterPro)</span></div>' : '') +
+      ((p.no_pangene || []).length ? '<div style="margin-top:4px; font-size:0.78rem">Genes near this pangene that are in no pangene (listed here so the search finds them; click a gene for its page):' +
+        (function(){
+          var grp = {}, order = [];   // one line per panel gene and reason
+          p.no_pangene.forEach(function(z){
+            var o = z[1][state.fields.basket] || z[1][state.fields.original_ID] || z[1][state.fields.ID], k = o + "\t" + z[2];
+            if(!grp[k]){ grp[k] = {o: o, why: z[2], g: []}; order.push(k); }
+            grp[k].g.push(z);
+          });
+          return order.map(function(k){
+            var G = grp[k], mito = /^left out of the pangenome/.test(G.why);
+            return '<div style="margin:2px 0 0 4px"><i style="display:inline-block; width:12px; height:9px; border-radius:2px; margin-right:5px; background:'+(mito ? OUT_COL : NOPAN_COL)+'"></i>' +
+                   '<b>'+escapeHTML(G.o)+'</b> in '+G.g.length+' strain'+(G.g.length > 1 ? 's' : '')+' <span style="color:var(--fg-muted)">- '+escapeHTML(whyText(mito ? G.why.replace(/^left out of the pangenome/, "excluded from the pangenome") : G.why))+':</span> ' +
+                   G.g.map(function(z){ var id = z[1][state.fields.ID]; return '<a href="#" data-nopan="'+escapeHTML(id)+'">'+escapeHTML(id)+'</a> <span style="color:var(--fg-muted)">('+escapeHTML(z[0])+')</span>'; }).join(", ") + '</div>';
+          }).join("");
+        })() + '</div>' : '');
+    document.getElementById("pDesc").querySelectorAll("[data-nopan]").forEach(function(a){
+      a.addEventListener("click", function(e){ e.preventDefault(); openGenePage(a.getAttribute("data-nopan")); });
+    });
   })();
 
   var pg = p.panel_genes || [];
@@ -1296,11 +1338,11 @@ function openPanel(p){
         q.genes[g].forEach(function(rec){ var st = d.tx.status[rec[state.fields.ID]]; if(st) ids = ids.concat(st[1]); });
         if(!ids.length){ n.none.push(g); return; }
         var o = ids.map(function(x){ return (d.tx.orf || {})[x]; });
-        n[o.indexOf(0) >= 0 ? "broken" : o.indexOf(-1) >= 0 ? "gap" : "ok"].push(g);
+        n[o.indexOf(0) >= 0 ? "broken" : (o.indexOf(-1) >= 0 || o.indexOf(-2) >= 0) ? "gap" : "ok"].push(g);
       });
       var have = n.ok.length + n.broken.length + n.gap.length, parts = ["complete in " + n.ok.length + " of " + have + " strains"];
       if(n.broken.length) parts.push('<span title="'+escapeHTML(n.broken.join(", "))+'">broken in ' + n.broken.length + '</span>');
-      if(n.gap.length) parts.push('<span title="'+escapeHTML(n.gap.join(", "))+'">assembly gap in ' + n.gap.length + '</span>');
+      if(n.gap.length) parts.push('<span title="'+escapeHTML(n.gap.join(", "))+'">broken by the assembly (N or contig end) in ' + n.gap.length + '</span>');
       if(n.none.length) parts.push('<span title="'+escapeHTML(n.none.join(", "))+'">not annotated in the original annotation in ' + n.none.length + '</span>');
       el.innerHTML = have ? parts.join(", ") : "not annotated in the original annotation in any strain";
     });
@@ -1438,7 +1480,7 @@ function openPanel(p){
           var ids = st[1].map(function(x){
             var o = (d.tx.orf || {})[x];
             return srcLink(g, x) +
-                   (o === 0 ? ' <b style="color:var(--qlow)">(broken ORF)</b>' : o === -1 ? ' <b>(assembly gap)</b>' : '');
+                   (o === 0 ? ' <b style="color:var(--qlow)">(broken ORF)</b>' : o === -1 ? ' <b>(assembly gap)</b>' : o === -2 ? ' <b>(contig end)</b>' : '');
           }).join(" + ");
           el.innerHTML = st[0] === "identical" ? "same model as the original " + ids
             : st[0] === "changed" ? "model updated; original had " + ids
@@ -1540,6 +1582,7 @@ function openPanel(p){
     });
   });
 
+  document.getElementById("panel").scrollTop = 0;
   document.getElementById("panel").classList.add("open");
   document.getElementById("panel").setAttribute("aria-hidden","false");
   document.getElementById("scrim").classList.add("open");
@@ -1571,6 +1614,8 @@ function lvCut(pcs, at){   // cut pieces [x0, x1] at x = at
   return out;
 }
 function lvTE(t){ t.x0 = Math.min.apply(null, t.pcs.map(function(q){ return q[0]; })); t.x1 = Math.max.apply(null, t.pcs.map(function(q){ return q[1]; })); return t; }
+var NOPAN_COL = "#7CB342";
+function whyText(r){ return String(r || "").replace(/\bmito:\s*/g, "mitochondrial gene: ").replace(/\bmito\b/g, "mitochondrial gene"); }   // genes in no pangene (left out by get_pangenes)
 var OUT_COL = "#C62828";   // genes left out of the pangenome (e.g. mito; pangenome_excluded= in the final GFFs)
 var TE_COL = "#D81B60", EXCL_COL = "#263238";   // test12b: dark, with a hatch fill   // test12: TEs (fake), genes left out of the pangenome
 var EXCLUDED_TEST = {};   // pangenes left out of the pangenome: {pangene: reason} (none yet)
@@ -1810,7 +1855,8 @@ function renderLocus(p, el){
     });
     rows.forEach(function(rw){
       rw.genes.forEach(function(x){
-        if(near[x.r[6]]){ rw.win[0] = Math.min(rw.win[0], x.x0); rw.win[1] = Math.max(rw.win[1], x.x1); }
+        var isFoc = state.lvFocus && state.lvFocus.ids.indexOf(x.r[0]) >= 0;   // the gene in no pangene opened for: always in the window
+        if(near[x.r[6]] || isFoc){ rw.win[0] = Math.min(rw.win[0], x.x0); rw.win[1] = Math.max(rw.win[1], x.x1); }
       });
     });
     // any other neighbour: shown only if every one of its genes near this pangene, in every strain, lies whole inside
@@ -1972,22 +2018,13 @@ function renderLocus(p, el){
       // one frame around this pangene, over all the strains (drawn after the rows, on top of their bands)
       var frameSvg = "";
       var fx0 = Infinity, fx1 = -Infinity;
-      rows.forEach(function(rw){ rw.genes.forEach(function(x){ if(x.r[6] === p.id){ fx0 = Math.min(fx0, x.x0); fx1 = Math.max(fx1, x.x1); } }); });
+      var foc = state.lvFocus;
+      rows.forEach(function(rw){ rw.genes.forEach(function(x){ if(foc ? foc.ids.indexOf(x.r[0]) >= 0 : x.r[6] === p.id){ fx0 = Math.min(fx0, x.x0); fx1 = Math.max(fx1, x.x1); } }); });
       if(fx1 > fx0){
-        var fa = Math.max(LW - 2, sx(fx0) - 5), fb = Math.min(W - RW + 2, sx(fx1) + 5);
-        if(fb > fa) frameSvg = '<rect x="'+fa+'" y="'+(TOP - 6)+'" width="'+(fb - fa)+'" height="'+(tot + 2)+'" rx="4" fill="none" stroke="'+FRAME_COL+'" stroke-width="1.4"/>';
+        var fa = Math.max(LW - 2, sx(fx0) - 5), fb = Math.min(W - RW + 2, sx(fx1) + 5), fcol = foc ? (foc.mito ? OUT_COL : NOPAN_COL) : FRAME_COL;
+        if(fb > fa) frameSvg = '<rect x="'+fa+'" y="'+(TOP - 6)+'" width="'+(fb - fa)+'" height="'+(tot + 2)+'" rx="4" fill="none" stroke="'+fcol+'" stroke-width="'+(foc ? 2.2 : 1.4)+'"/>' +
+          (foc ? '<text x="'+(fa > W / 2 ? fb : Math.max(LW, fa))+'" y="'+(TOP - 10)+'" text-anchor="'+(fa > W / 2 ? 'end' : 'start')+'" font-size="9" font-weight="700" fill="'+fcol+'">&#9888; '+escapeHTML(foc.name)+': in no pangene - '+escapeHTML(foc.why.replace(/^left out of the pangenome/, "excluded from the pangenome"))+'</text>' : '');
       }
-      // the small legend right above this pangene: only the colours it uses
-      (function(){
-        var items = used.map(function(k){ return [CUR_COL[k], CUR_LAB[k]]; });
-        var wd = items.reduce(function(t, it){ return t + 16 + it[1].length * 5.2; }, 0);
-        var cx = (sx(0) + sx(curMax)) / 2, x = Math.max(LW, Math.min(cx - wd / 2, W - RW - wd));
-        items.forEach(function(it){
-          svg.push('<rect x="'+x+'" y="5" width="10" height="8" rx="1.5" fill="'+it[0]+'"/>');
-          svg.push('<text x="'+(x+13)+'" y="12" font-size="8.5">'+escapeHTML(it[1])+'</text>');
-          x += 16 + it[1].length * 5.2;
-        });
-      })();
       rows.forEach(function(rw, k){
         var y = TOP + off[k] + 16, rh = RH + (rw.tx.length ? TXH : 0) + (rw.te && rw.te.length ? TEH : 0);
         if(k % 2) svg.push('<rect x="0" y="'+(y-15)+'" width="'+W+'" height="'+rh+'" fill="var(--panel-2)"/>');
@@ -2015,7 +2052,7 @@ function renderLocus(p, el){
         }
         rw.genes.forEach(function(x){
           if(x.x1 < vmin || x.x0 > vmax) return;
-          var col = x.r[9] ? OUT_COL : x.alt ? ALT_COL : x.r[6] ? colorFor(x.r[6]) : "var(--fg-muted)", mine = x.r[6] === p.id, kind = "";
+          var col = x.r[9] ? OUT_COL : x.alt ? ALT_COL : x.r[6] ? colorFor(x.r[6]) : NOPAN_COL, mine = x.r[6] === p.id, kind = "";
           if(mine){
             var st8 = rw.d.tx.status[x.r[0]] || [];
             kind = st8[0] === "added" ? (st8[3] ? "added_ref" : "added_other") : st8[0];
@@ -2024,21 +2061,22 @@ function renderLocus(p, el){
           var orfTxt = x.gap ? "ORF broken by an assembly gap (N in the CDS)" : x.r[8] === 1 ? "valid ORF" : x.r[8] === 0 ? "no valid ORF" : "ORF broken near a contig end";
           var tip = x.r[0]+" | "+x.r[1]+" | "+x.r[2]+" | pangene "+(x.r[6]||"(not in this pangenome)")+" | "+rw.ctg+":"+x.r[3]+"-"+x.r[4]+" ("+x.r[5]+") | "+orfTxt;
           if(state.excluded[x.r[6]]) tip = "LEFT OUT OF THE PANGENOME: "+state.excluded[x.r[6]]+" | "+tip;   // test12
-          if(x.r[9]) tip = "EXCLUDED FROM THE PANGENOME: "+x.r[9]+" | "+tip.replace(" | pangene (not in this pangenome)", "");
+          if(x.r[9]) tip = "EXCLUDED FROM THE PANGENOME: "+whyText(x.r[9])+" | "+tip.replace(" | pangene (not in this pangenome)", "");
+          else if(!x.r[6]) tip = "IN NO PANGENE: left out by get_pangenes | "+tip.replace(" | pangene (not in this pangenome)", "");
 
           svg.push('<g class="lv-gene" data-gene="'+escapeHTML(x.r[0])+'" style="cursor:pointer" data-pid="'+escapeHTML(x.r[6])+'"'+(x.r[8] === 0 ? ' opacity="0.35"' : '')+'><title>'+escapeHTML(tip)+'</title>');
-          svg.push('<line x1="'+sx(x.x0)+'" x2="'+sx(x.x1)+'" y1="'+y+'" y2="'+y+'" stroke="'+col+'" stroke-width="1.3"'+((x.r[6] || x.r[9]) && !x.gap ?'':' stroke-dasharray="3 2"')+'/>');
+          svg.push('<line x1="'+sx(x.x0)+'" x2="'+sx(x.x1)+'" y1="'+y+'" y2="'+y+'" stroke="'+col+'" stroke-width="1.3"'+(!(x.gap || x.r[8] === -1) ?'':' stroke-dasharray="3 2"')+'/>');
           x.cds.forEach(function(c){
             var a = sx(c[0]), b = Math.max(sx(c[1]), a + 1);
             // assembly gap (N in the CDS): light fill and a dotted border, in the pangene colour
-            svg.push(x.gap ? '<rect x="'+a+'" y="'+(y-5)+'" width="'+(b-a)+'" height="10" fill="'+col+'" fill-opacity="0.25" stroke="'+col+'" stroke-width="1.2" stroke-dasharray="1.5 1.5"/>'
-                   : (x.r[6] || x.r[9]) ? '<rect x="'+a+'" y="'+(y-5)+'" width="'+(b-a)+'" height="10" fill="'+(state.excluded[x.r[6]] ? 'url(#exclPat)" stroke="'+EXCL_COL+'" stroke-width="0.9' : col)+'"/>'
+            svg.push((x.gap || x.r[8] === -1) ? '<rect x="'+a+'" y="'+(y-5)+'" width="'+(b-a)+'" height="10" fill="'+col+'" fill-opacity="0.25" stroke="'+col+'" stroke-width="1.2" stroke-dasharray="1.5 1.5"/>'
+                   : true ? '<rect x="'+a+'" y="'+(y-5)+'" width="'+(b-a)+'" height="10" fill="'+(state.excluded[x.r[6]] ? 'url(#exclPat)" stroke="'+EXCL_COL+'" stroke-width="0.9' : col)+'"/>'
                             : '<rect x="'+a+'" y="'+(y-5)+'" width="'+(b-a)+'" height="10" fill="none" stroke="'+col+'" stroke-width="1"/>');
           });
           var tipX = x.dir > 0 ? sx(x.x1) : sx(x.x0), d = x.dir * 6;
           svg.push('<polygon points="'+tipX+','+(y-5)+' '+tipX+','+(y+5)+' '+(tipX+d)+','+y+'" fill="'+col+'"/>');
           var mid = (Math.max(sx(x.x0), LW) + Math.min(sx(x.x1), W - RW)) / 2;
-          if(x.r[9] && sx(x.x1) - sx(x.x0) > 30) svg.push('<text x="'+mid+'" y="'+(y-8)+'" font-size="8" font-weight="700" text-anchor="middle" fill="'+OUT_COL+'">'+escapeHTML(sx(x.x1) - sx(x.x0) > 110 ? "excluded: "+x.r[9] : x.r[9])+'</text>');
+          if(x.r[9] && sx(x.x1) - sx(x.x0) > 30) svg.push('<text x="'+mid+'" y="'+(y-8)+'" font-size="8" font-weight="700" text-anchor="middle" fill="'+OUT_COL+'">'+escapeHTML(sx(x.x1) - sx(x.x0) > 110 ? "excluded: "+whyText(x.r[9]).split(":")[0] : whyText(x.r[9]).split(":")[0])+'</text>');
           if(sx(x.x1) - sx(x.x0) > 46 && x.r[6]) svg.push('<text x="'+mid+'" y="'+(y-8)+'" font-size="8" text-anchor="middle">'+escapeHTML(x.r[6])+'</text>');
           svg.push('</g>');
         });
@@ -2052,13 +2090,13 @@ function renderLocus(p, el){
                     : t.kind === "identical" ? "Original "+t.id+" | same model as the pangenome ("+t.by+")"
                     : "Original "+t.id+" | "+(t.kind === "joined" ? "joined into " : "replaced by ")+t.by;
             var torf = (rw.d.tx.orf || {})[t.id];   // the original model's own ORF: 0 broken, -1 assembly gap
-            tip += " | "+(torf === 0 ? "broken ORF" : torf === -1 ? "ORF broken by an assembly gap (N)" : "complete ORF");
+            tip += " | "+(torf === 0 ? "broken ORF" : torf === -1 ? "ORF broken by an assembly gap (N)" : torf === -2 ? "ORF broken near a contig end" : "complete ORF");
             tip += " | "+rw.ctg+":"+t.s+"-"+t.e+" ("+t.st+") | click to open its page in the source database, where there is one";
             svg.push('<g data-toxo="'+escapeHTML(t.id)+'" data-tg="'+escapeHTML(rw.g)+'" style="cursor:pointer"'+(torf === 0 ? ' opacity="0.35"' : '')+'><title>'+escapeHTML(tip)+'</title>');
             svg.push('<line x1="'+sx(t.x0)+'" x2="'+sx(t.x1)+'" y1="'+y2+'" y2="'+y2+'" stroke="'+col+'" stroke-width="1"/>');
             t.cds.forEach(function(q){
               var a = sx(q[0]), b = Math.max(sx(q[1]), a + 1);
-              svg.push(torf === -1 ? '<rect x="'+a+'" y="'+(y2-3.5)+'" width="'+(b-a)+'" height="7" fill="'+col+'" fill-opacity="0.25" stroke="'+col+'" stroke-width="1" stroke-dasharray="1.5 1.5"/>'
+              svg.push((torf === -1 || torf === -2) ? '<rect x="'+a+'" y="'+(y2-3.5)+'" width="'+(b-a)+'" height="7" fill="'+col+'" fill-opacity="0.25" stroke="'+col+'" stroke-width="1" stroke-dasharray="1.5 1.5"/>'
                                    : '<rect x="'+a+'" y="'+(y2-3.5)+'" width="'+(b-a)+'" height="7" fill="'+col+'"/>');
             });
             var tX = t.dir > 0 ? sx(t.x1) : sx(t.x0), dd = t.dir * 5;
@@ -2106,7 +2144,7 @@ function renderLocus(p, el){
       // a gene: its gene card (in this pangene's panel, or in its own pangene's panel)
       box.querySelectorAll(".lv-gene[data-gene]").forEach(function(n){
         var pid = n.getAttribute("data-pid"), gid = n.getAttribute("data-gene");
-        if(!pid || (!state.pmap[pid] && !state.excluded[pid])) return;
+        if(!state.geneIdx[gid] && (!pid || (!state.pmap[pid] && !state.excluded[pid]))) return;
         n.addEventListener("click", function(){
           if(dragged) return;
           openGenePage(gid);
@@ -2143,41 +2181,42 @@ function renderLocus(p, el){
       view = [lo, lo + ns]; draw();
     }
     rows.forEach(function(rw){ rw.genes.forEach(function(x){ colorFor(x.r[6]); }); });
-    var leg = ['<span style="font-weight:600"><i style="background:'+NB_COL+'"></i>neighbouring pangenes:</span>'];
-    Object.keys(colorOf).forEach(function(pid){
-      if(pid === p.id) return;
-      leg.push('<span><button type="button" data-pid="'+escapeHTML(pid)+'">'+escapeHTML(pid)+'</button></span>');
-    });
-    Object.keys(altP).forEach(function(pid){
-      leg.push('<span><i style="background:'+ALT_COL+'"></i>probably the same gene, in another pangene: <button type="button" data-pid="'+escapeHTML(pid)+'">'+escapeHTML(pid)+'</button></span>');
-    });
-    if(rows.some(function(rw){ return rw.absent; })) leg.push('<span><i style="visibility:hidden"></i><i style="font-style:italic; color:var(--fg-muted); width:auto; margin-right:4px">grey italic strain</i>no gene of this pangene: empty in the frame, what is in its place is drawn beside it</span>');
-    leg.push('<span><i style="background:var(--fg-muted); opacity:0.35"></i>faded = no valid ORF</span>');
-    leg.push('<span><i style="border:1.2px dotted var(--fg-muted); background:rgba(128,128,128,0.25)"></i>dotted = ORF broken by an assembly gap (N)</span>');
-    leg.push('<span><i style="border:1px dashed var(--fg-muted)"></i>not in this pangenome</span>');
-    leg.push('<span><i style="border:1.6px solid '+LV_OVL+'"></i>CDS overlap with this pangene</span>');
-    leg.push('<span><i style="background:'+TX_ORIG+'"></i>Original model, complete ORF (click to open its page in the source database, where there is one)</span>');
-    leg.push('<span><i style="background:'+TX_ORIG+'; opacity:0.35"></i>Original model, broken ORF</span>');
-    leg.push('<span><i style="border:1px dotted '+TX_ORIG+'; background:rgba(75,85,99,0.25)"></i>Original model, assembly gap (N)</span>');
-    leg.push('<span><i style="background:'+TX_DROP+'"></i>removed: original gene not in the pangenome (hover for why)</span>');
+    // one legend box above the drawing: the colours used here, then the marks
+    function sw(style, label){ return '<span><i style="'+style+'"></i>'+label+'</span>'; }
+    // fixed legend: every colour always listed, in the same order, whether this pangene uses it or not
+    var colLeg = Object.keys(CUR_LAB).map(function(k){ return sw("background:"+CUR_COL[k], escapeHTML(CUR_LAB[k])); });
+    var nbIds = Object.keys(colorOf).filter(function(pid){ return pid !== p.id; });
+    colLeg.push(sw("background:"+NB_COL, "neighbouring pangenes" + (nbIds.length ? ": " + nbIds.map(function(pid){ return '<button type="button" data-pid="'+escapeHTML(pid)+'">'+escapeHTML(pid)+'</button>'; }).join(" ") : "")));
+    colLeg.push(sw("background:"+LOCAL_COL, "neighbouring pangene that the top strain does not have here"));
+    var altIds = Object.keys(altP);
+    colLeg.push(sw("background:"+ALT_COL, "probably the same gene, in another pangene" + (altIds.length ? ": " + altIds.map(function(pid){ return '<button type="button" data-pid="'+escapeHTML(pid)+'">'+escapeHTML(pid)+'</button>'; }).join(" ") : "")));
+    colLeg.push(sw("border:1.4px solid "+ALT_COL, "probably the same gene, in no pangene"));
+    colLeg.push(sw("background:"+NOPAN_COL, "in no pangene: left out by get_pangenes"));
+    if(state.exclWhy) colLeg.push(sw("background:"+OUT_COL, "excluded from the pangenome (hover for the reason)"));
+    if(rows.some(function(rw){ return rw.genes.some(function(x){ return state.excluded[x.r[6]]; }); })) colLeg.push(sw("background:repeating-linear-gradient(45deg,"+EXCL_COL+" 0 2px,#ECEFF1 2px 4px); border:1px solid "+EXCL_COL, "left out of the pangenome (click for the reason)"));
+    if(rows.some(function(rw){ return Object.keys(rw.d.te || {}).length; })) colLeg.push(sw("background:"+TE_COL+"; height:6px", "TEs"));
+    var origLeg = [sw("background:"+TX_ORIG, "complete ORF (click to open its page in the source database)"),
+                   sw("background:"+TX_ORIG+"; opacity:0.35", "broken ORF"),
+                   sw("border:1.2px dotted "+TX_ORIG+"; background:rgba(75,85,99,0.25)", "dotted = ORF broken by missing data"),
+                   sw("background:"+TX_DROP, "removed: not in the pangenome (hover for why)")];
+    var markLeg = ['<span>faded colour = no valid ORF</span>',
+                   sw("border:1.2px dotted var(--fg-muted); background:rgba(128,128,128,0.25)", "dotted = ORF broken by missing data"),
+                   sw("border:1.8px solid "+LV_OVL, "red outline = CDS overlap with this pangene")];
+    if(rows.some(function(rw){ return rw.absent; })) markLeg.push('<span><b style="font-style:italic; font-weight:400; color:var(--fg-muted)">grey italic strain</b>&nbsp;= no gene of this pangene (what is in its place is drawn beside the frame)</span>');
+    var legendBox = '<div class="lv-legend lv-legend-top">' +
+      '<div class="lv-legrow"><span class="lv-legh">Colours</span><div class="lv-legitems">' + colLeg.join("") + '</div></div>' +
+      '<div class="lv-legrow"><span class="lv-legh">Marks</span><div class="lv-legitems">' + markLeg.join("") + '</div></div>' +
+      '<div class="lv-legrow"><span class="lv-legh">Original rows</span><div class="lv-legitems">' + origLeg.join("") + '</div></div></div>';
 
-    el.innerHTML = '<h3>Locus view</h3><div class="lv-hint">Under each strain, its original models (click one to open its page in the source database, where there is one). The 2 nearest neighbouring pangenes on each side, whole, in every strain that has them, and any other neighbour that fits whole within the window in every strain (a neighbour cut by the window in any strain is not shown, so the context reads the same in all strains). The strains without this pangene are shown too, name in grey italics (hover it for the reason): their part of the frame is left empty, and what they have in that place is drawn just beside it. The top strain is drawn as on its chromosome, and the others are turned to match it; 0 = the start of this pangene. Click the arrow left of a strain name to move it to the top; the previous / next buttons open the nearest pangene on that side, in any strain. Hover for details; click a gene to open its gene page. Zoom with the buttons or the mouse wheel; drag to move.</div>' +
-                   '<div class="lv-key" style="display:flex; flex-wrap:wrap; gap:6px 18px; font-size:0.78rem; margin:2px 0 8px">' +
-                   '<span><i style="display:inline-block; width:12px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; background:'+NB_COL+'"></i>neighbouring pangenes</span>' +
-                   (rows.some(function(rw){ return rw.genes.some(function(x){ return state.excluded[x.r[6]]; }); }) ? '<span><i style="display:inline-block; width:12px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; background:repeating-linear-gradient(45deg,'+EXCL_COL+' 0 2px,#ECEFF1 2px 4px); border:1px solid '+EXCL_COL+'"></i>left out of the pangenome (click for the reason)</span>' : '') +
-                   (rows.some(function(rw){ return rw.genes.some(function(x){ return x.r[9]; }); }) ? '<span><i style="display:inline-block; width:12px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; background:'+OUT_COL+'"></i>excluded from the pangenome (e.g. mito; hover for the reason)</span>' : '') +
-                   (rows.some(function(rw){ return rw.te && rw.te.length; }) ? '<span><i style="display:inline-block; width:12px; height:6px; border-radius:1px; margin-right:6px; vertical-align:1px; background:'+TE_COL+'"></i>TEs</span>' : '') +
-                   (rows.some(function(rw){ return rw.genes.some(function(x){ return localP[x.r[6]]; }); }) ? '<span><i style="display:inline-block; width:12px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; background:'+LOCAL_COL+'"></i>neighbouring pangene that the top strain does not have here</span>' : '') +
-                   (Object.keys(altP).length ? '<span><i style="display:inline-block; width:12px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; background:'+ALT_COL+'"></i>probably the same gene, in another pangene</span>' : '') +
-                   (altNone ? '<span><i style="display:inline-block; width:12px; height:10px; border-radius:2px; margin-right:6px; vertical-align:-1px; border:1.2px solid '+ALT_COL+'"></i>probably the same gene, in no pangene</span>' : '') +
-                   '<span style="color:var(--fg-muted); font-style:italic">Not to scale around this pangene: its frame is as wide as its longest copy, and empty frames and columns are added for strains without it. Elsewhere genes and the spaces between them are drawn at their real size, so neighbours do not always line up.</span>' +
-                   '</div>' +
+    el.innerHTML = '<h3>Locus view <button type="button" class="lv-info" aria-expanded="false" title="How to read and use this view">i</button></h3><div class="lv-hint lv-help" hidden>Under each strain, its original models (click one to open its page in the source database, where there is one). The 2 nearest neighbouring pangenes on each side, whole, in every strain that has them, and any other neighbour that fits whole within the window in every strain (a neighbour cut by the window in any strain is not shown, so the context reads the same in all strains). The strains without this pangene are shown too, name in grey italics (hover it for the reason): their part of the frame is left empty, and what they have in that place is drawn just beside it. The top strain is drawn as on its chromosome, and the others are turned to match it; 0 = the start of this pangene. Click the arrow left of a strain name to move it to the top; the previous / next buttons open the nearest pangene on that side, in any strain. Hover for details; click a gene to open its gene page. Zoom with the buttons or the mouse wheel; drag to move.</div>' +
+                   legendBox +
+                   '<div class="lv-hint" style="font-style:italic">Not to scale around this pangene: its frame is as wide as its longest copy, and empty frames and columns are added for strains without it. Elsewhere genes and the spaces between them are drawn at their real size, so neighbours do not always line up.</div>' +
                    '<div class="lv-zoom"><button type="button" data-z="in" aria-label="Zoom in">+</button><button type="button" data-z="out" aria-label="Zoom out">&minus;</button><button type="button" data-z="reset">Reset</button><button type="button" data-order="reset" title="back to the default strain order">Default order</button><span class="lv-zlabel"></span>' +
                    '<span style="margin-left:auto; display:flex; gap:6px; align-items:center"><button type="button" data-walk="-1" title="the nearest pangene on the left, in any strain">&#9664; previous pangene</button>' +
                    '<span style="font-size:0.72rem; color:var(--fg-muted)">along '+escapeHTML(topRow.g)+' '+escapeHTML(topRow.ctg)+'</span>' +
                    '<button type="button" data-walk="1" title="the nearest pangene on the right, in any strain">next pangene &#9654;</button>' +
                    '</span></div>' +
-                   '<div class="lv-svg"></div><div class="lv-legend">' + leg.join("") + '</div>';
+                   '<div class="lv-svg"></div>';
     var box = el.querySelector(".lv-svg"), zlabel = el.querySelector(".lv-zlabel"), dragged = false;
     // test3: walk along the top strain's contig (lower / higher coordinate), to the next gene of another pangene
     el.querySelectorAll("[data-walk]").forEach(function(b){
@@ -2213,6 +2252,10 @@ function renderLocus(p, el){
         }
         b.disabled = true; b.title = "end of the contig";
       });
+    });
+    el.querySelector(".lv-info").addEventListener("click", function(){
+      var h = el.querySelector(".lv-help"), open = h.hidden;
+      h.hidden = !open; this.setAttribute("aria-expanded", open ? "true" : "false");
     });
     el.querySelector('[data-order="reset"]').addEventListener("click", function(){
       state.lvOrder = null;
@@ -2275,7 +2318,7 @@ function openGenePage(gid){
     ["Location", escapeHTML(rec[F.contig])+":"+num(rec[F.start])+".."+num(rec[F.end])+"("+escapeHTML(rec[F.strand])+")"],
     ["Strain", escapeHTML(g) + (g === "__REFERENCE__" ? " &nbsp;<span class=\"gp-note\">reference strain</span>" : "")],
     "sep",
-    ["Pangene", state.excluded[q.id] ? '<b>left out of the pangenome</b> &nbsp;<span class="gp-note">reason: '+escapeHTML(state.excluded[q.id])+' (it was pangene '+escapeHTML(q.id)+')</span>' : '<a href="#" data-gp-pangene="'+escapeHTML(q.id)+'">'+escapeHTML(q.id)+'</a> &nbsp;<span class="gp-note">'+escapeHTML(q.category)+', in '+q.occupancy+' of '+state.genomes.length+' strains</span>'],
+    ["Pangene", hit[3] ? '<b>in no pangene</b> &nbsp;<span class="gp-note">'+escapeHTML(whyText(hit[3]))+'; next to pangene <a href="#" data-gp-pangene="'+escapeHTML(q.id)+'">'+escapeHTML(q.id)+'</a></span>' : state.excluded[q.id] ? '<b>left out of the pangenome</b> &nbsp;<span class="gp-note">reason: '+escapeHTML(state.excluded[q.id])+' (it was pangene '+escapeHTML(q.id)+')</span>' : '<a href="#" data-gp-pangene="'+escapeHTML(q.id)+'">'+escapeHTML(q.id)+'</a> &nbsp;<span class="gp-note">'+escapeHTML(q.category)+', in '+q.occupancy+' of '+state.genomes.length+' strains</span>'],
     ["Ortholog group", ogs || "-"],
     ["Original gene", '<span id="gpToxo">...</span>'],
     ["Model from", escapeHTML(rec[F.model_from] || "-") + ' &nbsp;<span class="gp-note">the gene whose model this strain carries</span>'],
@@ -2307,7 +2350,7 @@ function openGenePage(gid){
     var url = location.href.split("#")[0] + "#gene=" + encodeURIComponent(gid);
     try { navigator.clipboard.writeText(url); e.target.textContent = "Link copied"; } catch(err){ e.target.textContent = url; }
   });
-  (gp.querySelector("[data-gp-pangene]") || {addEventListener: function(){}}).addEventListener("click", function(e){ e.preventDefault(); closeGenePage(); openPanel(q); setTimeout(function(){ showGeneCard(gid); }, 0); });
+  (gp.querySelector("[data-gp-pangene]") || {addEventListener: function(){}}).addEventListener("click", function(e){ e.preventDefault(); closeGenePage(); openPanel(q, [gid]); });
   loadLoci(g).then(function(d){
     var el = document.getElementById("gpToxo"), st = d.tx.status[gid];
     if(!el) return;
@@ -2315,7 +2358,7 @@ function openGenePage(gid){
     var ids = st[1].map(function(x){
       var o = (d.tx.orf || {})[x];
       return srcLink(g, x) +
-             (o === 0 ? ' <b style="color:var(--qlow)">(broken ORF)</b>' : o === -1 ? ' <b>(assembly gap)</b>' : '');
+             (o === 0 ? ' <b style="color:var(--qlow)">(broken ORF)</b>' : o === -1 ? ' <b>(assembly gap)</b>' : o === -2 ? ' <b>(contig end)</b>' : '');
     }).join(" + ");
     el.innerHTML = st[0] === "identical" ? ids + ' &nbsp;<span class="gp-note">same model</span>'
       : st[0] === "changed" ? ids + ' &nbsp;<span class="gp-note">the original model is different</span>'

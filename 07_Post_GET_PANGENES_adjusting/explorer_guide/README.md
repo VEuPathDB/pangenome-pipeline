@@ -8,7 +8,8 @@
 The explorer is one web page with the whole pangenome: every pangene, the gene of each strain in it, where it sits in
 each genome, and how it relates to the strain's original annotation. This guide describes the **final** page
 (`pangenome_explorer/final/explorer_standalone.html`). The screenshots are from the *Toxoplasma gondii* pangenome
-(15 strains); the *Aspergillus fumigatus* page works the same way.
+(15 strains); the *Aspergillus fumigatus* page works the same way, with the strains shown under their strain names
+(e.g. AF100-9B, eAF1023) instead of their assembly accessions.
 
 ## Contents
 
@@ -47,6 +48,8 @@ internet connection and no installation. The file is large (80–130 MB), so it 
 | **Panel model** | the gene model chosen for the pangene and transferred to the strains that lack a good one of their own. |
 | **Valid ORF** | the gene model is a complete open reading frame: start codon, no internal stop codon, stop codon. |
 | **Assembly gap** | a stretch of N in the genome sequence: the sequence there is missing, so a gene over it cannot have a valid ORF. |
+| **Missing data** | an assembly gap in the gene's coding sequence, or the gene cut by a contig end: either way the ORF cannot be complete. |
+| **In no pangene** | a gene of the annotation that is not in any pangene: left out by get_pangenes (very short genes, CDS under about 100 bp), or excluded from the pangenome (e.g. mitochondrial genes). |
 
 [↑ Back to top](#pangenome-explorer--user-guide) &nbsp;|&nbsp; [Back to the step 07 README](../README.md)
 
@@ -83,6 +86,10 @@ The search box at the top finds pangenes by:
 
 Here, `Protein kinase domain` lists the 177 pangenes with that domain.
 
+A gene in no pangene is found too (by its gene ID, original ID or panel gene, e.g. `TGME49_500178`): the search lists
+the pangene next to it, and opening that pangene puts the frame of the locus view on the gene itself (see
+[The locus view](#the-locus-view)).
+
 [↑ Back to top](#pangenome-explorer--user-guide) &nbsp;|&nbsp; [Back to the step 07 README](../README.md)
 
 ## Filters
@@ -116,6 +123,8 @@ Clicking a pangene opens its page. At the top:
 - its ID, category and occupancy;
 - the **description**, and the **protein domains** (InterPro). The domains were found in the protein of the model the
   genes come from (the panel model or another strain's model), not separately in each strain's gene;
+- **Genes near this pangene that are in no pangene**, when there are any: one line per panel gene, with the reason
+  (green square: left out by get_pangenes; red: excluded from the pangenome) and a link to each gene's page;
 - **Panel model**: the gene(s) whose model the pangene carries, with how many genes come from each;
 - **PSAURON**: a score from 0 to 1 of how much the panel model's protein looks like a real protein (below 0.5, shown in
   red, is doubtful);
@@ -128,7 +137,8 @@ Clicking a pangene opens its page. At the top:
   is in its place; the region is missing). A "?" means the absence may be only an assembly problem.
 
 **Back to the list** (top left) returns to the list. **Browser** (top right) opens the pangene in
-the [pangenome browser](#the-pangenome-browser).
+the [pangenome browser](#the-pangenome-browser). The top of the page scrolls away with the rest, to leave room for the
+drawing.
 
 [↑ Back to top](#pangenome-explorer--user-guide) &nbsp;|&nbsp; [Back to the step 07 README](../README.md)
 
@@ -136,23 +146,38 @@ the [pangenome browser](#the-pangenome-browser).
 
 ![The locus view](images/05_locus.png)
 
-The locus view draws the pangene and its neighbouring genes in every strain, one row per strain:
+The locus view draws the pangene and its neighbouring genes in every strain, one row per strain. The **(i)** next to
+its title shows or hides a short text on how to read and use it.
 
-- **The frame** in the middle holds this pangene. Above it, a small key gives the colour of each strain's model:
-  **same model as the original** (dark grey), **model replaced** (blue: the strain's own model was replaced),
-  **pieces joined** (orange: two or more original genes are now one gene), **added from ME49** or **added from another
-  strain** (green, yellow: the strain had no gene there in its original annotation).
-- **Neighbouring pangenes** (lilac) are labelled with their IDs; the legend under the drawing links to them. A brown neighbour is one the top
-  strain does not have at that place; a teal gene is probably the same gene as this pangene, but in another pangene.
-- **Original**, under each strain: the strain's original annotation at the same place, in grey. A pale model has a
-  broken ORF. A **red** original model marked "removed" is a gene of the original annotation that is not in the
-  pangenome; hover it for the reason (e.g. a false gene removed during curation).
-- **TEs** (*A. fumigatus*): a line with the transposable elements of the region, named by their family (see below).
-- **Strains without the pangene** have their names in grey italics; their part of the frame is empty, and what they
-  have in that place is drawn beside it. Hover the strain name for the reason.
+The **legend** above the drawing is the same for every pangene, in three rows:
 
-Genes are drawn as boxes (coding exons) joined by lines (introns), with an arrow for the strand. A faded gene has no
-valid ORF; a dotted outline means an assembly gap in its coding sequence.
+- **Colours**, of the strains' genes:
+  - this pangene's model in each strain: **same model as the original** (dark grey), **model replaced** (blue: the
+    strain's own model was replaced), **pieces joined** (orange: two or more original genes are now one gene), **added
+    from ME49** or **added from another strain** (green, yellow: the strain had no gene there in its original
+    annotation);
+  - **neighbouring pangenes** (lilac), with links to them; **brown**, a neighbouring pangene that the top strain does
+    not have at that place; **teal**, probably the same gene as this pangene, but in another pangene (an outline only:
+    in no pangene);
+  - **in no pangene: left out by get_pangenes** (light green): a gene too short for get_pangenes;
+  - **excluded from the pangenome** (red, *T. gondii*): e.g. the mitochondrial genes; hover one for the reason;
+  - **TEs** (pink, *A. fumigatus*): the transposable elements (see below).
+- **Marks**: **faded colour** = no valid ORF; **dotted** = ORF broken by missing data (an N in the coding sequence, or
+  the gene cut by a contig end; hover or open the gene to see which); **red outline** = a CDS overlap with this
+  pangene; **grey italic strain** = the strain has no gene of this pangene.
+- **Original rows**, under each strain: the strain's original annotation at the same place, in grey: complete ORF,
+  broken ORF (pale), dotted (missing data), and **removed** (pink: a gene of the original annotation that is not in the
+  pangenome; hover it for the reason, e.g. a false gene removed during curation).
+
+**The frame** in the middle holds this pangene. **Strains without the pangene** have their names in grey italics;
+their part of the frame is empty, and what they have in that place is drawn beside it. Hover the strain name for the
+reason. Genes are drawn as boxes (coding exons) joined by lines (introns), with an arrow for the strand.
+
+**Genes in no pangene.** When the page is opened for a gene in no pangene (from the search, or from its gene page),
+the frame goes around that gene instead, in its colour, with a warning above it. Here, `TGME49_500178`, too short for
+get_pangenes, in all 15 strains:
+
+![A gene in no pangene, framed](images/05b_no_pangene.png)
 
 **Genes excluded from the pangenome** are drawn in **red** in the gene rows. They are real sequences but are not
 counted in the pangenome, for example the pieces of the mitochondrial genome inserted in the *T. gondii* nuclear
@@ -166,14 +191,15 @@ at the frame's edge. Hover a TE for its family, class and position.
 
 ![Transposable elements in the locus view (A. fumigatus)](images/06b_te.png)
 
-Here (`Af_pan_00015`, *A. fumigatus*), a block of Gypsy retrotransposons sits between the genes in 5 strains and is
-missing from the others, which explains why the neighbouring genes are further apart in those 5 strains.
+Here (`Af_pan_00015`, *A. fumigatus*), a block of Gypsy retrotransposons sits between the genes in some strains (D141,
+B5233 and ATCC13073 at the top) and is missing from the others, which explains why the neighbouring genes are further
+apart in those strains.
 
 How to use it:
 
 - **Hover** any gene or original model for its details (IDs, position, ORF).
-- **Click** a gene to open its [gene page](#the-gene-page); click an original model to open its page in the source
-  database (ToxoDB, FungiDB), where there is one.
+- **Click** a gene (genes in no pangene included) to open its [gene page](#the-gene-page); click an original model to
+  open its page in the source database (ToxoDB, FungiDB), where there is one.
 - **Zoom** with **+** / **−** or the mouse wheel; **drag** to move; **Reset** to go back.
 - **Move a strain to the top**: click the arrow left of its name. The top strain is drawn as on its chromosome, and the
   others are turned to match it. **Default order** restores the order.
@@ -221,7 +247,9 @@ lists:
 ![The gene page](images/08_gene_page.png)
 
 The gene page (button **Gene page**, or a click on a gene in the locus view) shows one gene: its type, location,
-strain, pangene (click to go to it), orthogroup, original gene, the model it carries, and its ORF. **Copy link** copies
+strain, pangene (click to go to it), orthogroup, original gene, the model it carries, and its ORF (with the cause when
+it is broken by missing data: assembly gap or contig end). For a gene in no pangene, the pangene line says so, with
+the reason and a link to the pangene next to it. **Copy link** copies
 a link that opens the page directly on this gene. The sequence section is a placeholder: the genomic, coding and
 protein sequences are not linked yet, because they would make the file too large to share as one page.
 

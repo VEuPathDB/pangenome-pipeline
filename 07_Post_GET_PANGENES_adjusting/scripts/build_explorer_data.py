@@ -43,6 +43,7 @@ Usage:
 Needs only the standard library.
 """
 import argparse
+import urllib.parse
 import csv
 import glob
 import json
@@ -290,6 +291,41 @@ def main():
 
     if n_missing:
         print(f"WARNING: {n_missing} gene id(s) from the matrix were not found in their genome's GFF", file=sys.stderr)
+
+    # Genes of the GFFs in no pangene (left out by get_pangenes, or left out of the pangenome in step 07, e.g. mito):
+    # each is attached to the nearest pangene on its contig (no_pangene: [genome, record, reason]), so the page can
+    # find it by search and open its gene page; they are not counted anywhere.
+    by_id = {r["id"]: r for r in pangenes_out}
+    pos = defaultdict(list)   # (genome, contig) -> [(start, end, pangene)]
+    for r in pangenes_out:
+        for gname, recs in r["genes"].items():
+            for rec in recs:
+                pos[(gname, rec[-7])].append((int(rec[-6]), int(rec[-5]), r["id"]))
+    for L in pos.values():
+        L.sort()
+    in_matrix = defaultdict(set)
+    for r in pangenes_out:
+        for gname, recs in r["genes"].items():
+            for rec in recs:
+                in_matrix[gname].add(rec[GENE_FIELDS.index("ID")])
+    n_nop, n_lone = Counter(), 0
+    for gname in genome_names:
+        for gid, g in gff_genes[gname].items():
+            if gid in in_matrix[gname]:
+                continue
+            L = pos.get((gname, g["contig"]), [])
+            if not L:
+                n_lone += 1
+                continue
+            s0, e0 = int(g["start"]), int(g["end"])
+            near = min(L, key=lambda t: 0 if (t[0] <= e0 and t[1] >= s0) else min(abs(t[0] - e0), abs(s0 - t[1])))[2]
+            why = urllib.parse.unquote(g["attrs"].get("pangenome_excluded", ""))
+            reason = f"left out of the pangenome: {why}" if why else "left out by get_pangenes"
+            by_id[near].setdefault("no_pangene", []).append([gname, gene_record(gname, gid), reason])
+            n_nop[reason.split(":")[0]] += 1
+    if n_nop or n_lone:
+        print("genes in no pangene: " + ", ".join(f"{k} {v}" for k, v in sorted(n_nop.items()))
+              + (f"; {n_lone} on a contig with no pangene (not shown)" if n_lone else ""), file=sys.stderr)
 
     os.makedirs(args.out, exist_ok=True)
 

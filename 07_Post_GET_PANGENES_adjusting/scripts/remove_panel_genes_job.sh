@@ -29,6 +29,7 @@ FIXED_DIR="${FIXED_DIR-pangenome_fixed}"                               # fix_pan
 PANGENES_DIR="${PANGENES_DIR-for_get_pangenes_basket_prefer_panel_model_pangenes}"   # get_pangenes output folder
 STEP05_DIR="${STEP05_DIR-basket_annotation}"                 # step 05 (winners.tsv, not_eligible.tsv)
 PANGENE_PREFIX="${PANGENE_PREFIX-}"                       # final pangene IDs <prefix>_pan_00001... (Tg, Af); "" = keep get_pangenes' names
+STRAIN_NAMES="${STRAIN_NAMES-07_Post_GET_PANGENES_adjusting/strain_names.tsv}"   # old name <TAB> new name (used if present): matrix copy with the new names
 OUT_DIR="${OUT_DIR-pangenome_final}"
 # ======================
 
@@ -74,5 +75,12 @@ done
 [[ -n "$MATRIX" ]] || { echo "ERROR: no pangene_matrix_genes.tr.tab in $PANGENES_DIR" >&2; exit 1; }
 PYTHONPATH="$SD" python3 "$SD/final_tables.py" --step05-gff-dir "$GFF_DIR" --step05-dir "$STEP05_DIR" \
   --pangenes-matrix "$MATRIX" --moves "$FIXED_DIR/moves.tsv" --final-dir "$OUT_DIR"
+
+if [[ -n "$STRAIN_NAMES" && -f "$STRAIN_NAMES" ]]; then   # a copy of the final matrix with the new strain names, to share
+    echo "strain names: $STRAIN_NAMES"
+    python3 "$SD/rename_strains.py" --names "$STRAIN_NAMES" --tsv "$OUT_DIR/pangene_matrix_genes.tr.tab" "$OUT_DIR/pangene_matrix_genes_strain_names.tr.tab"
+else
+    echo "strain names: original (${STRAIN_NAMES:-STRAIN_NAMES} not found)"
+fi
 
 echo "Done. $OUT_DIR/gff, $OUT_DIR/pangene_matrix_genes.tr.tab, pangene_ids.tsv, removed_genes.tsv, excluded_from_pangenome.tsv, genes_not_found.tsv, gene_status.tsv, singletons.tsv"

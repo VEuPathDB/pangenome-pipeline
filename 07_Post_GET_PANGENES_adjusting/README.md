@@ -224,6 +224,10 @@ can be compared). The strains without it are seen in the pangenome browser.
   removal for the final set).
 - **Search**: pangene ID, gene ID, description, or protein domain (InterPro ID or name, Pfam ID): e.g. `IPR007226` or
   `SRS domain` lists every pangene with a gene carrying that domain.
+- **Genes in no pangene** (left out by `get_pangenes`, or excluded from the pangenome in part 4): each is attached to
+  the nearest pangene on its contig, so the search finds it, its gene page opens, and the locus view frames it with a
+  warning. They count nowhere. A gene on a contig with no pangene (e.g. a contig with only mitochondrial genes) is not
+  shown.
 - **Filters**: category, occupancy, quality, strains present or absent, two genes in one strain, PSAURON < 0.5, and
   low confidence (invalid ORF in more than 50% of the strains, reference pseudogenes excluded).
 - **Pangenome browser** (button at the top, or "Browser" in a pangene's panel): walk along the contigs of a guide strain
@@ -254,6 +258,17 @@ Three optional layers are added when their input is there:
   Only the reference's genes are looked up (by their gene IDs), so a pangene with no reference gene gets no
   orthogroup. **To do:** give every gene of every strain its OrthoMCL orthogroup (e.g. by assigning each protein to
   the VEuPathDB OrthoMCL groups), so that every pangene can have one; the scripts for this step are not written yet.
+
+**Strain names (optional).** When the strains are named by their assembly accession (e.g. `GCA_040126065.1`), a table
+`07_Post_GET_PANGENES_adjusting/strain_names.tsv` (old name, new name, tab-separated) shows them under their strain
+names in the explorer and the figures, and part 4 writes a copy of the final matrix with the new names
+(`pangene_matrix_genes_strain_names.tr.tab`). [`rename_strains.py`](scripts/rename_strains.py) does the renaming. The
+pipeline's own folders, GFFs and tables keep the original names. Without the table nothing changes.
+
+```
+old	new
+GCA_040126065.1	AF100-9B
+```
 
 The **preliminary** page is for curation: it has the gene quality (High / Low), the flags and the PSAURON filter. The
 **final** page is for users: no quality classes and no flags; each gene shows whether its ORF is valid; the description
@@ -462,6 +477,7 @@ pangenome_fixed/        pangene_matrix_genes.tr.tab/.tab, moves.tsv, skipped_mov
                         pangene_lists/ (pangene_quality.tsv, genes_not_in_pangenome.tsv, summary.tsv)
 reference_check/        reference_check.html, <reference>_region_rnaseq.tsv, protein_evidence/ (protein_evidence.tsv)
 pangenome_final/        gff/ (working GFFs), pangene_matrix_genes.tr.tab/.tab, pangene_ids.tsv, removed_genes.tsv,
+                        pangene_matrix_genes_strain_names.tr.tab (with strain_names.tsv),
                         excluded_from_pangenome.tsv, genes_not_found.tsv, absences_explained.tsv, gene_status.tsv,
                         singletons.tsv, summary.tsv, summary_tables.tsv
 ```
@@ -473,12 +489,12 @@ pangenome_final/        gff/ (working GFFs), pangene_matrix_genes.tr.tab/.tab, p
 
 | Part | Job | Scripts |
 |---|---|---|
-| 3, 5 | [`plot_all_job.sh`](scripts/plot_all_job.sh) | [`plot_all.sh`](scripts/plot_all.sh), [`plot_pancore.py`](scripts/plot_pancore.py), [`plot_occupancy.py`](scripts/plot_occupancy.py), [`plot_softcore_missing.py`](scripts/plot_softcore_missing.py), [`plot_singletons.py`](scripts/plot_singletons.py), [`plot_pocs.py`](scripts/plot_pocs.py), [`plot_domain_enrichment.py`](scripts/plot_domain_enrichment.py) |
-| 3, 5 | [`build_explorer_job.sh`](scripts/build_explorer_job.sh) | [`build_explorer_data.py`](scripts/build_explorer_data.py), [`build_explorer_locus_index.py`](scripts/build_explorer_locus_index.py), [`explorer.html`](scripts/explorer.html), [`build_source_layer.py`](scripts/build_source_layer.py), [`build_te_layer.py`](scripts/build_te_layer.py), [`add_orthogroups.py`](scripts/add_orthogroups.py), [`make_standalone_explorer.py`](scripts/make_standalone_explorer.py), [`serve_explorer.py`](scripts/serve_explorer.py) (to open `explorer.html` with its data folder instead of the single file) |
+| 3, 5 | [`plot_all_job.sh`](scripts/plot_all_job.sh) | [`plot_all.sh`](scripts/plot_all.sh), [`plot_pancore.py`](scripts/plot_pancore.py), [`plot_occupancy.py`](scripts/plot_occupancy.py), [`plot_softcore_missing.py`](scripts/plot_softcore_missing.py), [`plot_singletons.py`](scripts/plot_singletons.py), [`plot_pocs.py`](scripts/plot_pocs.py), [`plot_domain_enrichment.py`](scripts/plot_domain_enrichment.py), [`rename_strains.py`](scripts/rename_strains.py) |
+| 3, 5 | [`build_explorer_job.sh`](scripts/build_explorer_job.sh) | [`build_explorer_data.py`](scripts/build_explorer_data.py), [`build_explorer_locus_index.py`](scripts/build_explorer_locus_index.py), [`explorer.html`](scripts/explorer.html), [`build_source_layer.py`](scripts/build_source_layer.py), [`build_te_layer.py`](scripts/build_te_layer.py), [`add_orthogroups.py`](scripts/add_orthogroups.py), [`rename_strains.py`](scripts/rename_strains.py), [`make_standalone_explorer.py`](scripts/make_standalone_explorer.py), [`serve_explorer.py`](scripts/serve_explorer.py) (to open `explorer.html` with its data folder instead of the single file) |
 | 1 | [`inspect_pangenome_job.sh`](scripts/inspect_pangenome_job.sh) | [`audit_absences.py`](scripts/audit_absences.py), [`inspect_multigene_pangenes.py`](scripts/inspect_multigene_pangenes.py) |
 | 2 | [`fix_pangenome_safe_job.sh`](scripts/fix_pangenome_safe_job.sh) | [`fix_pangenome_safe.py`](scripts/fix_pangenome_safe.py), [`summarize_pangenes.py`](scripts/summarize_pangenes.py) |
 | reference check | [`reference_check_job.sh`](scripts/reference_check_job.sh) | [`region_rnaseq.py`](scripts/region_rnaseq.py), [`build_reference_check.py`](scripts/build_reference_check.py), [`reference_check_template.html`](scripts/reference_check_template.html) |
 | protein evidence (optional) | [`protein_evidence_job.sh`](scripts/protein_evidence_job.sh) | [`protein_evidence.py`](scripts/protein_evidence.py) |
-| 4 | [`remove_panel_genes_job.sh`](scripts/remove_panel_genes_job.sh) | [`remove_panel_genes.py`](scripts/remove_panel_genes.py), [`final_tables.py`](scripts/final_tables.py) |
+| 4 | [`remove_panel_genes_job.sh`](scripts/remove_panel_genes_job.sh) | [`remove_panel_genes.py`](scripts/remove_panel_genes.py), [`final_tables.py`](scripts/final_tables.py), [`rename_strains.py`](scripts/rename_strains.py) |
 
 [↑ Back to top](#07--post-get_pangenes-adjusting-and-visualisation) &nbsp;|&nbsp; [Back to Pangenome Pipeline](../README.md)

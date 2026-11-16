@@ -10,7 +10,8 @@ For every genome, writes <out-dir>/source_<genome>.json:
   "orig":    {final gene: [[own ID, start, end, strand, [cds_start, cds_end, ...]], ...]}
   "dropped": {contig: [[own ID, start, end, strand, [cds...], reason], ...]}     own genes with no final gene
   "gap":     [final genes whose ORF is broken by an assembly gap (orf_status=invalid_assembly_gap)]
-  "orf":     {own ID: 0 broken ORF / -1 broken by an assembly gap (N)}           with --genome-dir; complete ones left out
+  "orf":     {own ID: 0 broken ORF / -1 broken by an assembly gap (N) / -2 broken, within 1 kb of a contig end
+             (step 05's near_contig_end rule)}                                   with --genome-dir; complete ones left out
 Pairing own -> final gene comes from step 05's gene fate table ("kept" -> "<final gene> (<own gene>)"); the reason an
 own gene has no final gene is its fate and detail there; with --removed (remove_panel_genes.py's removed_genes.tsv),
 an own gene whose final gene was removed in step 07 gets that reason instead (e.g. curation, TE).
@@ -166,6 +167,8 @@ def main():
                 for g, x in own.items():
                     if x[4] in seqs:
                         v = orf(seqs[x[4]], x[5], x[3])
+                        if v == 0 and (x[1] < 1000 or x[2] > len(seqs[x[4]]) - 1000):
+                            v = -2   # broken near a contig end, as in step 05 (repair_with_miniprot.py)
                         if v != 1:
                             torf[g] = v
         out = os.path.join(a.out_dir, f"source_{G}.json")

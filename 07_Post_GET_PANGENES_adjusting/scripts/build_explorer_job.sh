@@ -20,6 +20,8 @@ set -euo pipefail
 # Optional layers (left out when their input is not there): each strain's own annotation under its genes (from
 # step 05's gene fate and input GFFs: build_source_layer.py), the reference's VEuPathDB orthogroups (OG_TABLE), and
 # the transposable elements of step 02's RepeatMasker runs (TE_DIR: build_te_layer.py).
+# Strain names: with a table STRAIN_NAMES (old name <TAB> new name), the page shows the strains under the new names
+# (rename_strains.py); the pipeline's own files keep the original names.
 
 # ===== Edit these =====
 SET="${SET-final}"                                           # preliminary | final
@@ -38,6 +40,7 @@ STEP05_GFF_DIR="${STEP05_GFF_DIR-$STEP05_DIR/gff_prefer_panel_model_final}"  # p
 FINAL_DIR="${FINAL_DIR-pangenome_final}"                     # final: remove_panel_genes_job.sh output
 WINNERS="${WINNERS-$STEP05_DIR/winners.tsv}"           # step 05: PSAURON of every panel gene (optional)
 ENTRY_LIST="${ENTRY_LIST-$HOME/hc-storage/interpro_entry.list}"   # InterPro names (optional; IDs only when missing)
+STRAIN_NAMES="${STRAIN_NAMES-07_Post_GET_PANGENES_adjusting/strain_names.tsv}"   # old name <TAB> new name: strains shown under the new names (used if present)
 OUT_DIR="${OUT_DIR-pangenome_explorer}"
 CORE_MISSING="${CORE_MISSING-0}"          # core = missing from at most this many genomes
 SOFTCORE_MISSING="${SOFTCORE_MISSING-1}"  # soft-core = missing from at most this many genomes (and not core)
@@ -111,6 +114,14 @@ if [[ -n "$TE_DIR" ]]; then
     python3 "$SD/build_te_layer.py" --te-dir "$TE_DIR" --genomes "$GENOME_ORDER" -o "$O/data"
 else
     echo "TE line: left out (TE_DIR not set)"
+fi
+if [[ -n "$STRAIN_NAMES" && -f "$STRAIN_NAMES" ]]; then
+    echo "== strain names ($STRAIN_NAMES)"
+    python3 "$SD/rename_strains.py" --names "$STRAIN_NAMES" --json-dir "$O/data"
+    REFERENCE=$(python3 "$SD/rename_strains.py" --names "$STRAIN_NAMES" --name "$REFERENCE")
+    LINK_GENOMES=$(python3 "$SD/rename_strains.py" --names "$STRAIN_NAMES" --name "$LINK_GENOMES")
+else
+    echo "strain names: original (${STRAIN_NAMES:-STRAIN_NAMES} not found)"
 fi
 NG=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['genomes']))" "$O/data/manifest.json")
 CURATION=$([[ "$SET" == preliminary ]] && echo yes || echo no)   # the curation flags: preliminary page only

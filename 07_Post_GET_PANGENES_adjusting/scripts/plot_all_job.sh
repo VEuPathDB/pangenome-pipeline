@@ -27,6 +27,7 @@ STEP05_GFF_DIR="${STEP05_GFF_DIR-basket_annotation/gff_prefer_panel_model_final}
 PANGENES_DIR="${PANGENES_DIR-for_get_pangenes_basket_prefer_panel_model_pangenes}"   # preliminary: get_pangenes' POCS
 FINAL_DIR="${FINAL_DIR-pangenome_final}"                     # final: remove_panel_genes_job.sh output
 ENTRY_LIST="${ENTRY_LIST-$HOME/hc-storage/interpro_entry.list}"   # InterPro id -> name; downloaded here if missing
+STRAIN_NAMES="${STRAIN_NAMES-07_Post_GET_PANGENES_adjusting/strain_names.tsv}"   # old name <TAB> new name: plots show the new names (used if present)
 OUT_DIR="${OUT_DIR-pangenome_plots}"
 CORE_MISSING="${CORE_MISSING-0}"          # core = missing from at most this many genomes
 SOFTCORE_MISSING="${SOFTCORE_MISSING-1}"  # soft-core = missing from at most this many genomes (and not core)
@@ -86,12 +87,26 @@ ENTRY_ARGS=()
 [[ -f "$ENTRY_LIST" ]] && ENTRY_ARGS+=(--entry-list "$ENTRY_LIST")
 
 O="$OUT_DIR/$SET"
+mkdir -p "$O"
+PLOT_MATRIX="$MATRIX"
+if [[ -n "$STRAIN_NAMES" && -f "$STRAIN_NAMES" ]]; then   # the plots show the new strain names; a renamed copy of the matrix
+    echo "strain names: $STRAIN_NAMES"
+    PLOT_MATRIX="$O/matrix_strain_names.tr.tab"
+    python3 "$SD/rename_strains.py" --names "$STRAIN_NAMES" --tsv "$MATRIX" "$PLOT_MATRIX"
+    if [[ -n "$POCS" ]]; then
+        python3 "$SD/rename_strains.py" --names "$STRAIN_NAMES" --tsv "$POCS" "$O/POCS_strain_names.matrix.tab"
+        POCS="$O/POCS_strain_names.matrix.tab"
+    fi
+else
+    echo "strain names: original (${STRAIN_NAMES:-STRAIN_NAMES} not found)"
+fi
 export CORE_MISSING SOFTCORE_MISSING CLOUD_MAX      # read by plot_all.sh
-bash "$SD/plot_all.sh" -i "$MATRIX" -o "$O" -l "${LABEL}_${SET}"
+bash "$SD/plot_all.sh" -i "$PLOT_MATRIX" -o "$O" -l "${LABEL}_${SET}"
 python3 "$SD/plot_domain_enrichment.py" --genes-matrix "$GENES_MATRIX" --gff-dir "$GFF_DIR" \
     -o "$O/${LABEL}_${SET}_domain_enrichment" ${ENTRY_ARGS[@]+"${ENTRY_ARGS[@]}"} \
     --core-missing "$CORE_MISSING" --softcore-missing "$SOFTCORE_MISSING" --cloud-max "$CLOUD_MAX"
 [[ -n "$POCS" ]] && python3 "$SD/plot_pocs.py" -i "$POCS" -o "$O/${LABEL}_${SET}_POCS_heatmap"
 find "$O" -name "*.svg" -delete          # PNG only
+rm -f "$O/matrix_strain_names.tr.tab" "$O/POCS_strain_names.matrix.tab"
 
 echo "Done. Figures in $O"
