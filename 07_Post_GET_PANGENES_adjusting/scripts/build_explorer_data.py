@@ -309,23 +309,25 @@ def main():
             for rec in recs:
                 in_matrix[gname].add(rec[GENE_FIELDS.index("ID")])
     n_nop, n_lone = Counter(), 0
+    lone = defaultdict(list)   # (genome, contig) -> genes on a contig with no pangene (e.g. a mitochondrial contig)
     for gname in genome_names:
         for gid, g in gff_genes[gname].items():
             if gid in in_matrix[gname]:
                 continue
             L = pos.get((gname, g["contig"]), [])
+            why = urllib.parse.unquote(g["attrs"].get("pangenome_excluded", ""))
+            reason = f"left out of the pangenome: {why}" if why else "left out by get_pangenes"
             if not L:
                 n_lone += 1
+                lone[(gname, g["contig"])].append([gene_record(gname, gid), reason])
                 continue
             s0, e0 = int(g["start"]), int(g["end"])
             near = min(L, key=lambda t: 0 if (t[0] <= e0 and t[1] >= s0) else min(abs(t[0] - e0), abs(s0 - t[1])))[2]
-            why = urllib.parse.unquote(g["attrs"].get("pangenome_excluded", ""))
-            reason = f"left out of the pangenome: {why}" if why else "left out by get_pangenes"
             by_id[near].setdefault("no_pangene", []).append([gname, gene_record(gname, gid), reason])
             n_nop[reason.split(":")[0]] += 1
     if n_nop or n_lone:
         print("genes in no pangene: " + ", ".join(f"{k} {v}" for k, v in sorted(n_nop.items()))
-              + (f"; {n_lone} on a contig with no pangene (not shown)" if n_lone else ""), file=sys.stderr)
+              + (f"; {n_lone} on {len(lone)} contigs with no pangene (shown per contig)" if n_lone else ""), file=sys.stderr)
 
     os.makedirs(args.out, exist_ok=True)
 
@@ -346,7 +348,9 @@ def main():
         chunk_files.append(fname)
 
     manifest = {"genomes": genome_names, "gene_fields": GENE_FIELDS, "chunks": chunk_files,
-                "n_pangenes": len(pangenes_out)}
+                "n_pangenes": len(pangenes_out),
+                # contigs with no pangene, and their genes [record, reason] (e.g. contigs with only mitochondrial genes)
+                "lone_contigs": [{"genome": gn, "contig": c, "genes": v} for (gn, c), v in sorted(lone.items())]}
     with open(os.path.join(args.out, "manifest.json"), "w") as fh:
         json.dump(manifest, fh, separators=(",", ":"))
 

@@ -224,12 +224,11 @@ can be compared). The strains without it are seen in the pangenome browser.
   removal for the final set).
 - **Search**: pangene ID, gene ID, description, or protein domain (InterPro ID or name, Pfam ID): e.g. `IPR007226` or
   `SRS domain` lists every pangene with a gene carrying that domain.
-- **Genes in no pangene** (left out by `get_pangenes`, or excluded from the pangenome in part 4): each is attached to
-  the nearest pangene on its contig, so the search finds it, its gene page opens, and the locus view frames it with a
-  warning. They count nowhere. A gene on a contig with no pangene (e.g. a contig with only mitochondrial genes) is not
-  shown.
+- **Genes in no pangene** (left out by `get_pangenes`, or excluded from the pangenome in part 4), genes on contigs with
+  no pangene included: grouped by panel gene, each group is an entry of its own, marked "in no pangene", found by the
+  search and opened like a pangene (all strains, its genes framed). They count nowhere.
 - **Filters**: category, occupancy, quality, strains present or absent, two genes in one strain, PSAURON < 0.5, and
-  low confidence (invalid ORF in more than 50% of the strains, reference pseudogenes excluded).
+  (preliminary page only) low confidence (invalid ORF in more than 50% of the strains, reference pseudogenes excluded).
 - **Pangenome browser** (button at the top, or "Browser" in a pangene's panel): walk along the contigs of a guide strain
   and see every strain at once. Each column is one gene of the guide strain, in its order, with the pangene's category
   on top; each row is a strain: a filled cell when it has the gene (dark = valid ORF, light = invalid, "N" = a gap in

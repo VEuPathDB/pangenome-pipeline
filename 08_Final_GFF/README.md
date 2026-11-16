@@ -66,5 +66,8 @@ pipeline and puts back what was left out for the pangenome. The protein domains 
 6. **Genes with more than one transcript** (e.g. ME49 TGME49_211420, SR3): step 05 kept only the transcript with the
    longest CDS. Put the other transcripts back or not, and whether their CDS must also be checked (valid ORF).
 7. **Genes on redundant contigs:** put back or not (they were left out because they would inflate the cloud and are probably assembly artefacts).
-8. **Which working tags stay** in the final GFF (e.g. `orf_status`, `pangene`, the model source).
-9. **A change table** for the database: one line per gene that differs from the original annotation, and why.
+8. **Genes in no pangene, left out by `get_pangenes`** (CDS under about 100 bp; *T. gondii* 18, *A. fumigatus* 68,
+   e.g. `TGME49_500178` in all 15 strains): kept in the final GFF or not, and with which tag. Some also have an invalid
+   ORF (*T. gondii* COUG `Tg4g00431`, CAST `Tg3g02620`, p89 `Tg9g04979`) and are in no group of the broken-ORF review.
+9. **Which working tags stay** in the final GFF (e.g. `orf_status`, `pangene`, the model source).
+10. **A change table** for the database: one line per gene that differs from the original annotation, and why.

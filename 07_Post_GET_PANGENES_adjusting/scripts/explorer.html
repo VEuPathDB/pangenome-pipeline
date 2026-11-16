@@ -224,6 +224,7 @@ select#sortSel{
 /* ---------- locus view ---------- */
 .locus-view{border:1px solid var(--border); border-radius:10px; margin-bottom:14px; padding:10px 10px 6px; background:var(--panel)}
 .locus-view h3{margin:0 0 4px; font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--fg-muted)}
+.nopan-tag{display:inline-block; margin-left:6px; padding:1px 6px; border-radius:999px; font:600 0.62rem "IBM Plex Sans",sans-serif; color:#fff; vertical-align:1px}
 .lv-info{display:inline-flex; align-items:center; justify-content:center; width:17px; height:17px; margin-left:6px; padding:0; border-radius:50%; border:1px solid var(--accent); background:none; color:var(--accent); font:italic 700 0.72rem Georgia,serif; text-transform:none; cursor:pointer; vertical-align:1px}
 .lv-info[aria-expanded="true"]{background:var(--accent); color:#fff}
 .locus-view .lv-hint{font-size:0.7rem; color:var(--fg-muted); margin-bottom:6px}
@@ -321,7 +322,7 @@ body.no-curation .curation-only{display:none !important}
       </div>
       <label class="flags-toggle" style="margin-top:8px"><input type="checkbox" id="multiOnly"> Only pangenes with 2+ genes in a strain</label>
       <label class="flags-toggle curation-only" style="margin-top:4px"><input type="checkbox" id="lowPsauronOnly"> Only pangenes with PSAURON &lt; 0.5</label>
-      <label class="flags-toggle" style="margin-top:4px"><input type="checkbox" id="likelyFalseOnly"> Only low confidence (invalid ORF in &gt; 50% of strains)</label>
+      <label class="flags-toggle curation-only" style="margin-top:4px"><input type="checkbox" id="likelyFalseOnly"> Only low confidence (invalid ORF in &gt; 50% of strains)</label>
       <label class="flags-toggle" style="margin-top:4px" title="Orthogroup of the reference gene (VEuPathDB OrthoMCL)"><input type="checkbox" id="ogMultiOnly"> Only pangenes whose orthogroup is in 2+ pangenes</label>
       <div class="hint" id="multiCount"></div>
     </div>
@@ -501,6 +502,7 @@ var loadMsg = document.getElementById("loadMsg");
 
 loadJSON("data/manifest.json").then(function(manifest){
   state.genomes = manifest.genomes;
+  state.lone = manifest.lone_contigs || [];   // contigs with no pangene (e.g. only mitochondrial genes), with their genes
   var nG = state.genomes.length;
   document.getElementById("occTotal").textContent = "/ " + nG;
   document.getElementById("occMax").max = nG; document.getElementById("occMax").placeholder = nG;
@@ -536,9 +538,6 @@ loadJSON("data/manifest.json").then(function(manifest){
         (rec[state.fields.pfam] || []).forEach(function(x){ texts.push("PF" + x); });
       });
     }
-    (p.no_pangene || []).forEach(function(z){   // genes in no pangene, next to this pangene: found by search
-      ["ID", "original_ID", "model_from", "basket", "description"].forEach(function(k){ var v = z[1][state.fields[k]]; if(v) texts.push(k === "description" ? decDesc(v) : v); });
-    });
     p._mask = mask;
     p._multi = Object.keys(p.genes).some(function(g){ return p.genes[g].length > 1; });
     // strain valid if >= 1 gene High, invalid if all its genes Low; low confidence = invalid in > 50% of judged strains
@@ -564,10 +563,33 @@ loadJSON("data/manifest.json").then(function(manifest){
   state.geneIdx = {};
   all.concat(state.excludedQ || []).forEach(function(q){   // test12b: the genes left out keep their gene page
     for(var g3 in q.genes) q.genes[g3].forEach(function(rec){ state.geneIdx[rec[state.fields.ID]] = [q, g3, rec]; });
-    (q.no_pangene || []).forEach(function(z){
-      state.geneIdx[z[1][state.fields.ID]] = [q, z[0], z[1], z[2]];   // [nearest pangene, strain, record, reason]
-      if(/^left out of the pangenome: /.test(z[2])){ var w = whyText(z[2].replace(/^left out of the pangenome: /, "")).split(":")[0]; state.exclKinds = state.exclKinds || {}; state.exclKinds[w] = 1; }
-    });
+  });
+  // the genes in no pangene (left out by get_pangenes, or excluded from the pangenome, e.g. mitochondrial genes),
+  // grouped by panel gene and reason: each group opens like a pangene (all strains, its genes framed); found by the
+  // search, not in the list otherwise nor in the counts
+  var nopG = {}, nopK = [], FF = state.fields;
+  var addNop = function(gname, rec, why){
+    var id = rec[FF.basket] || rec[FF.ID], key = id + "\t" + why;
+    if(!nopG[key]){ nopG[key] = {id: id, nopan: true, why: why, occupancy: 0, category: "", genes: {}, panel_genes: [], no_pangene: []}; nopK.push(key); }
+    var q = nopG[key];
+    (q.genes[gname] = q.genes[gname] || []).push(rec);
+    q.no_pangene.push([gname, rec, why]);
+    if(/^left out of the pangenome: /.test(why)){ var w = whyText(why.replace(/^left out of the pangenome: /, "")).split(":")[0]; state.exclKinds = state.exclKinds || {}; state.exclKinds[w] = 1; }
+  };
+  all.concat(state.excludedQ || []).forEach(function(q){ (q.no_pangene || []).forEach(function(z){ addNop(z[0], z[1], z[2]); }); });
+  (state.lone || []).forEach(function(L){ L.genes.forEach(function(x){ addNop(L.genome, x[0], x[1]); }); });
+  var GB2 = {}; state.genomes.forEach(function(g, i){ GB2[g] = 1 << i; });
+  state.nopQ = nopK.map(function(k){
+    var q = nopG[k], texts = [q.id], mask = 0;
+    for(var g in q.genes){
+      mask |= GB2[g];
+      q.genes[g].forEach(function(rec){
+        state.geneIdx[rec[FF.ID]] = [q, g, rec, q.why];
+        ["ID", "original_ID", "model_from", "basket", "description"].forEach(function(f){ var v = rec[FF[f]]; if(v) texts.push(f === "description" ? decDesc(v) : v); });
+      });
+    }
+    q.occupancy = Object.keys(q.genes).length; q._mask = mask; q._search = texts.join(" ").toLowerCase();
+    return q;
   });
   state.exclWhy = Object.keys(state.exclKinds || {}).map(function(w){ return w + "s"; }).join(", ");   // e.g. "mitochondrial genes"
   initUI();
@@ -1130,11 +1152,12 @@ function applyFilters(){
   else if(state.sort === "occ_asc") out = out.slice().sort(function(a,b){ return a.occupancy - b.occupancy; });
   else if(state.sort === "id") out = out.slice().sort(function(a,b){ return a.id < b.id ? -1 : a.id > b.id ? 1 : 0; });
 
-  state.filtered = out;
-  var nGenes = 0;
+  var nGenes = 0, nPan = out.length;
   out.forEach(function(p){ for(var g in p.genes) nGenes += p.genes[g].length; });
+  if(state.search) out = (state.nopQ || []).filter(function(q){ return q._search.indexOf(state.search) >= 0; }).concat(out);   // genes in no pangene: found by the search only
+  state.filtered = out;
   document.getElementById("statStrip").innerHTML =
-    "<span><b>"+out.length.toLocaleString()+"</b> / "+state.pangenes.length.toLocaleString()+" pangenes</span>"+
+    "<span><b>"+nPan.toLocaleString()+"</b> / "+state.pangenes.length.toLocaleString()+" pangenes</span>"+
     "<span><b>"+nGenes.toLocaleString()+"</b> gene copies</span>";
   setupScroller();
 }
@@ -1213,7 +1236,7 @@ function renderRows(){
     var flagMark = state.flaggedPangenes.has(p.id) ? '<span class="flag-icon" title="Has a curation flag">[F]</span>' : '';
     row.innerHTML =
       '<span class="catdot"></span>'+
-      '<span class="pid">'+p.id+' '+flagMark+'</span>'+
+      '<span class="pid">'+p.id+' '+flagMark+(p.nopan ? '<span class="nopan-tag" style="background:'+(/^left out of the pangenome/.test(p.why) ? OUT_COL : NOPAN_COL)+'">in no pangene</span>' : '')+'</span>'+
       '<span class="occ">'+p.occupancy+(p.unknown ? '+'+Object.keys(p.unknown).length+'?' : '')+'/'+state.genomes.length+'</span>'+
       '<span class="desc">'+escapeHTML(fmtDesc(p))+'</span>'+
       '<span class="presence-strip">'+strip+'</span>';
@@ -1270,10 +1293,15 @@ function openPanel(p, focus){
   });
   var fz = npz.filter(function(z){ return hitB[z[1][F0.basket] || z[1][F0.ID]]; });
   if(fz.length) state.lvFocus = {ids: fz.map(function(z){ return z[1][F0.ID]; }), name: fz[0][1][F0.basket] || fz[0][1][F0.ID], why: whyText(fz[0][2]), mito: /^left out of the pangenome/.test(fz[0][2])};
+  if(p.nopan){   // a group of genes in no pangene: the frame on its genes (or on the gene it was opened for)
+    var ids = []; for(var gg in p.genes) p.genes[gg].forEach(function(x){ ids.push(x[F0.ID]); });
+    state.lvFocus = {ids: ids, name: p.id, why: whyText(p.why), mito: /^left out of the pangenome/.test(p.why)};   // framed like a pangene
+  }
   document.getElementById("pId").textContent = p.id;
   var pill = '<span class="pill" style="background:'+CAT_COLOR[p.category]+'">'+p.category+'</span>';
   var qpill = '<span class="pill" style="background:'+classColor(p.quality_majority)+'" title="ORF-based quality (step 05 orf_status)">'+qLabel(p.quality_majority)+(p.quality_majority === "Not judged" ? '' : ' (ORF)')+'</span>';
   document.getElementById("pMeta").innerHTML = pill+' '+(FINAL ? '' : qpill+' ')+' &nbsp; present in '+p.occupancy+' of '+state.genomes.length+' strains';
+  if(p.nopan) document.getElementById("pMeta").innerHTML = '<span class="pill" style="background:'+(/^left out of the pangenome/.test(p.why) ? OUT_COL : NOPAN_COL)+'">in no pangene</span> &nbsp; '+escapeHTML(whyText(p.why))+' &nbsp; present in '+p.occupancy+' of '+state.genomes.length+' strains';
   // description and protein domains, once for the pangene (the domains come from the protein of the source models)
   (function(){
     var dsc = fmtDesc(p); try { dsc = decodeURIComponent(dsc); } catch(e){}
@@ -1286,7 +1314,7 @@ function openPanel(p, focus){
     document.getElementById("pDesc").innerHTML = (dsc ? '<b>'+escapeHTML(dsc.replace(/\+/g, " "))+'</b>' : '') +
       (dl.length ? '<div style="margin-top:3px">'+dl.map(function(x){ return '<span class="domain-chip">'+escapeHTML(x)+'</span>'; }).join("")+
                    ' <span style="font-size:0.7rem; color:var(--fg-muted)">protein domains of the source models (InterPro)</span></div>' : '') +
-      ((p.no_pangene || []).length ? '<div style="margin-top:4px; font-size:0.78rem">Genes near this pangene that are in no pangene (listed here so the search finds them; click a gene for its page):' +
+      ((p.no_pangene || []).length ? '<div style="margin-top:4px; font-size:0.78rem">'+(p.nopan ? 'Its genes (click a gene for its page):' : 'Genes near this pangene that are in no pangene (listed here so the search finds them; click a gene for its page):') +
         (function(){
           var grp = {}, order = [];   // one line per panel gene and reason
           p.no_pangene.forEach(function(z){
@@ -1354,13 +1382,13 @@ function openPanel(p, focus){
     return "<b>" + og + "</b> " + (o[1] > 1
       ? "in " + o[1] + " pangenes: <a href=\"#\" data-og=\"" + og + "\" data-where=\"browser\">show them in the browser</a>"
       : "(only this pangene)");
-  }).join("<br>") : "Orthogroup: none (no reference gene in this pangene)";
+  }).join("<br>") : (p.nopan ? "" : "Orthogroup: none (no reference gene in this pangene)");
 
   var absentEl = document.getElementById("pAbsent");
   var unk = p.unknown || {}, cats = p.absent || {};
   var missing = state.genomes.filter(function(g){ return !p.genes[g]; });
   var tag = function(g){ return "<span>"+g+(unk[g] ? " ?" : "")+"</span>"; };
-  if(!missing.length){ absentEl.innerHTML = ""; }
+  if(!missing.length || p.nopan){ absentEl.innerHTML = ""; }
   else if(Object.keys(cats).length){
     var byCat = {};
     missing.forEach(function(g){ var c = cats[g] || "-"; (byCat[c] = byCat[c] || []).push(g); });
@@ -2318,7 +2346,7 @@ function openGenePage(gid){
     ["Location", escapeHTML(rec[F.contig])+":"+num(rec[F.start])+".."+num(rec[F.end])+"("+escapeHTML(rec[F.strand])+")"],
     ["Strain", escapeHTML(g) + (g === "__REFERENCE__" ? " &nbsp;<span class=\"gp-note\">reference strain</span>" : "")],
     "sep",
-    ["Pangene", hit[3] ? '<b>in no pangene</b> &nbsp;<span class="gp-note">'+escapeHTML(whyText(hit[3]))+'; next to pangene <a href="#" data-gp-pangene="'+escapeHTML(q.id)+'">'+escapeHTML(q.id)+'</a></span>' : state.excluded[q.id] ? '<b>left out of the pangenome</b> &nbsp;<span class="gp-note">reason: '+escapeHTML(state.excluded[q.id])+' (it was pangene '+escapeHTML(q.id)+')</span>' : '<a href="#" data-gp-pangene="'+escapeHTML(q.id)+'">'+escapeHTML(q.id)+'</a> &nbsp;<span class="gp-note">'+escapeHTML(q.category)+', in '+q.occupancy+' of '+state.genomes.length+' strains</span>'],
+    ["Pangene", hit[3] ? '<b>in no pangene</b> &nbsp;<span class="gp-note">'+escapeHTML(whyText(hit[3]))+'; <a href="#" data-gp-pangene="'+escapeHTML(q.id)+'">show it in all strains</a></span>' : state.excluded[q.id] ? '<b>left out of the pangenome</b> &nbsp;<span class="gp-note">reason: '+escapeHTML(state.excluded[q.id])+' (it was pangene '+escapeHTML(q.id)+')</span>' : '<a href="#" data-gp-pangene="'+escapeHTML(q.id)+'">'+escapeHTML(q.id)+'</a> &nbsp;<span class="gp-note">'+escapeHTML(q.category)+', in '+q.occupancy+' of '+state.genomes.length+' strains</span>'],
     ["Ortholog group", ogs || "-"],
     ["Original gene", '<span id="gpToxo">...</span>'],
     ["Model from", escapeHTML(rec[F.model_from] || "-") + ' &nbsp;<span class="gp-note">the gene whose model this strain carries</span>'],

@@ -86,9 +86,10 @@ The search box at the top finds pangenes by:
 
 Here, `Protein kinase domain` lists the 177 pangenes with that domain.
 
-A gene in no pangene is found too (by its gene ID, original ID or panel gene, e.g. `TGME49_500178`): the search lists
-the pangene next to it, and opening that pangene puts the frame of the locus view on the gene itself (see
-[The locus view](#the-locus-view)).
+A gene in no pangene is found too (by its gene ID, original ID or panel gene, e.g. `TGME49_500178`). Its genes, grouped
+by panel gene, are listed as an entry of their own, marked **in no pangene** (green: left out by get_pangenes; red:
+excluded from the pangenome). The entry opens like a pangene, with all strains, but it is not a pangene and does not
+count in the totals (see [The locus view](#the-locus-view)).
 
 [↑ Back to top](#pangenome-explorer--user-guide) &nbsp;|&nbsp; [Back to the step 07 README](../README.md)
 
@@ -101,7 +102,6 @@ The panel on the left narrows the list. Filters combine: a pangene must pass all
 - **Category**: click Core, Soft-core, Shell or Cloud. Here, only the cloud.
 - **Occupancy**: a range of strains, e.g. 2–5.
 - **Only pangenes with 2+ genes in a strain**: pangenes where a strain has two or more copies.
-- **Only low confidence**: pangenes whose gene has no valid ORF in more than half of the strains.
 - **Only pangenes whose orthogroup is in 2+ pangenes**: genes that the orthology database groups together but that
   sit at different places in the genomes.
 - **Sort**: matrix order (along the chromosomes), occupancy, or pangene ID.
@@ -173,9 +173,10 @@ The **legend** above the drawing is the same for every pangene, in three rows:
 their part of the frame is empty, and what they have in that place is drawn beside it. Hover the strain name for the
 reason. Genes are drawn as boxes (coding exons) joined by lines (introns), with an arrow for the strand.
 
-**Genes in no pangene.** When the page is opened for a gene in no pangene (from the search, or from its gene page),
-the frame goes around that gene instead, in its colour, with a warning above it. Here, `TGME49_500178`, too short for
-get_pangenes, in all 15 strains:
+**Genes in no pangene.** The entry of a gene in no pangene (from the search, or from its gene page) is drawn like a
+pangene: all strains, its genes framed in their colour, with a warning above. Genes on contigs with no pangene (e.g.
+pieces of the mitochondrial genome) are shown too. Here, `TGME49_500178`, too short for get_pangenes, in all 15
+strains:
 
 ![A gene in no pangene, framed](images/05b_no_pangene.png)
 
@@ -249,7 +250,7 @@ lists:
 The gene page (button **Gene page**, or a click on a gene in the locus view) shows one gene: its type, location,
 strain, pangene (click to go to it), orthogroup, original gene, the model it carries, and its ORF (with the cause when
 it is broken by missing data: assembly gap or contig end). For a gene in no pangene, the pangene line says so, with
-the reason and a link to the pangene next to it. **Copy link** copies
+the reason and a link to show it in all strains. **Copy link** copies
 a link that opens the page directly on this gene. The sequence section is a placeholder: the genomic, coding and
 protein sequences are not linked yet, because they would make the file too large to share as one page.
 
