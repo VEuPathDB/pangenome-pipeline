@@ -6,3 +6,6 @@ node_modules/
 
 # local scratch files
 scratch/
+
+# results are in the pangenome-results repository
+results/

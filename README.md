@@ -49,14 +49,15 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 ## Pangenome analysis reports
 
 Results of this pipeline for each species analysed so far: the full technical write-up plus the figures and tables it
-references.
+references. They are in a separate repository,
+[pangenome-results](https://github.com/VEuPathDB/pangenome-results), so they are not downloaded with the pipeline.
 
 - **_Aspergillus fumigatus_**
-  - [Summary](results/Afum/SUMMARY.md)
-  - [Full report](results/Afum/README.md)
+  - [Summary](https://github.com/VEuPathDB/pangenome-results/blob/main/Afum/SUMMARY.md)
+  - [Full report](https://github.com/VEuPathDB/pangenome-results/blob/main/Afum/README.md)
 - **_Toxoplasma gondii_**
-  - [Summary](results/Tgondii/SUMMARY.md)
-  - [Full report](results/Tgondii/README.md)
+  - [Summary](https://github.com/VEuPathDB/pangenome-results/blob/main/Tgondii/SUMMARY.md)
+  - [Full report](https://github.com/VEuPathDB/pangenome-results/blob/main/Tgondii/README.md)
 
 ---
 
