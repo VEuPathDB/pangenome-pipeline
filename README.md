@@ -70,10 +70,14 @@ GET_PANGENES calls pangenes from annotated gene models, so its results are bound
 
 Clone or download this repository into the root folder of the species project you're working
 on, so its step folders sit directly under it, alongside your own `genomes/`,
-`gff_originals/`, and `genome_order.txt`:
+`gff_originals/`, and `genome_order.txt`. Clone first, then add your files: `git clone` needs
+an empty or new folder.
 
 ```bash
-git clone https://github.com/adriludwig/pangenome-pipeline.git <project>/
+# from the folder that will hold the project (creates <project>/)
+git clone git@github.com:VEuPathDB/pangenome-pipeline.git <project>
+# or, from inside an empty project folder
+git clone git@github.com:VEuPathDB/pangenome-pipeline.git .
 ```
 
 ```
