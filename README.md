@@ -48,16 +48,13 @@ So before running GET_PANGENES, this pipeline was developed to get consistent ge
 
 ## Pangenome analysis reports
 
-Results of this pipeline for each species analysed so far: the full technical write-up plus the figures and tables it
-references. They are in a separate repository,
-[pangenome-results](https://github.com/VEuPathDB/pangenome-results), so they are not downloaded with the pipeline.
+> **⚠️ Draft results – do not use.** These are draft results of the current version of this pipeline, kept in a
+> separate repository, [pangenome-results](https://github.com/VEuPathDB/pangenome-results), and are provided to document the
+> pipeline outputs. They must not be used for any analysis or publication.
 
-- **_Aspergillus fumigatus_**
-  - [Summary](https://github.com/VEuPathDB/pangenome-results/blob/main/Afum/SUMMARY.md)
-  - [Full report](https://github.com/VEuPathDB/pangenome-results/blob/main/Afum/README.md)
-- **_Toxoplasma gondii_**
-  - [Summary](https://github.com/VEuPathDB/pangenome-results/blob/main/Tgondii/SUMMARY.md)
-  - [Full report](https://github.com/VEuPathDB/pangenome-results/blob/main/Tgondii/README.md)
+- **_Aspergillus fumigatus_** (17 strains): [Summary](https://github.com/VEuPathDB/pangenome-results/blob/main/Afum/SUMMARY.md) · [Full report](https://github.com/VEuPathDB/pangenome-results/blob/main/Afum/README.md)
+- **_Toxoplasma gondii_** (15 strains): [Summary](https://github.com/VEuPathDB/pangenome-results/blob/main/Tgondii/SUMMARY.md) · [Full report](https://github.com/VEuPathDB/pangenome-results/blob/main/Tgondii/README.md)
+- **_Plasmodium falciparum_** (16 strains): [Summary](https://github.com/VEuPathDB/pangenome-results/blob/main/Pfalciparum/SUMMARY.md) · [Full report](https://github.com/VEuPathDB/pangenome-results/blob/main/Pfalciparum/README.md)
 
 ---
 
