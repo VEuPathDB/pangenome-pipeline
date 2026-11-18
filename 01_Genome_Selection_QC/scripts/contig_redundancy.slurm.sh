@@ -94,6 +94,7 @@ done
 echo
 echo "=== building report ==="
 python3 "$PY" "$PROJECT_DIR" --md "contig_redundancy/REPORT.md" \
+    --ref "${LABELS[0]}" \
     --chrom-min-mb "$CHROM_MIN_MB" --dup-frac "$DUP_FRAC" --dup-min-id "$DUP_MIN_ID"
 
 echo

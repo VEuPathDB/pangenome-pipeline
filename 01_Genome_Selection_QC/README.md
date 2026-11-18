@@ -545,6 +545,10 @@ extra rDNA or organelle copy. Left in the assembly, the genes on them get counte
 copies and inflate the pangenome. Genomes with many more contigs than chromosomes are the
 ones to check.
 
+> ⚠️ **A redundant-looking contig is not always an artefact.** Before dropping anything, read the
+> warning under [assembly fragmentation and small contigs](#13-assembly-fragmentation-and-small-contigs):
+> genuine mini/accessory chromosomes and fragmented organelle genomes can produce the same pattern.
+
 For every genome the SLURM script indexes the FASTA and self-aligns it
 (`minimap2 -xasm5 -DP <asm> <asm>` — the same call `purge_dups` uses), then
 `contig_redundancy.py` combines that with the vs-reference PAF from the
@@ -660,11 +664,22 @@ before step 02, so every genome carries the same nuclear-only content.
 Scripts: [`drop_contigs_slurm.sh`](scripts/drop_contigs_slurm.sh) ·
 [`drop_contigs.py`](scripts/drop_contigs.py).
 
+> ⚠️ **Save a copy of the originals first.** `drop_contigs` rewrites `genomes/` and
+> `gff_originals/` in place, and there is no undo. The removed contigs (organelles, redundant
+> contigs) are still needed later, when the final GFFs are written
+> ([step 08](../08_Final_GFF/README.md)). Before running it, copy both folders:
+>
+> ```bash
+> mkdir -p original_files_copy
+> cp -r genomes original_files_copy/genomes
+> cp -r gff_originals original_files_copy/gff
+> ```
+
 ### 12.1 Write the drop list
 
 One `<genome_basename>  <contig_id>` per line in `01_Genome_Selection_QC/drop_contigs.txt`
 (`#` comments and blank lines allowed). The contig ID is the FASTA header's first token — the
-same string that is in GFF column 1 (section 5).
+same string that is in GFF column 1 (see [trim the FASTA headers](#5-trim-the-fasta-headers)).
 
 Treat this file as a **cumulative manifest** — the running record of every contig removed
 from the dataset. Add lines as you find more (organelle, then redundant, then anything else);
@@ -678,18 +693,24 @@ Read the contigs off `organelle_screen/organelle_screen.tsv`:
 - **keep** a contig where the organelle is only a fragment sitting inside a much larger
   nuclear sequence (`fragment` / a NUMT / NUPT) — that is real nuclear DNA.
 
-...and off `contig_redundancy/REPORT.md` ([section 11](#11-contig-redundancy-screen)):
+...and off `contig_redundancy/REPORT.md` (see the [contig-redundancy screen](#11-contig-redundancy-screen)):
 
 - **drop** a `small-redundant` contig once you've confirmed it carries no unique genes;
 - **keep** `small-placed` / `small-unplaced` unless a BLAST check says otherwise.
 
+**Layout of `drop_contigs.txt`** (example values). Each line is one contig to remove: the
+genome basename, then the contig ID, separated by spaces or a tab. Lines starting with `#` are
+comments; use them to note why each group of contigs is removed.
+
 ```
-# genome            contig to drop
-AF293               mito_A_fumigatus_Af293
-GCA_040126065.1     CP146368.1
-GCA_040142845.1     JBBFMX010000010.1
-GCA_040142845.1     JBBFMX010000011.1
-GCA_040142845.1     JBBFMX010000012.1
+# genome   contig
+# organelles - organelle screen
+genomeA    genomeA_mito
+genomeA    genomeA_apicoplast
+genomeB    genomeB_mito
+# redundant contigs - contig-redundancy screen (no genes, or every gene duplicated elsewhere)
+genomeA    genomeA_contig_27
+genomeB    genomeB_contig_103
 ```
 
 ### 12.2 Run it

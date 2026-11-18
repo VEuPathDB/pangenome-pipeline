@@ -24,11 +24,8 @@ CLEAN_FRAC   = 0.90     # contig is "clean" if >= this frac of its aln bp is one
 
 
 def chrom_label(name):
-    """Short chromosome tag from a messy FASTA header."""
-    m = re.search(r'(chr[0-9IVXab]+)', name, re.I)
-    if m:
-        return m.group(1)
-    return name.split("_")[-1] if "_" in name else name
+    """Reference chromosome name, as it is in the FASTA (never shortened)."""
+    return name
 
 
 def read_paf(path, min_aln):
@@ -126,12 +123,16 @@ def analyse(paf, min_aln, ref_mb):
             for t in list(others) + [main_t]:
                 cs = [(r["qs"], r["qe"]) for r in rr if r["t"] == t]
                 qspan[t] = (min(s for s, _ in cs), max(e for _, e in cs))
-            m0, m1 = qspan[main_t]
+            # segdup = the other chrom's blocks sit on the same stretch of the contig as the
+            # main chrom's blocks; join = they sit beside them (at an end or in a gap between
+            # two main-chrom blocks, e.g. a whole chromosome assembled inside another)
+            main_iv = [(r["qs"], r["qe"]) for r in rr if r["t"] == main_t]
             kinds = {}
             for t in others:
-                s, e = qspan[t]
-                overlap = max(0, min(e, m1) - max(s, m0))
-                kinds[t] = "segdup" if overlap > 0.5 * (e - s) else "join"
+                t_iv = [(r["qs"], r["qe"]) for r in rr if r["t"] == t]
+                t_len = merged_len(t_iv)
+                overlap = t_len + merged_len(main_iv) - merged_len(t_iv + main_iv)
+                kinds[t] = "segdup" if overlap > 0.5 * t_len else "join"
             transloc.append((q, q_tot,
                              dict([(main_t, bp_by_t[main_t])] + list(others.items())),
                              kinds, qspan))

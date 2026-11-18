@@ -7,8 +7,8 @@ Goal: find small contigs that are really duplicated pieces of the chromosomes
 assembly they inflate the pangenome with redundant genes.
 
 For every genome, one row per contig, three questions:
-  1. Placement  - how much of the contig aligns to the AF293 reference, and to
-                  which chromosome        (from  synteny/<label>_vs_AF293.paf).
+  1. Placement  - how much of the contig aligns to the reference (line 1 of genome_order.txt), and to
+                  which chromosome        (from  synteny/<label>_vs_<ref>.paf).
   2. Redundancy - how much of the contig is a near-duplicate of a LONGER contig
                   in the same assembly    (from  contig_redundancy/<label>.self.paf,
                   a  minimap2 -xasm5 -DP  self-alignment, the same call purge_dups uses).
@@ -47,11 +47,8 @@ def merged_len(intervals):
 
 
 def chrom_label(name):
-    """Short chromosome tag from a messy FASTA header (Chr1_A_fumigatus_Af293 -> Chr1)."""
-    m = re.search(r"(chr[0-9IVXab]+)", name, re.I)
-    if m:
-        return m.group(1)
-    return name.split("_")[0] if "_" in name else name
+    """Reference chromosome name, as it is in the FASTA (never shortened)."""
+    return name
 
 
 def read_fai(path):

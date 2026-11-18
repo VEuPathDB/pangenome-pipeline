@@ -16,8 +16,9 @@ pipeline and puts back what was left out for the pangenome. The protein domains 
 - `pangenome_final/gff/` (step 07 part 4): the step 05 models minus the genes removed in curation; the genes left out
   of the pangenome (e.g. mito) are still there, tagged `pangenome_excluded=<reason>`.
 - `pangenome_final/pangene_ids.tsv` and the final matrix: the pangene of every gene (`<prefix>_pan_00001`...).
-- Each strain's original annotation (`<step 05>/input/native/`), for what has to be put back.
-- The genome FASTA of each strain.
+- Each strain's original annotation and genome FASTA, from `original_files_copy/` (saved in
+  [step 01](../01_Genome_Selection_QC/README.md#12-remove-the-unwanted-contigs) before the contig drop), for what has to
+  be put back, including the genes on the removed organelle and redundant contigs.
 
 ## What the step has to do
 
