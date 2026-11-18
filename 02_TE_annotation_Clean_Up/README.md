@@ -42,6 +42,9 @@ A related but opposite case is that of Starships, giant fungal mobile elements t
 
 ## **TE library curation**
 
+> **Already have a curated TE library for your species?** Skip this section and go straight to
+> [TE annotation](#te-annotation), using your library with RepeatMasker.
+
 Curating TE content is not a trivial task. Nevertheless, some level of curation is essential because RepeatModeler identifies repetitive sequence families *de novo*, and not every repetitive sequence it detects is necessarily a TE. Its output may also contain redundant families, host genes and other repetitive genomic regions that could be mistakenly classified as TEs.
 
 We initially considered using [MycoMobilome](https://github.com/TobyBaril/MycoMobilome), a database of TE consensus sequences generated from thousands of publicly available fungal genomes using a standardised and reproducible workflow. Although the database includes several filtering steps and provides a useful resource for fungal TE annotation, it is described as an uncurated starting point. In our assessment, the library still contained considerable redundancy and some apparent host-gene sequences and lots of unconfirmed/non-TE sequences. We also identified a few examples of TE misclassification. Filtering and validating the entire library would probably require more work than constructing species-specific libraries from scratch. Using [Dfam](https://dfam.org/) alone resulted in an underestimation of TE content in our genomes. We therefore developed the methodology to identify and curate the TEs. 
