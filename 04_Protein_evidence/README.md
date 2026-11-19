@@ -77,6 +77,29 @@ Scripts, in the order they run:
    sbatch --array=1-1 04_Protein_evidence/scripts/interproscan_array_job.slurm.sh
    ```
 
+   **⚠️ If some tasks seem stuck.** A chunk of 1,000 proteins usually takes 10–25 min. A task is
+   stuck when its `.out` log shows the same `% completed` for hours and, on its node (the
+   `NODELIST` column of `squeue`), only the Java process is left, at about 0% CPU, with no
+   analysis program running under it:
+   ```bash
+   ssh <node> "ps -u $USER -o etime,pcpu,args --sort=-etime | cut -c1-200"
+   ```
+   Waiting does not help, and a plain rerun can stall again. What worked was to rerun only the
+   stuck tasks with InterProScan's temporary folder on the node's local disk instead of `temp/`
+   in the project folder:
+   1. Make a one-off copy of this script in the project folder with two changes:
+      `OUT_DIR="interpro/interproscan_rerun"`, and `-T` on the `interproscan.sh` line:
+      ```bash
+      LOCAL_TMP="${TMPDIR:-/tmp}/ips_${SLURM_JOB_ID}"; mkdir -p "$LOCAL_TMP"
+      interproscan.sh -T "$LOCAL_TMP" \
+      ```
+   2. `scancel` the stuck tasks and submit only those, e.g.
+      `sbatch --array=6,22,83 <one-off script>`.
+   3. Copy each new `chunk_<N>_interproscan.tsv` into `interpro/interproscan_results/<genome>/`
+      (`cp -n`) and check that there is one non-empty TSV per manifest row before the merge.
+   4. Delete `temp/` (left by the stuck tasks), `interpro/interproscan_rerun/`, the leftover
+      `chunk_*.fasta` in the results folders, and the one-off script.
+
 4. [`scripts/merge_interpro_job.slurm.sh`](scripts/merge_interpro_job.slurm.sh) (calls
    [`scripts/merge_interpro_results.py`](scripts/merge_interpro_results.py)) — run only once
    **every** array task has finished. For each genome, collapses all its
