@@ -21,11 +21,17 @@
 #     mkdir -p liftoff_output/logs
 #     N=$(grep -c . genome_order.txt)
 #     sbatch --array=1-${N} 05_Basket_annotation_integration/scripts/liftoff_all_vs_all.sh
+# If fewer than N x (N-1) pairs are done at the end, submit the same command again (finished pairs
+# are skipped). Tasks that die at start with no log (Reason=RaisedSignal:53) were all on one broken
+# node: find it with `scontrol show job <jobid>` (BatchHost) and resubmit with --exclude=<node>.
 # Logs: liftoff_output/logs/liftoff_all_vs_all_<jobid>.out / .err - one pair per array task.
 #
 # Safe to resubmit: a source->target pair whose polished output already exists is skipped.
 # Parallel-safe: every pair uses its own temporary folder (liftoff_output/tmp/<source>_onto_<target>,
-# deleted when the pair finishes; a folder left behind means that pair failed - see the .err).
+# deleted when the pair finishes; a folder left behind means that pair failed - see the .err), with
+# its own copy of both FASTAs. Liftoff writes the minimap2 index (.mmi) and the .fai next to the
+# FASTA: with the shared files in genomes/, parallel jobs wrote the same index at the same time and
+# Liftoff failed with "OSError: truncated file".
 
 set -euo pipefail
 
@@ -104,6 +110,10 @@ for source in "${sources[@]}"; do
         # (array tasks) would overwrite each other, so every pair gets its own.
         tmpdir="$OUT_DIR/tmp/${source}_onto_${target}"
         rm -rf "$tmpdir"
+        mkdir -p "$tmpdir"
+        # Own copy of both FASTAs (see the header): deleted with the folder when the pair ends.
+        cp "$tgt_fa" "$tmpdir/target.fa"
+        cp "$src_fa" "$tmpdir/source.fa"
 
         liftoff -g "$src_gff" \
                 -o "$OUT_DIR/${source}_onto_${target}_liftoff.gff3" \
@@ -115,8 +125,8 @@ for source in "${sources[@]}"; do
                 -copies -sc 0.9 \
                 -flank 0.1 \
                 -mismatch 1 -gap_open 1 -gap_extend 1 \
-                "$tgt_fa" \
-                "$src_fa"
+                "$tmpdir/target.fa" \
+                "$tmpdir/source.fa"
 
         mv "$OUT_DIR/${source}_onto_${target}_liftoff.gff3_polished" "$OUT_DIR/polished/"
         rm -rf "$tmpdir"

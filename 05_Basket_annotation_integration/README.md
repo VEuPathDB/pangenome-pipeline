@@ -276,13 +276,24 @@ Liftoff parameters, set in the script:
 | `-f` | `gene` | `liftoff_feature_types.txt` | the types to transfer (step 3) |
 | `-dir` | shared | one folder per pair | `liftoff_output/tmp/<source>_onto_<target>`, removed when the pair ends (a folder left behind = that pair failed) |
 
-Run as one job per source genome, in parallel (the log folder must exist before submitting):
+Every pair works in its own `tmp/` folder, with its own copy of the two FASTAs: Liftoff writes the genome index
+(`.mmi`) and `.fai` next to the FASTA, and parallel jobs sharing the files in `genomes/` broke each other's index
+(`OSError: truncated file`). Two ways to run it (the log folder must exist before submitting):
 
-```bash
-mkdir -p liftoff_output/logs
-N=$(grep -c . genome_order.txt)
-sbatch --array=1-${N} 05_Basket_annotation_integration/scripts/liftoff_all_vs_all.sh
-```
+- **One job, one pair at a time** (safest, slower):
+  ```bash
+  mkdir -p liftoff_output/logs
+  sbatch 05_Basket_annotation_integration/scripts/liftoff_all_vs_all.sh
+  ```
+- **One job per source genome, in parallel:**
+  ```bash
+  mkdir -p liftoff_output/logs
+  N=$(grep -c . genome_order.txt)
+  sbatch --array=1-${N} 05_Basket_annotation_integration/scripts/liftoff_all_vs_all.sh
+  ```
+  If fewer than N × (N - 1) pairs are done at the end, submit the same command again: finished pairs are skipped.
+  Tasks that fail at start with no log (`Reason=RaisedSignal:53`) were all sent to one broken node: find it with
+  `scontrol show job <jobid>` (`BatchHost`) right after submitting, and resubmit with `--exclude=<node>`.
 
 Steps 3 and 4 can be chained (Liftoff starts when the preparation has finished without error):
 
