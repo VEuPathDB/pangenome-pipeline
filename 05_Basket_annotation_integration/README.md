@@ -667,8 +667,18 @@ All settings are at the top of [`scripts/basket_annotation_job.sh`](scripts/bask
 
 ```bash
 mkdir -p basket_annotation/logs
-sbatch 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
+export REMOVED_CONTIGS="01_Genome_Selection_QC/drop_contigs.txt:organelle_or_redundant_contig"
+export ORIGINAL_GFF_DIR=original_files_copy/gff
+export REMOVED_GENES="te_annotation_integration/{genome}.eliminated_genes.gff:TE genes (step 02)"
+sbatch --export=ALL 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
 ```
+
+The three `export` lines give the files of the genes removed before step 05, used only for the gene balance (see
+[Genes removed before step 05](#genes-removed-before-step-05-gene-balance)):
+- `REMOVED_CONTIGS` and `ORIGINAL_GFF_DIR`: the drop list of step 01 and the copy of the GFFs saved before the
+  contigs were removed (see step 01, "Remove the unwanted contigs").
+- `REMOVED_GENES`: the TE genes removed in step 02, one GFF per genome.
+- Leave out a line when its step was skipped (e.g. no TE library: no `REMOVED_GENES`).
 
 Any setting can be changed on the command line instead of in the script, for example:
 ```bash
@@ -705,19 +715,6 @@ Two rules:
   table (`<label>_<mode>_gene_balance.tsv`) has one column per reason. A gene with no reason is called `removed`.
 - **A missing file is skipped without a warning.** Check after the run that the bars (or the columns of the
   table) are not 0.
-
-With the standard outputs of steps 01 and 02:
-```bash
-mkdir -p basket_annotation/logs
-export REMOVED_CONTIGS="01_Genome_Selection_QC/drop_contigs.txt:organelle_or_redundant_contig"
-export ORIGINAL_GFF_DIR=original_files_copy/gff
-export REMOVED_GENES="te_annotation_integration/{genome}.eliminated_genes.gff:TE genes (step 02)"
-sbatch --export=ALL 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
-```
-- `REMOVED_CONTIGS` and `ORIGINAL_GFF_DIR`: the drop list of step 01 and the copy of the GFFs saved before the
-  contigs were removed (see step 01, "Remove the unwanted contigs").
-- `REMOVED_GENES`: the TE genes removed in step 02, one GFF per genome.
-- Leave out a line when its step was skipped (e.g. no TE library: no `REMOVED_GENES`).
 
 **Forgot these files, or want to add one? You do not need to run step 05 again.** The gene balance is made at the
 end of the job, from the results already written. [`gene_fate_job.sh`](scripts/gene_fate_job.sh) redoes only that
