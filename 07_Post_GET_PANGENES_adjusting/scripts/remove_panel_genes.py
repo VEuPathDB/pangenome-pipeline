@@ -30,7 +30,7 @@ With --pangene-prefix the pangenes left are renamed <prefix>_pan_00001, <prefix>
 matrix, and pangene_ids.tsv links each new ID to its old name (one strain's gene ID, given by get_pangenes).
 
 Outputs (in --out-dir):
-  gff/<genome><suffix>             the GFFs without the removed genes
+  gff/<genome><suffix>             the GFFs without the removed genes; each gene in a pangene gets pangene=<final ID>
   pangene_matrix_genes.tr.tab/.tab the matrix without them (pangenes in rows / genomes in rows), with the new pangene IDs
   pangene_ids.tsv                  (with --pangene-prefix) pangene_id, old_pangene, genomes, genes, panel_genes
   excluded_from_pangenome.tsv      (with --exclude or --actions) B: one row per gene left out of the pangenome: genome, gene, panel
@@ -194,6 +194,20 @@ def main():
         cells = {new_id[p]: cells[p] for p in order}
         order = [new_id[p] for p in order]
     write_matrix(os.path.join(a.out_dir, "pangene_matrix_genes"), header, genomes, order, cells, extra)
+
+    # 3. the final pangene of each gene, as pangene=<ID> on its gene line (genes in no pangene get none)
+    final_pang = {x: p for p in order for g in cells[p] for x in cells[p][g]}
+    for path in sorted(glob.glob(os.path.join(a.out_dir, "gff", "*" + a.gff_suffix))):
+        lines = open(path).readlines()
+        with open(path, "w") as fh:
+            for line in lines:
+                f = line.rstrip("\n").split("\t")
+                if len(f) > 8 and f[2] == "gene":
+                    i = ID_RE.search(f[8])
+                    if i and i.group(1) in final_pang:
+                        f[8] = f[8].rstrip(";") + ";pangene=" + final_pang[i.group(1)]
+                        line = "\t".join(f) + "\n"
+                fh.write(line)
 
     with open(os.path.join(a.out_dir, "removed_genes.tsv"), "w") as fh:
         fh.write("genome\tgene\tpanel_gene\tlocation\tpangene\tpangene_removed\tlist\treason\n")
