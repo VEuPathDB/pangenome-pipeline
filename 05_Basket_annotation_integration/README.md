@@ -538,7 +538,14 @@ score.
    - no two genes of a genome sit at the same place (same strand, CDS spans overlapping by 50% or more of the smaller):
      one place, one gene;
    - every protein-coding gene of the reference annotation is written in the reference genome, unless it was removed
-     on purpose (curation or overlap rule).
+     on purpose (curation or overlap rule). The log line lists the missing ones:
+     ```bash
+     grep "reference genes written" basket_annotation/logs/*.out
+     # reference genes written in 3D7: 5442 of 5443; removed on purpose: 0; missing: 1 ['PF3D7_1440200']
+     ```
+     A known cause: two reference genes that share CDS exons in the reference annotation sit at the same place, and
+     "one place, one gene" keeps only one of them (in *P. falciparum*, PF3D7_1440200 and PF3D7_1440300). Such cases
+     should be rare; the missing genes must be added back to the final GFFs at the end.
 8. **Plots** of the results, the modes of `MODES` side by side (listed in [Outputs](#outputs)). They can be redone
    alone, for example for one mode only, without running the step again (see [Running it](#running-it)).
 9. **Gene fate.** Every gene of every genome's own annotation is accounted for (`gene_fate_<mode>.tsv`): the final
@@ -699,25 +706,18 @@ Two rules:
 - **A missing file is skipped without a warning.** Check after the run that the bars (or the columns of the
   table) are not 0.
 
-*A. fumigatus*, TE genes of step 02 (one GFF per genome):
+With the standard outputs of steps 01 and 02:
 ```bash
 mkdir -p basket_annotation/logs
+export REMOVED_CONTIGS="01_Genome_Selection_QC/drop_contigs.txt:organelle_or_redundant_contig"
+export ORIGINAL_GFF_DIR=original_files_copy/gff
 export REMOVED_GENES="te_annotation_integration/{genome}.eliminated_genes.gff:TE genes (step 02)"
 sbatch --export=ALL 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
 ```
-
-The same with a table of gene IDs (columns `genome`, `gene`, `reason`; its reasons start with `TE`):
-```bash
-export REMOVED_GENES="genes_removed_before_step05.tsv"
-```
-
-*T. gondii*, genes on small contigs and genes on apicoplast and redundant contigs (step 01):
-```bash
-export REMOVED_GENES="contig_size_profile/small_contig_genes.tsv:contig < 10 kb"
-export REMOVED_CONTIGS="09_Redundant_Contig_Removal/apicoplast_screen/apicoplast_contigs.tsv:apicoplast contig|09_Redundant_Contig_Removal/redundant_contigs_removed.tsv:redundant contig"
-export ORIGINAL_GFF_DIR=gff_originals
-sbatch --export=ALL 05_Basket_annotation_integration/scripts/basket_annotation_job.sh
-```
+- `REMOVED_CONTIGS` and `ORIGINAL_GFF_DIR`: the drop list of step 01 and the copy of the GFFs saved before the
+  contigs were removed (see step 01, "Remove the unwanted contigs").
+- `REMOVED_GENES`: the TE genes removed in step 02, one GFF per genome.
+- Leave out a line when its step was skipped (e.g. no TE library: no `REMOVED_GENES`).
 
 **Forgot these files, or want to add one? You do not need to run step 05 again.** The gene balance is made at the
 end of the job, from the results already written. [`gene_fate_job.sh`](scripts/gene_fate_job.sh) redoes only that
@@ -729,7 +729,9 @@ figures.
 Give it the settings of this section again: it does not read them from the earlier run. Its `PLOT_LABEL` default is
 `panel`, so set it too:
 ```bash
-export PLOT_LABEL=Afum
+export PLOT_LABEL=<label>
+export REMOVED_CONTIGS="01_Genome_Selection_QC/drop_contigs.txt:organelle_or_redundant_contig"
+export ORIGINAL_GFF_DIR=original_files_copy/gff
 export REMOVED_GENES="te_annotation_integration/{genome}.eliminated_genes.gff:TE genes (step 02)"
 sbatch --export=ALL 05_Basket_annotation_integration/scripts/gene_fate_job.sh
 ```
