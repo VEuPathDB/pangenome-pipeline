@@ -12,3 +12,7 @@ results/
 
 # README previews made locally
 README.html
+
+# local scripts, not part of the pipeline
+05_Basket_annotation_integration/scripts/proteome_psauron_compare.py
+05_Basket_annotation_integration/scripts/proteome_psauron_job.sh
