@@ -9,3 +9,6 @@ scratch/
 
 # results are in the pangenome-results repository
 results/
+
+# README previews made locally
+README.html
