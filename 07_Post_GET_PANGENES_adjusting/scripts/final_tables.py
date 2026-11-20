@@ -156,6 +156,9 @@ def main():
     with open(os.path.join(a.final_dir, "summary_tables.tsv"), "w") as fh:
         for k, n in st.most_common():
             fh.write(f"{'panel_genes' if k.endswith('_step05') else 'genes'}_{k}\t{n}\n")
+        # the total: in_pangenome counts only the genes in the same pangene as in get_pangenes
+        fh.write(f"genes_in_final_pangenome (in_pangenome + moved + not_in_reference)\t"
+                 f"{st['in_pangenome'] + st['moved'] + st['not_in_reference']}\n")
         fh.write(f"singleton_pangenes\t{len({r[0] for r in sing})}\n")
         for k, n in sc.most_common():
             fh.write(f"singletons_{k}\t{n}\n")
