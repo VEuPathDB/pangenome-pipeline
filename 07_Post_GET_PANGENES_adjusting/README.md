@@ -378,7 +378,14 @@ all in `07_Post_GET_PANGENES_adjusting/`:
   TGRH88_085440	mito: cytochrome b
   ```
 
-A list with only its header changes nothing.
+A list with only its header changes nothing. All three files must exist, or the job stops with `ERROR: missing ...`:
+a list you do not use holds only its header line, e.g.
+
+```bash
+printf 'panel_gene\treason\n' > 07_Post_GET_PANGENES_adjusting/genes_to_remove.tsv
+printf 'gene\treason\n' > 07_Post_GET_PANGENES_adjusting/strain_genes_to_remove.tsv
+printf 'panel_gene\treason\n' > 07_Post_GET_PANGENES_adjusting/genes_to_exclude_from_pangenome.tsv
+```
 
 [`remove_panel_genes.py`](scripts/remove_panel_genes.py) removes the genes with all their features (mRNA, exons, CDS)
 from a copy of the GFFs and from the matrix, and takes the genes of the exclusion list out of the matrix only; a
